@@ -4,6 +4,8 @@
 /.settings/
 /.vscode/
 /bin/
+/scienceplots/
+/__pycache__/
 
 .classpath
 .project
@@ -13,6 +15,7 @@
 *.mdb
 *.ldb
 *.sln
+*.pyc
 ##class file##
 *.com
 *.class
