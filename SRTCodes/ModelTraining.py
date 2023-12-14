@@ -310,6 +310,9 @@ class ConfusionMatrix:
             self._it_count = 0
             raise StopIteration
 
+    def toList(self):
+        return self._cm.tolist()
+
 
 class MeanSquareError:
 
