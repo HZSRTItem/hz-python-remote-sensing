@@ -92,6 +92,16 @@ def saveGDALRaster(d, n_row, n_column, band_count, dtype, fmt, geo_transform, in
     del dst_ds
 
 
+def getGDALRasterNames(raster_fn):
+    ds: gdal.Dataset = gdal.Open(raster_fn)
+    names = []
+    for i in range(1, ds.RasterCount + 1):
+        b = ds.GetRasterBand(i)
+        name = b.GetDescription()
+        names.append(name)
+    return names
+
+
 class GDALRasterIO(GEORaster):
     """ GDAL Raster IO"""
 

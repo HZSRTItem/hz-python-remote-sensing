@@ -8,14 +8,16 @@ r"""----------------------------------------------------------------------------
 @Desc    : BaseCodes of Draw
 -----------------------------------------------------------------------------"""
 import math
+import os
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from SRTCodes.GDALRasterIO import samplingGDALRastersToCSV
+from SRTCodes.GDALRasterIO import samplingGDALRastersToCSV, GDALRasterChannel, getGDALRasterNames
 from SRTCodes.NumpyUtils import filterEq
+from SRTCodes.SRTDraw import SRTDrawHist
 from SRTCodes.SRTSample import CSVSamples
 from SRTCodes.Utils import printList, printDict, readJson, angleToRadian, radianToAngle, changext
 from Shadow.DeepLearning.SHDLData import SHDLDataSampleCollection, SHDLDataSample
@@ -545,14 +547,14 @@ def tempFuncs():
         x_draw_feat, y_draw_feat = "AS_VV", "AS_VH"
         names = ["IS", "VEG", "SOIL", "WAT", ]
         colors = ["red", "lightgreen", "yellow", "lightblue"]
-        select_list = [ 2, 3, 4, 1,]
+        select_list = [2, 3, 4, 1, ]
         is_10log10 = True
         df = pd.read_csv(csv_fn)
         for i in select_list:
             df_tmp = filter_eq(df, "Category", i)
             if is_10log10:
                 df_tmp[x_draw_feat] = np.power(10, df_tmp[x_draw_feat] / 10)
-                df_tmp[x_draw_feat] = np.clip( df_tmp[x_draw_feat], 0, 0.6)
+                df_tmp[x_draw_feat] = np.clip(df_tmp[x_draw_feat], 0, 0.6)
                 df_tmp[y_draw_feat] = np.power(10, df_tmp[y_draw_feat] / 10)
                 df_tmp[y_draw_feat] = np.clip(df_tmp[y_draw_feat], 0, 0.1)
             plt.scatter(df_tmp[x_draw_feat], df_tmp[y_draw_feat], label=names[i - 1], c=colors[i - 1])
@@ -564,7 +566,147 @@ def tempFuncs():
     func1()
 
 
+class SRTDrawHistShadow(SRTDrawHist):
+
+    def __init__(self):
+        super(SRTDrawHistShadow, self).__init__()
+        self.grc = GDALRasterChannel()
+        self.names = []
+
+    def addGDALRaster(self, raster_fn, field_name):
+        self.grc.addGDALData(raster_fn, field_name)
+        self.add(field_name, self.grc[field_name])
+
+    def featureScaleMinMax(self, field_name, x_min, x_max):
+        self._collection[field_name].scaleMinMax(x_min, x_max)
+
+    def featureCallBack(self, field_name, func_callback):
+        self._collection[field_name].addCallBack(func_callback)
+
+
 def main():
+    sdhs = SRTDrawHistShadow()
+    qd_raster_fn = r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_envi.dat"
+    bj_raster_fn = r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_envi.dat"
+    cd_raster_fn = r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_envi.dat"
+    # 'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'Blue', 'Green', 'Red', 'NIR', 'NDVI', 'NDWI',
+    # 'OPT_asm', 'OPT_con', 'OPT_cor', 'OPT_dis', 'OPT_ent', 'OPT_hom', 'OPT_mean', 'OPT_var',
+    # 'AS_VV', 'AS_VH', 'AS_VHDVV', 'AS_C11', 'AS_C12_imag', 'AS_C12_real', 'AS_C22', 'AS_Lambda1', 'AS_Lambda2',
+    # 'AS_SPAN', 'AS_Epsilon', 'AS_Mu', 'AS_RVI', 'AS_m', 'AS_Beta',
+    # 'AS_VH_asm', 'AS_VH_con', 'AS_VH_cor', 'AS_VH_dis', 'AS_VH_ent', 'AS_VH_hom', 'AS_VH_mean', 'AS_VH_var',
+    # 'AS_VV_asm', 'AS_VV_con', 'AS_VV_cor', 'AS_VV_dis', 'AS_VV_ent', 'AS_VV_hom', 'AS_VV_mean', 'AS_VV_var',
+    # 'DE_VV', 'DE_VH', 'DE_VHDVV', 'DE_C11', 'DE_C12_imag', 'DE_C12_real', 'DE_C22','DE_Lambda1', 'DE_Lambda2',
+    # 'DE_SPAN',  'DE_Epsilon', 'DE_Mu', 'DE_RVI', 'DE_m', 'DE_Beta',
+    # 'DE_VH_asm', 'DE_VH_con', 'DE_VH_cor', 'DE_VH_dis', 'DE_VH_ent', 'DE_VH_hom', 'DE_VH_mean', 'DE_VH_var',
+    # 'DE_VV_asm', 'DE_VV_con', 'DE_VV_cor', 'DE_VV_dis', 'DE_VV_ent', 'DE_VV_hom', 'DE_VV_mean', 'DE_VV_var'
+    field_names = getGDALRasterNames(qd_raster_fn)
+    for field_name in field_names:
+        sdhs.addGDALRaster(qd_raster_fn, field_name)
+
+    sdhs.featureScaleMinMax("Blue", 99.76996, 2397.184)
+    sdhs.featureScaleMinMax("Green", 45.83414, 2395.735)
+    sdhs.featureScaleMinMax("Red", 77.79654, 2726.7026)
+    sdhs.featureScaleMinMax("NIR", 0.66086, 3498.4321)
+    sdhs.featureScaleMinMax("NDVI", -0.8007727, 0.8354284)
+    sdhs.featureScaleMinMax("NDWI", -0.8572631, 0.8623875)
+    sdhs.featureScaleMinMax("OPT_asm", 0.02124183, 0.998366)
+    sdhs.featureScaleMinMax("OPT_con", 0.0, 169.74791)
+    sdhs.featureScaleMinMax("OPT_cor", -0.036879253, 0.99688625)
+    sdhs.featureScaleMinMax("OPT_dis", 0.0, 9.799746)
+    sdhs.featureScaleMinMax("OPT_ent", 0.0, 3.8249474)
+    sdhs.featureScaleMinMax("OPT_hom", 0.12091503, 0.998366)
+    sdhs.featureScaleMinMax("OPT_mean", 4.941177, 53.7353)
+    sdhs.featureScaleMinMax("OPT_var", 0.0, 236.09961)
+
+    sdhs.featureCallBack("AS_VV", cal_10log10)
+    sdhs.featureCallBack("AS_VH", cal_10log10)
+    sdhs.featureCallBack("AS_C11", cal_10log10)
+    sdhs.featureCallBack("AS_C22", cal_10log10)
+    sdhs.featureCallBack("AS_Lambda1", cal_10log10)
+    sdhs.featureCallBack("AS_Lambda2", cal_10log10)
+    sdhs.featureCallBack("AS_SPAN", cal_10log10)
+    sdhs.featureCallBack("AS_Epsilon", cal_10log10)
+    sdhs.featureCallBack("DE_VV", cal_10log10)
+    sdhs.featureCallBack("DE_VH", cal_10log10)
+    sdhs.featureCallBack("DE_C11", cal_10log10)
+    sdhs.featureCallBack("DE_C22", cal_10log10)
+    sdhs.featureCallBack("DE_Lambda1", cal_10log10)
+    sdhs.featureCallBack("DE_Lambda2", cal_10log10)
+    sdhs.featureCallBack("DE_SPAN", cal_10log10)
+    sdhs.featureCallBack("DE_Epsilon", cal_10log10)
+
+    sdhs.featureScaleMinMax("AS_VV", -30.609674, 11.9092603)
+    sdhs.featureScaleMinMax("AS_VH", -35.865038, 1.2615275)
+    sdhs.featureScaleMinMax("AS_VHDVV", 0.0, 1.5)
+    sdhs.featureScaleMinMax("AS_C11", -28.61998, 11.8634768)
+    sdhs.featureScaleMinMax("AS_C22", -30.579813, 1.2111626)
+    sdhs.featureScaleMinMax("AS_Lambda1", -26.955856, 11.124724)
+    sdhs.featureScaleMinMax("AS_Lambda2", -31.869734, 1.284683)
+    sdhs.featureScaleMinMax("AS_SPAN", -22.58362, 6.97997)
+    sdhs.featureScaleMinMax("AS_Epsilon", 0.0, 35.12922)
+    sdhs.featureScaleMinMax("AS_Mu", -0.7263123, 0.7037629)
+    sdhs.featureScaleMinMax("AS_RVI", 0.07459847, 2.076324)
+    sdhs.featureScaleMinMax("AS_m", 0.26469338, 0.97544414)
+    sdhs.featureScaleMinMax("AS_Beta", 0.632338, 0.9869048)
+
+    sdhs.featureScaleMinMax("AS_VH_asm", 0.02124183, 0.050653595)
+    sdhs.featureScaleMinMax("AS_VH_con", 6.572378, 59.151405)
+    sdhs.featureScaleMinMax("AS_VH_cor", 0.006340516, 0.86876196)
+    sdhs.featureScaleMinMax("AS_VH_dis", 1.9767247, 5.8193297)
+    sdhs.featureScaleMinMax("AS_VH_ent", 3.0939856, 3.8060431)
+    sdhs.featureScaleMinMax("AS_VH_hom", 0.16666667, 0.40849674)
+    sdhs.featureScaleMinMax("AS_VH_mean", 7.514706, 54.04412)
+    sdhs.featureScaleMinMax("AS_VH_var", 5.9986033, 108.64137)
+    sdhs.featureScaleMinMax("AS_VV_asm", 0.022875817, 0.050653595)
+    sdhs.featureScaleMinMax("AS_VV_con", 4.5305123, 48.325462)
+    sdhs.featureScaleMinMax("AS_VV_cor", 0.21234758, 0.88228023)
+    sdhs.featureScaleMinMax("AS_VV_dis", 1.5990733, 5.22229)
+    sdhs.featureScaleMinMax("AS_VV_ent", 3.1254923, 3.7871387)
+    sdhs.featureScaleMinMax("AS_VV_hom", 0.18464053, 0.45261437)
+    sdhs.featureScaleMinMax("AS_VV_mean", 8.544118, 51.573532)
+    sdhs.featureScaleMinMax("AS_VV_var", 3.8744159, 96.8604)
+
+    sdhs.featureScaleMinMax("DE_VV", -27.851603, 5.094706)
+    sdhs.featureScaleMinMax("DE_VH", -35.427082, -5.4092093)
+    sdhs.featureScaleMinMax("DE_VHDVV", 0.0, 1.0289364)
+    sdhs.featureScaleMinMax("DE_C11", -26.245598, 4.9907513)
+    sdhs.featureScaleMinMax("DE_C22", -32.042320, -5.322515)
+    sdhs.featureScaleMinMax("DE_Lambda1", -25.503738, 5.2980003)
+    sdhs.featureScaleMinMax("DE_Lambda2", -33.442368, -8.68537)
+    sdhs.featureScaleMinMax("DE_SPAN", -24.81076, 4.82663)
+    sdhs.featureScaleMinMax("DE_Epsilon", 0.0, 21.882689)
+    sdhs.featureScaleMinMax("DE_Mu", -0.6823329, 0.7723537)
+    sdhs.featureScaleMinMax("DE_RVI", 0.0940072, 2.1935015)
+    sdhs.featureScaleMinMax("DE_m", 0.24836189, 0.9705721)
+    sdhs.featureScaleMinMax("DE_Beta", 0.6241778, 0.9852859)
+
+    sdhs.featureScaleMinMax("DE_VH_asm", 0.022875817, 0.05392157)
+    sdhs.featureScaleMinMax("DE_VH_con", 5.6798058, 51.11825)
+    sdhs.featureScaleMinMax("DE_VH_cor", 0.12444292, 0.87177193)
+    sdhs.featureScaleMinMax("DE_VH_dis", 1.8186697, 5.456009)
+    sdhs.featureScaleMinMax("DE_VH_ent", 2.9679575, 3.7997417)
+    sdhs.featureScaleMinMax("DE_VH_hom", 0.1748366, 0.42810458)
+    sdhs.featureScaleMinMax("DE_VH_mean", 7.6176476, 55.176476)
+    sdhs.featureScaleMinMax("DE_VH_var", 5.513511, 95.38374)
+    sdhs.featureScaleMinMax("DE_VV_asm", 0.02124183, 0.057189543)
+    sdhs.featureScaleMinMax("DE_VV_con", 5.0987973, 57.54357)
+    sdhs.featureScaleMinMax("DE_VV_cor", 0.19514601, 0.88254523)
+    sdhs.featureScaleMinMax("DE_VV_dis", 1.7117102, 5.6928787)
+    sdhs.featureScaleMinMax("DE_VV_ent", 2.993163, 3.7997417)
+    sdhs.featureScaleMinMax("DE_VV_hom", 0.17320262, 0.44444445)
+    sdhs.featureScaleMinMax("DE_VV_mean", 6.4852943, 54.04412)
+    sdhs.featureScaleMinMax("DE_VV_var", 4.44714, 111.17851)
+
+    for i, field_name in enumerate (field_names):
+        sdhs.plot(field_name)
+        image_fn = os.path.join(r"F:\Week\20231217\Data\qd", "{0:03d}_{1}.jpg".format(i+1, field_name))
+        print(image_fn)
+        plt.legend()
+        plt.savefig(image_fn, format="jpeg")
+        plt.close()
+
+
+def method_name():
     sdm = SampleDrawMain()
     sdm.initCSVSamples(r"F:\ProjectSet\Shadow\MkTu\4.1Details\Samples\three_spl_spl.csv")
     # sdm.drawBox()
@@ -572,5 +714,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
-    tempFuncs()
+    main()
+    # tempFuncs()

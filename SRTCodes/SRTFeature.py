@@ -10,6 +10,7 @@ r"""----------------------------------------------------------------------------
 import warnings
 
 import numpy as np
+import pandas as pd
 
 from SRTCodes.SRTCollection import SRTCollection
 from SRTCodes.Utils import printKeyValue
@@ -53,6 +54,40 @@ class SRTFeatureCallBackScaleMinMax(SRTFeatureCallBack):
             if self.is_to_01:
                 x = (x - x_min) / (x_max - x_min)
         return x
+
+
+class SRTFeatureCallBackList:
+
+    def __init__(self):
+        self._callback_list = []
+        self._n_iter = 0
+
+    def addScaleMinMax(self, x_min=None, x_max=None, is_trans=False, is_to_01=False):
+        self._callback_list.append(SRTFeatureCallBackScaleMinMax(
+            x_min=x_min, x_max=x_max, is_trans=is_trans, is_to_01=is_to_01))
+        return self
+
+    def add(self, callback_func, is_trans=False):
+        self._callback_list.append(SRTFeatureCallBack(callback_func=callback_func, is_trans=is_trans))
+
+    def __len__(self):
+        return len(self._callback_list)
+
+    def __getitem__(self, item):
+        return self._callback_list[item]
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._n_iter == len(self._callback_list):
+            self._n_iter = 0
+            raise StopIteration()
+        self._n_iter += 1
+        return self._callback_list[self._n_iter - 1]
+
+    def __contains__(self, item):
+        return item in self._callback_list
 
 
 class SRTFeatureCallBackCollection(SRTCollection):
@@ -226,6 +261,92 @@ class SRTFeatureForward:
 
     def __init__(self, name):
         self.name = name
+
+
+class SRTFeatureData:
+
+    def __init__(self, name="FD", _data=None):
+        self._name = name
+        self._data = None
+        self.data(_data)
+        self.callback_list = SRTFeatureCallBackList()
+
+    def data(self, _data=None):
+        if _data is not None:
+            self._data = _data
+        return self._data
+
+    def addCallBack(self, callback_func, is_trans=False):
+        self.callback_list.add(callback_func=callback_func, is_trans=is_trans)
+        self._data = callback_func(self._data)
+
+    def scaleMinMax(self, x_min=None, x_max=None, is_to_01=False):
+        sfcbsmm = SRTFeatureCallBackScaleMinMax(x_min=x_min, x_max=x_max, is_trans=True, is_to_01=is_to_01)
+        self._data = sfcbsmm.fit(self._data)
+        return self
+
+    def add(self, number):
+        self._data = self._data + number
+        return self
+
+    def subtract(self, number):
+        self._data = self._data - number
+        return self
+
+    def multiply(self, number):
+        self._data = self._data * number
+        return self
+
+    def divide(self, number):
+        self._data = self._data / number
+        return self
+
+    def funcCal(self, cal_func):
+        self._data = cal_func(self._data)
+
+
+class SRTFeatureDataCollection(SRTCollection):
+    """ Feature Data Collection"""
+
+    INIT_FEAT_NAME = "FEATURE"
+
+    def __init__(self):
+        super(SRTFeatureDataCollection, self).__init__()
+        self._collection = {}
+        self._n_next = self._collection
+
+    def add(self, name=None, data=None):
+        if (name is None) and (data is None):
+            return None
+        if name is None:
+            n = 1
+            while True:
+                name = self.INIT_FEAT_NAME + "_{0}".format(n)
+                if name not in self._collection:
+                    break
+        self._collection[name] = SRTFeatureData(name=name, _data=data)
+
+    def addDataFrame(self, df):
+        for k in df:
+            self.add(k, df[k].values)
+
+    def addCSVFile(self, csv_fn):
+        self.addDataFrame(pd.read_csv(csv_fn))
+
+    def addExcelFile(self, excel_fn, sheet_name=0):
+        self.addDataFrame(pd.read_excel(excel_fn, sheet_name=sheet_name))
+
+    def get(self, name):
+        return self._collection[name].data()
+
+    def __getitem__(self, feat_name) -> SRTFeatureData:
+        return self._n_next[feat_name]
+
+    def __setitem__(self, feat_name, feat_data):
+        self._n_next[feat_name] = feat_data
+
+    def keys(self):
+        return self._collection.keys()
 
 
 class SRTFeatures(SRTCollection):

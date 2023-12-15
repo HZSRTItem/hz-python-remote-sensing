@@ -20,6 +20,7 @@ from mpl_toolkits.axisartist import AxesZero
 from mpl_toolkits.axisartist.parasite_axes import HostAxes, ParasiteAxes
 from osgeo import gdal
 
+import scienceplots
 from SRTCodes.GDALRasterClassification import GDALRasterClassificationAccuracy
 from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterCollection, readGEORaster, saveGEORaster
 from SRTCodes.GDALRasterIO import GDALRasterFeatures
@@ -28,14 +29,56 @@ from SRTCodes.GEEUtils import GEEImageProperty, geeCSVSelectPropertys
 from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.NumpyUtils import neighborhood, calPCA
 from SRTCodes.OGRUtils import SRTESRIShapeFileRead, sampleSpaceUniform
+from SRTCodes.SRTDraw import SRTDrawHist
 from SRTCodes.Utils import savecsv, readcsv, DirFileName, Jdt
-from Shadow.ShadowDraw import ShadowDrawDirectLength
+from Shadow.ShadowDraw import ShadowDrawDirectLength, cal_10log10
 from Shadow.ShadowGeoDraw import _10log10
 
 imdcDirname = DirFileName(r"F:\ProjectSet\Shadow\QingDao\Mods\20230707H200910")
 
+scienceplots.init()
+
 
 def main():
+    # 分层的模型的时候，在阴影的分类效果不好，可能是数据范围的问题，现在再看看hist
+    sdh = SRTDrawHist()
+    sdh.addCSVFile(r"F:\ProjectSet\Shadow\Hierarchical\20231209\sh_bj_sample_spl.csv")
+    # 'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'Blue', 'Green', 'Red', 'NIR', 'NDVI', 'NDWI',
+    # 'OPT_asm', 'OPT_con', 'OPT_cor', 'OPT_dis', 'OPT_ent', 'OPT_hom', 'OPT_mean', 'OPT_var',
+    # 'AS_VV', 'AS_VH', 'AS_VHDVV', 'AS_C11', 'AS_C12_imag', 'AS_C12_real', 'AS_C22', 'AS_Lambda1', 'AS_Lambda2',
+    # 'AS_SPAN', 'AS_Epsilon', 'AS_Mu', 'AS_RVI', 'AS_m', 'AS_Beta',
+    # 'AS_VH_asm', 'AS_VH_con', 'AS_VH_cor', 'AS_VH_dis', 'AS_VH_ent', 'AS_VH_hom', 'AS_VH_mean', 'AS_VH_var',
+    # 'AS_VV_asm', 'AS_VV_con', 'AS_VV_cor', 'AS_VV_dis', 'AS_VV_ent', 'AS_VV_hom', 'AS_VV_mean', 'AS_VV_var',
+    # 'DE_VV', 'DE_VH', 'DE_VHDVV', 'DE_C11', 'DE_C12_imag', 'DE_C12_real', 'DE_C22','DE_Lambda1', 'DE_Lambda2',
+    # 'DE_SPAN',  'DE_Epsilon', 'DE_Mu', 'DE_RVI', 'DE_m', 'DE_Beta',
+    # 'DE_VH_asm', 'DE_VH_con', 'DE_VH_cor', 'DE_VH_dis', 'DE_VH_ent', 'DE_VH_hom', 'DE_VH_mean', 'DE_VH_var',
+    # 'DE_VV_asm', 'DE_VV_con', 'DE_VV_cor', 'DE_VV_dis', 'DE_VV_ent', 'DE_VV_hom', 'DE_VV_mean', 'DE_VV_var'
+    plt.style.use('ieee')
+    sdh.category('CNAME')
+
+    def draw1(*draw_names):
+        for draw_name in draw_names:
+            if ("AS" in draw_name) or ("DE" in draw_name):
+                sdh[draw_name].funcCal(cal_10log10)
+            sdh.plot(draw_name, c=(0, 0, 0), category="IS")
+            sdh.plot(draw_name, c=(125 / 255.0, 125 / 255.0, 125 / 255.0), category="SOIL")
+            plt.savefig(r"F:\Week\20231217\Data\{0}.svg".format(draw_name), dpi=300, format="svg")
+            plt.legend()
+            plt.show()
+            print(draw_name)
+
+    draw1('Blue', 'Green', 'Red', 'NIR', 'NDVI', 'NDWI',
+          'AS_VV', 'AS_VH', 'AS_VHDVV', 'AS_C11', 'AS_C22', 'AS_Lambda1', 'AS_Lambda2',
+          'DE_VV', 'DE_VH', 'DE_VHDVV', 'DE_C11', 'DE_C22', 'DE_Lambda1', 'DE_Lambda2', )
+
+    # plt.legend()
+    # plt.savefig(r"F:\Week\20231217\Data\test.svg", dpi=300, format="svg")
+    # plt.show()
+
+    haha = 0
+
+
+def method_name43():
     grf = GDALRasterFeatures(r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_envi.dat")
     d_as = grf["AS_VV"]
     d_de = grf["DE_VV"]
@@ -43,7 +86,6 @@ def main():
     d_as_de_min = _10log10(d_as_de_min)
     grf.addFeature("AS_DE_MAX_VV", d_as_de_min)
     grf.saveFeatureToGDALRaster("AS_DE_MAX_VV", save_geo_raster_dir=r"F:\ProjectSet\Shadow\Analysis\3")
-    haha = 0
 
 
 def method_name42():
