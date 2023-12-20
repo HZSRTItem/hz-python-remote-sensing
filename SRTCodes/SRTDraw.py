@@ -50,6 +50,8 @@ class SRTDrawHist(SRTDrawData):
             d = self.filterCategory(name, category)
             name += " " + category
         hist, bin_edges = np.histogram(d, bins=bins, range=d_range, density=density)
+        if density:
+            hist *= 100
         bin_edges = (bin_edges[1] - bin_edges[0]) / 2 + bin_edges
         bin_edges = bin_edges[:-1]
         return plt.plot(bin_edges, hist, label=name, *plot_args, scalex=scalex, scaley=scaley, **kwargs)

@@ -42,34 +42,37 @@ scienceplots.init()
 def main():
     # 分层的模型的时候，在阴影的分类效果不好，可能是数据范围的问题，现在再看看hist
     sdh = SRTDrawHist()
-    sdh.addCSVFile(r"F:\ProjectSet\Shadow\Hierarchical\20231209\sh_bj_sample_spl.csv")
-    # 'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'Blue', 'Green', 'Red', 'NIR', 'NDVI', 'NDWI',
-    # 'OPT_asm', 'OPT_con', 'OPT_cor', 'OPT_dis', 'OPT_ent', 'OPT_hom', 'OPT_mean', 'OPT_var',
-    # 'AS_VV', 'AS_VH', 'AS_VHDVV', 'AS_C11', 'AS_C12_imag', 'AS_C12_real', 'AS_C22', 'AS_Lambda1', 'AS_Lambda2',
-    # 'AS_SPAN', 'AS_Epsilon', 'AS_Mu', 'AS_RVI', 'AS_m', 'AS_Beta',
-    # 'AS_VH_asm', 'AS_VH_con', 'AS_VH_cor', 'AS_VH_dis', 'AS_VH_ent', 'AS_VH_hom', 'AS_VH_mean', 'AS_VH_var',
-    # 'AS_VV_asm', 'AS_VV_con', 'AS_VV_cor', 'AS_VV_dis', 'AS_VV_ent', 'AS_VV_hom', 'AS_VV_mean', 'AS_VV_var',
-    # 'DE_VV', 'DE_VH', 'DE_VHDVV', 'DE_C11', 'DE_C12_imag', 'DE_C12_real', 'DE_C22','DE_Lambda1', 'DE_Lambda2',
-    # 'DE_SPAN',  'DE_Epsilon', 'DE_Mu', 'DE_RVI', 'DE_m', 'DE_Beta',
-    # 'DE_VH_asm', 'DE_VH_con', 'DE_VH_cor', 'DE_VH_dis', 'DE_VH_ent', 'DE_VH_hom', 'DE_VH_mean', 'DE_VH_var',
-    # 'DE_VV_asm', 'DE_VV_con', 'DE_VV_cor', 'DE_VV_dis', 'DE_VV_ent', 'DE_VV_hom', 'DE_VV_mean', 'DE_VV_var'
-    plt.style.use('ieee')
-    sdh.category('CNAME')
+    # sdh.addCSVFile(r"F:\ProjectSet\Shadow\MkTu\4.1Details\Samples\three_spl_spl.csv")
+    sdh.addCSVFile(r"F:\Week\20231217\Data\three_spl_spl.csv")
+    # "SRT", "X", "Y", "CNAME", "CATEGORY", "TAG", "TEST", "Blue", "Green", "Red", "NIR", "NDVI", "NDWI",
+    # "OPT_asm", "OPT_con", "OPT_cor", "OPT_dis", "OPT_ent", "OPT_hom", "OPT_mean", "OPT_var",
+    # "AS_VV", "AS_VH", "AS_VHDVV", "AS_C11", "AS_C12_imag", "AS_C12_real", "AS_C22", "AS_Lambda1", "AS_Lambda2",
+    # "AS_SPAN", "AS_Epsilon", "AS_Mu", "AS_RVI", "AS_m", "AS_Beta",
+    # "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+    # "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
+    # "DE_VV", "DE_VH", "DE_VHDVV", "DE_C11", "DE_C12_imag", "DE_C12_real", "DE_C22","DE_Lambda1", "DE_Lambda2",
+    # "DE_SPAN",  "DE_Epsilon", "DE_Mu", "DE_RVI", "DE_m", "DE_Beta",
+    # "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+    # "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var"
+    plt.style.use('science')
+    sdh.category('SHADOW')
+
+    def draw2(draw_name):
+        if ("AS" in draw_name) or ("DE" in draw_name):
+            sdh[draw_name].funcCal(cal_10log10)
+        sdh.plot(draw_name, c=(0, 0, 0), category="NOSH")
+        sdh.plot(draw_name, c=(100 / 255.0, 100 / 255.0, 100 / 255.0), category="SH")
+        svg_fn = r"F:\Week\20231217\Data\{0}.svg".format(draw_name)
+        plt.legend()
+        plt.savefig(svg_fn, dpi=300, format="svg")
+        print(draw_name, svg_fn)
+        plt.show()
 
     def draw1(*draw_names):
         for draw_name in draw_names:
-            if ("AS" in draw_name) or ("DE" in draw_name):
-                sdh[draw_name].funcCal(cal_10log10)
-            sdh.plot(draw_name, c=(0, 0, 0), category="IS")
-            sdh.plot(draw_name, c=(125 / 255.0, 125 / 255.0, 125 / 255.0), category="SOIL")
-            plt.savefig(r"F:\Week\20231217\Data\{0}.svg".format(draw_name), dpi=300, format="svg")
-            plt.legend()
-            plt.show()
-            print(draw_name)
+            draw2(draw_name)
 
-    draw1('Blue', 'Green', 'Red', 'NIR', 'NDVI', 'NDWI',
-          'AS_VV', 'AS_VH', 'AS_VHDVV', 'AS_C11', 'AS_C22', 'AS_Lambda1', 'AS_Lambda2',
-          'DE_VV', 'DE_VH', 'DE_VHDVV', 'DE_C11', 'DE_C22', 'DE_Lambda1', 'DE_Lambda2', )
+    draw1("NDVI", "NDWI")
 
     # plt.legend()
     # plt.savefig(r"F:\Week\20231217\Data\test.svg", dpi=300, format="svg")
