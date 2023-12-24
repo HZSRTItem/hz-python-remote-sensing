@@ -32,7 +32,8 @@ from SRTCodes.OGRUtils import SRTESRIShapeFileRead, sampleSpaceUniform
 from SRTCodes.SRTDraw import SRTDrawHist
 from SRTCodes.Utils import savecsv, readcsv, DirFileName, Jdt
 from Shadow.ShadowDraw import ShadowDrawDirectLength, cal_10log10
-from Shadow.ShadowGeoDraw import _10log10
+from Shadow.ShadowGeoDraw import _10log10, DrawShadowImage_0
+from Shadow.ShadowUtils import ShadowSampleAdjustNumber, ShadowFindErrorSamples, ShadowTestAll
 
 imdcDirname = DirFileName(r"F:\ProjectSet\Shadow\QingDao\Mods\20230707H200910")
 
@@ -40,6 +41,290 @@ scienceplots.init()
 
 
 def main():
+    # 调整精度
+    def func1():
+        gr_as_de = GDALRaster(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253\SPL_SH-SVM-TAG-OPTICS-AS-DE_imdc.dat")
+        gr_de = GDALRaster(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253\SPL_SH-SVM-TAG-OPTICS-AS_imdc.dat")
+        gr_as = GDALRaster(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253\SPL_SH-SVM-TAG-OPTICS-DE_imdc.dat")
+        gr = GDALRaster(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253\SPL_SH-SVM-TAG-OPTICS_imdc.dat")
+
+        d_as_de = gr_as_de.readAsArray()
+        d_de = gr_de.readAsArray()
+        d_as = gr_as.readAsArray()
+        d = gr.readAsArray()
+        d1 = (d != d_as_de) * 1
+        print(np.sum(d1 * 1))
+        print(d.shape[0] * d.shape[1])
+        print((np.sum(d1 * 1)) / (d.shape[0] * d.shape[1]))
+        gr.save(d1, r"F:\ProjectSet\Shadow\Analysis\6\bj\bj_diff.dat")
+
+        df = {"X": [], "Y": [], "AS_DE": [], "OPT": []}
+        c_dict = {1: "IS", 2: "VEG", 3: "SOIL", 4: "WAT"}
+        for i in range(d_as_de.shape[0]):
+            for j in range(d_as_de.shape[1]):
+                if d_as_de[i, j] != d[i, j]:
+                    x, y = gr.coorRaster2Geo(i + 0.5, j + 0.5)
+                    df["X"].append(x)
+                    df["Y"].append(y)
+                    df["AS_DE"].append(c_dict[int(d_as_de[i, j])])
+                    df["OPT"].append(c_dict[int(d[i, j])])
+
+        df = pd.DataFrame(df)
+        df.to_csv(r"F:\ProjectSet\Shadow\Analysis\6\bj\bj_sade_opt_diff.csv")
+        print(df)
+
+    method_name47()
+    haha = 0
+
+
+def method_name50():
+    # 阴影中心点画图
+    def func1():
+        dsi = DrawShadowImage_0(30, 30, 116.45538071, 39.95543882,
+                                raster_fn=r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_envi.dat",
+                                to_dirname=r"F:\ProjectSet\Shadow\Analysis\6\bj\toIm",
+                                width=6, height=6, is_expand=True)
+        categorys = [1, (255, 0, 0), 2, (0, 255, 0), 3, (255, 255, 0), 4, (0, 0, 255)]
+
+        dsi.drawOptical("RGB", channel_list=[2, 1, 0])
+        dsi.drawOptical("NRB", channel_list=[3, 2, 1])
+        dsi.drawIndex("NDVI", d_min=-0.6, d_max=0.9)
+        dsi.drawIndex("NDWI", d_min=-0.7, d_max=0.8)
+        dsi.drawSAR("AS_VV", d_min=-24.609674, d_max=5.9092603)
+        dsi.drawSAR("AS_VH", d_min=-31.865038, d_max=-5.2615275)
+        dsi.drawSAR("AS_C11", d_min=-22.61998, d_max=5.8634768)
+        dsi.drawSAR("AS_C22", d_min=-28.579813, d_max=-5.2111626)
+        dsi.drawSAR("AS_Lambda1", d_min=-21.955856, d_max=6.124724)
+        dsi.drawSAR("AS_Lambda2", d_min=-29.869734, d_max=-8.284683)
+        dsi.drawSAR("DE_VV", d_min=-27.851603, d_max=5.094706)
+        dsi.drawSAR("DE_VH", d_min=-35.427082, d_max=-5.4092093)
+        dsi.drawSAR("DE_C11", d_min=-26.245598, d_max=4.9907513)
+        dsi.drawSAR("DE_C22", d_min=-32.04232, d_max=-5.322515)
+        dsi.drawSAR("DE_Lambda1", d_min=-25.503738, d_max=5.2980003)
+        dsi.drawSAR("DE_Lambda2", d_min=-33.442368, d_max=-8.68537)
+        dsi.drawImdc("IMDC_AS_DE",
+                     raster_fn=r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253\SPL_SH-SVM-TAG-OPTICS-AS-DE_imdc.dat",
+                     categorys=categorys)
+        dsi.drawImdc("IMDC_AS",
+                     raster_fn=r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253\SPL_SH-SVM-TAG-OPTICS-DE_imdc.dat",
+                     categorys=categorys)
+        dsi.drawImdc("IMDC_DE",
+                     raster_fn=r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253\SPL_SH-SVM-TAG-OPTICS-AS_imdc.dat",
+                     categorys=categorys)
+        dsi.drawImdc("IMDC_OPT",
+                     raster_fn=r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253\SPL_SH-SVM-TAG-OPTICS_imdc.dat",
+                     categorys=categorys)
+
+    method_name48()
+
+
+def method_name49():
+    # 准备2023年12月23日的组会，上周汇报的分层实验的结果效果不好，找到分类错误的样本，看看是怎么回事，也有可能是样本的问题
+    def func1():
+        fn = r"F:\ProjectSet\Shadow\Hierarchical\Mods\2023121401\QingDao\QingDao20231214H093733_imdc.dat"
+        csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Analysis\1\QingDao20231214H093733_imdc.dat_test.csv"
+
+        sfes = ShadowFindErrorSamples()
+        sfes.addCategoryCode(IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=5, VEG_SH=6, SOIL_SH=7, WAT_SH=8)
+        df = pd.read_csv(csv_fn)
+        df_test = df[df["TEST"] == 0]
+        sfes.imdcFN(fn)
+        sfes.initDataFrame(df_test)
+        sfes.addDataFrame()
+        cm = sfes.calCMImdc()
+        print(cm.fmtCM())
+        sfes.fitImdc()
+        sfes.toCSV(
+            keys=['Blue', 'Green', 'Red', 'NIR', "SRT", "CATEGORY", "NDVI", "NDWI",
+                  'AS_VV', 'AS_VH', 'DE_VV', 'DE_VH'],
+            sort_column=sfes.t_f_name)
+        print(fn)
+
+    method_name48()
+
+
+def method_name48():
+    # 对每个结果都调一下，调一遍测试一遍结果
+    c_code_dict = {"NOT_KNOW": 0,
+                   "IS": 11,
+                   "IS_SHADOW": 12,
+                   "VEG": 21,
+                   "VEG_SHADOW": 22,
+                   "SOIL": 31,
+                   "SOIL_SHADOW": 32,
+                   "WATER": 41,
+                   "WATER_SHADOW": 42}
+    c_dict = {"NOT_KNOW": "NOT_KNOW",
+              "IS": "IS",
+              "IS_SHADOW": "IS_SH",
+              "VEG": "VEG",
+              "VEG_SHADOW": "VEG_SH",
+              "SOIL": "SOIL",
+              "SOIL_SHADOW": "SOIL_SH",
+              "WATER": "WAT",
+              "WATER_SHADOW": "WAT_SH"}
+
+    # c_dict = {"NOT_KNOW": "NOT_KNOW",
+    #           "IS": "IS",
+    #           "IS_SH": "IS_SH",
+    #           "VEG": "VEG",
+    #           "VEG_SH": "VEG_SH",
+    #           "SOIL": "SOIL",
+    #           "SOIL_SH": "SOIL_SH",
+    #           "WAT": "WAT",
+    #           "WAT_SH": "WAT_SH"}
+    # c_code_dict = {"NOT_KNOW": 0,
+    #                "IS": 11,
+    #                "IS_SH": 12,
+    #                "VEG": 21,
+    #                "VEG_SH": 22,
+    #                "SOIL": 31,
+    #                "SOIL_SH": 32,
+    #                "WAT": 41,
+    #                "WAT_SH": 42}
+
+    def func1(csv_fn, dirname):
+        sta = ShadowTestAll()
+        sta.addCategoryCode(NOT_KNOW=0, IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=5, VEG_SH=6, SOIL_SH=7, WAT_SH=8)
+        df = pd.read_csv(csv_fn)
+        sta.initDataFrame(df)
+        sta.addDataFrame(c_column_name="O_CNAME")
+        sta.fitDirName(dirname)
+        print(len(df))
+
+    def func2(csv_fn1, csv_fn2):
+        df1 = pd.read_csv(csv_fn1).set_index("SRT")
+        df2 = pd.read_csv(csv_fn2).set_index("SRT", drop=False)
+        df_add = {"X": [], "Y": [], "O_CNAME": [], "IS_CHCANGE": [], "CATEGORY": []}
+        for i, line in df1.iterrows():
+            category_name = str(line["CATEGORY_NAME"])
+            # print(category_name, c_dict[category_name], c_code_dict[category_name])
+
+            if pd.isna(i):
+                df_add["X"].append(float(line["X"]))
+                df_add["Y"].append(float(line["Y"]))
+                df_add["O_CNAME"].append(c_dict[category_name])
+                df_add["CATEGORY"].append(c_code_dict[category_name])
+                df_add["IS_CHCANGE"].append(1)
+            else:
+                if df2.loc[i, "IS_CHCANGE"] == 0:
+                    if df2.loc[i, "O_CNAME"] != c_dict[category_name]:
+                        df2.loc[i, "O_CNAME"] = c_dict[category_name]
+                        df2.loc[i, "CATEGORY"] = c_code_dict[category_name]
+                        df2.loc[i, "IS_CHCANGE"] = 1
+        df2 = pd.concat([df2, pd.DataFrame(df_add)])
+        df2.to_csv(csv_fn2, index=False)
+
+    # QingDao
+    # func1(r"F:\ProjectSet\Shadow\Analysis\6\qd_test.csv", r"F:\ProjectSet\Shadow\QingDao\Mods\20231221H224548")
+    # func2(r"F:\ProjectSet\Shadow\Analysis\6\change3.csv", r"F:\ProjectSet\Shadow\Analysis\6\qd_test.csv")
+
+    # BeiJing
+    func1(r"F:\ProjectSet\Shadow\Analysis\6\bj\bj_test.csv", r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253")
+    # func2(r"F:\ProjectSet\Shadow\Analysis\6\bj\bj_chang1.csv", r"F:\ProjectSet\Shadow\Analysis\6\bj\bj_test.csv")
+
+    # 青岛分层
+    # func1(r"F:\ProjectSet\Shadow\Hierarchical\Analysis\1\qd_test.csv",
+    #       r"F:\ProjectSet\Shadow\Hierarchical\Mods\2023121401\QingDao")
+    # func2(r"F:\ProjectSet\Shadow\Hierarchical\Analysis\1\qd_change2.csv", r"F:\ProjectSet\Shadow\Hierarchical\Analysis\1\qd_test.csv")
+
+
+def method_name47():
+    # 重新使用样本测试精度
+    def func1(dirname, csv_fn):
+        print("-" * 60)
+        print(dirname)
+        for fn in os.listdir(dirname):
+            if os.path.splitext(fn)[1] == ".dat":
+                fn = os.path.join(dirname, fn)
+                sfes = ShadowFindErrorSamples()
+                sfes.addCategoryCode(IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=5, VEG_SH=6, SOIL_SH=7, WAT_SH=8)
+                df = pd.read_csv(csv_fn)
+                df_test = df[df["TEST"] == 0]
+                sfes.imdcFN(fn)
+                sfes.initDataFrame(df_test)
+                sfes.addDataFrame()
+                cm = sfes.calCMImdc()
+                print(cm.fmtCM())
+                sfes.fitImdc()
+                sfes.toCSV(
+                    keys=['Blue', 'Green', 'Red', 'NIR', "SRT", "CATEGORY", "NDVI", "NDWI",
+                          'AS_VV', 'AS_VH', 'DE_VV', 'DE_VH'],
+                    sort_column=sfes.t_f_name)
+                print(fn)
+
+    def func2(dirname):
+        n_list = None
+        ks = {}
+        n = 0
+        for fn in os.listdir(dirname):
+            if ("_test.csv" in fn) and ("NOSH" not in fn):
+                df = pd.read_csv(os.path.join(dirname, fn))
+                # df = df.sort_values(by="SRT")
+                df = df.set_index("SRT").sort_index()
+                if n_list is None:
+                    n_list = np.zeros(len(df))
+                    for k in df:
+                        ks[k] = df[k].tolist()
+                n_list += (df["T_F"].values == "FALSE_C") * 1
+
+                # name1 = fn.split("_")[0] + fn.split("_")[1]
+                # name1 = name1.split("-")
+                # for name2 in name1:
+                #     if name2 not in ks:
+                #         ks[name2] = [0 for i in range(len(n_list))]
+                #     if name2 in ks:
+                #         ks[name2][n] = 1
+
+                print(fn)
+
+        ks["n_list"] = n_list
+        savecsv(os.path.join(dirname, "n_list.csv"), ks)
+
+    # func1(r"F:\ProjectSet\Shadow\QingDao\Mods\20231221H224548", r"F:\ProjectSet\Shadow\Release\QingDaoSamples\sh_qd_sample_spl.csv")
+    # func1(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253", r"F:\ProjectSet\Shadow\Release\BeiJingSamples\sh_bj_sample_spl.csv")
+    # func1(r"F:\ProjectSet\Shadow\ChengDu\Mods\20231221H224735", r"F:\ProjectSet\Shadow\Release\ChengDuSamples\sh_cd_sample_spl.csv")
+    # func2(r"F:\ProjectSet\Shadow\QingDao\Mods\20231221H224548")
+    func2(r"F:\ProjectSet\Shadow\Release\ChengDuMods\20231117H112558")
+
+
+
+def method_name46():
+    # 减少一些阴影下样本，让结果变的坏一点
+    def func(fn, to_fn, re_dict):
+        df = pd.read_csv(fn)
+        df_select = df.loc[df["TEST"] == 1]
+        df_end = df.loc[df["TEST"] != 1]
+        ssan = ShadowSampleAdjustNumber()
+        ssan.initDataFrame(df_select)
+        ssan.initCKName()
+        print(ssan.numbers())
+        ssan.printNumber()
+        ssan.adjustNumber(re_dict)
+        print()
+        ssan.printNumber()
+        ssan.saveToCSV(to_fn, df_end)
+
+    fn1 = r"F:\ProjectSet\Shadow\Release\BeiJingSamples\sh_bj_sample_spl.csv"
+    fn2 = r"F:\ProjectSet\Shadow\Release\QingDaoSamples\sh_qd_sample_spl.csv"
+    fn3 = r"F:\ProjectSet\Shadow\Release\ChengDuSamples\sh_cd_sample_spl.csv"
+    to_fn1 = r"F:\ProjectSet\Shadow\Analysis\5\sh_bj_sample_spl2.csv"
+    to_fn2 = r"F:\ProjectSet\Shadow\Analysis\5\sh_qd_sample_spl2.csv"
+    to_fn3 = r"F:\ProjectSet\Shadow\Analysis\5\sh_cd_sample_spl2.csv"
+    # func(fn1, to_fn1, {'IS': 1149, 'IS_SH': 100, 'SOIL': 151, 'VEG': 609, 'VEG_SH': 100, 'WAT': 472, 'WAT_SH': 3})
+    # func(fn2, to_fn2, {'IS': 794, 'IS_SH': 100, 'SOIL': 261, 'SOIL_SH': 10, 'VEG': 880, 'VEG_SH': 100, 'WAT': 379, 'WAT_SH': 10})
+    func(fn3, to_fn3,
+         {'IS': 1151, 'IS_SH': 100, 'SOIL': 238, 'SOIL_SH': 1, 'VEG': 896, 'VEG_SH': 100, 'WAT': 245, 'WAT_SH': 6})
+
+
+def method_name45():
+    # 看一下在哪个区域分类不好，重点是精细的位置，精细的样本
+    beijing_imdc_fn = r"F:\ProjectSet\Shadow\Hierarchical\Mods\2023121401\BeiJing\BeiJing20231213H194955_imdc.dat"
+    qingdao_imdc_fn = r"F:\ProjectSet\Shadow\Hierarchical\Mods\2023121401\QingDao\QingDao20231214H093733_imdc.dat"
+    chengdu_imdc_fn = r"F:\ProjectSet\Shadow\Hierarchical\Mods\2023121401\ChengDu\ChengDu20231214H093928_imdc.dat"
+
+
+def method_name44():
     # 分层的模型的时候，在阴影的分类效果不好，可能是数据范围的问题，现在再看看hist
     sdh = SRTDrawHist()
     # sdh.addCSVFile(r"F:\ProjectSet\Shadow\MkTu\4.1Details\Samples\three_spl_spl.csv")
@@ -73,12 +358,9 @@ def main():
             draw2(draw_name)
 
     draw1("NDVI", "NDWI")
-
     # plt.legend()
     # plt.savefig(r"F:\Week\20231217\Data\test.svg", dpi=300, format="svg")
     # plt.show()
-
-    haha = 0
 
 
 def method_name43():

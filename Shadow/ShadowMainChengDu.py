@@ -32,7 +32,8 @@ class ShadowMainCD(ShadowMain):
         self.sample_csv_spl_fn = self.sample_dfn.fn("sh_cd_sample_spl.csv")
 
     def shadowTraining(self):
-        spl_fn = self.sample_csv_spl_fn
+        # spl_fn = self.sample_csv_spl_fn
+        spl_fn = r"F:\ProjectSet\Shadow\Analysis\5\sh_cd_sample_spl2.csv"
         raster_fn = self.raster_fn
         model_dir = self.model_dfn.fn()
         model_name = self.model_name
@@ -41,21 +42,6 @@ class ShadowMainCD(ShadowMain):
                                           category_names=["IS", "VEG", "SOIL", "WAT"])
         self.sct.initCSVSample(spl_fn, ["IS", "VEG", "SOIL", "WAT", "IS_SH", "VEG_SH", "SOIL_SH", "WAT_SH"])
         self.sct.initSIC(raster_fn)
-
-        self.sct.featureScaleMinMax("Blue", 99.76996, 2397.184)
-        self.sct.featureScaleMinMax("Green", 45.83414, 2395.735)
-        self.sct.featureScaleMinMax("Red", 77.79654, 2726.7026)
-        self.sct.featureScaleMinMax("NIR", 87.66086, 3498.4321)
-        self.sct.featureScaleMinMax("NDVI", -0.5007727, 0.7354284)
-        self.sct.featureScaleMinMax("NDWI", -0.6572631, 0.7623875)
-        self.sct.featureScaleMinMax("OPT_asm", 0.02124183, 0.998366)
-        self.sct.featureScaleMinMax("OPT_con", 0.0, 169.74791)
-        self.sct.featureScaleMinMax("OPT_cor", -0.036879253, 0.99688625)
-        self.sct.featureScaleMinMax("OPT_dis", 0.0, 9.799746)
-        self.sct.featureScaleMinMax("OPT_ent", 0.0, 3.8249474)
-        self.sct.featureScaleMinMax("OPT_hom", 0.12091503, 0.998366)
-        self.sct.featureScaleMinMax("OPT_mean", 4.941177, 53.7353)
-        self.sct.featureScaleMinMax("OPT_var", 0.0, 236.09961)
 
         self.sct.featureCallBack("AS_VV", cal_10log10)
         self.sct.featureCallBack("AS_VH", cal_10log10)
@@ -74,67 +60,82 @@ class ShadowMainCD(ShadowMain):
         self.sct.featureCallBack("DE_SPAN", cal_10log10)
         self.sct.featureCallBack("DE_Epsilon", cal_10log10)
 
-        self.sct.featureScaleMinMax("AS_VV", -24.609674, 5.9092603)
-        self.sct.featureScaleMinMax("AS_VH", -31.865038, -5.2615275)
-        self.sct.featureScaleMinMax("AS_VHDVV", 0.0, 0.95164585)
-        self.sct.featureScaleMinMax("AS_C11", -22.61998, 5.8634768)
-        self.sct.featureScaleMinMax("AS_C22", -28.579813, -5.2111626)
-        self.sct.featureScaleMinMax("AS_Lambda1", -21.955856, 6.124724)
-        self.sct.featureScaleMinMax("AS_Lambda2", -29.869734, -8.284683)
-        self.sct.featureScaleMinMax("AS_SPAN", -22.58362, 6.97997)
-        self.sct.featureScaleMinMax("AS_Epsilon", 0.0, 35.12922)
-        self.sct.featureScaleMinMax("AS_Mu", -0.7263123, 0.7037629)
-        self.sct.featureScaleMinMax("AS_RVI", 0.07459847, 2.076324)
-        self.sct.featureScaleMinMax("AS_m", 0.26469338, 0.97544414)
-        self.sct.featureScaleMinMax("AS_Beta", 0.632338, 0.9869048)
-
-        self.sct.featureScaleMinMax("AS_VH_asm", 0.02124183, 0.050653595)
-        self.sct.featureScaleMinMax("AS_VH_con", 6.572378, 59.151405)
-        self.sct.featureScaleMinMax("AS_VH_cor", 0.006340516, 0.86876196)
-        self.sct.featureScaleMinMax("AS_VH_dis", 1.9767247, 5.8193297)
-        self.sct.featureScaleMinMax("AS_VH_ent", 3.0939856, 3.8060431)
-        self.sct.featureScaleMinMax("AS_VH_hom", 0.16666667, 0.40849674)
-        self.sct.featureScaleMinMax("AS_VH_mean", 7.514706, 54.04412)
-        self.sct.featureScaleMinMax("AS_VH_var", 5.9986033, 108.64137)
-        self.sct.featureScaleMinMax("AS_VV_asm", 0.022875817, 0.050653595)
-        self.sct.featureScaleMinMax("AS_VV_con", 4.5305123, 48.325462)
-        self.sct.featureScaleMinMax("AS_VV_cor", 0.21234758, 0.88228023)
-        self.sct.featureScaleMinMax("AS_VV_dis", 1.5990733, 5.22229)
-        self.sct.featureScaleMinMax("AS_VV_ent", 3.1254923, 3.7871387)
-        self.sct.featureScaleMinMax("AS_VV_hom", 0.18464053, 0.45261437)
-        self.sct.featureScaleMinMax("AS_VV_mean", 8.544118, 51.573532)
-        self.sct.featureScaleMinMax("AS_VV_var", 3.8744159, 96.8604)
-
-        self.sct.featureScaleMinMax("DE_VV", -27.851603, 5.094706)
-        self.sct.featureScaleMinMax("DE_VH", -35.427082, -5.4092093)
-        self.sct.featureScaleMinMax("DE_VHDVV", 0.0, 1.0289364)
-        self.sct.featureScaleMinMax("DE_C11", -26.245598, 4.9907513)
-        self.sct.featureScaleMinMax("DE_C22", -32.042320, -5.322515)
-        self.sct.featureScaleMinMax("DE_Lambda1", -25.503738, 5.2980003)
-        self.sct.featureScaleMinMax("DE_Lambda2", -33.442368, -8.68537)
-        self.sct.featureScaleMinMax("DE_SPAN", -24.81076, 4.82663)
-        self.sct.featureScaleMinMax("DE_Epsilon", 0.0, 21.882689)
-        self.sct.featureScaleMinMax("DE_Mu", -0.6823329, 0.7723537)
-        self.sct.featureScaleMinMax("DE_RVI", 0.0940072, 2.1935015)
-        self.sct.featureScaleMinMax("DE_m", 0.24836189, 0.9705721)
-        self.sct.featureScaleMinMax("DE_Beta", 0.6241778, 0.9852859)
-
-        self.sct.featureScaleMinMax("DE_VH_asm", 0.022875817, 0.05392157)
-        self.sct.featureScaleMinMax("DE_VH_con", 5.6798058, 51.11825)
-        self.sct.featureScaleMinMax("DE_VH_cor", 0.12444292, 0.87177193)
-        self.sct.featureScaleMinMax("DE_VH_dis", 1.8186697, 5.456009)
-        self.sct.featureScaleMinMax("DE_VH_ent", 2.9679575, 3.7997417)
-        self.sct.featureScaleMinMax("DE_VH_hom", 0.1748366, 0.42810458)
-        self.sct.featureScaleMinMax("DE_VH_mean", 7.6176476, 55.176476)
-        self.sct.featureScaleMinMax("DE_VH_var", 5.513511, 95.38374)
-        self.sct.featureScaleMinMax("DE_VV_asm", 0.02124183, 0.057189543)
-        self.sct.featureScaleMinMax("DE_VV_con", 5.0987973, 57.54357)
-        self.sct.featureScaleMinMax("DE_VV_cor", 0.19514601, 0.88254523)
-        self.sct.featureScaleMinMax("DE_VV_dis", 1.7117102, 5.6928787)
-        self.sct.featureScaleMinMax("DE_VV_ent", 2.993163, 3.7997417)
-        self.sct.featureScaleMinMax("DE_VV_hom", 0.17320262, 0.44444445)
-        self.sct.featureScaleMinMax("DE_VV_mean", 6.4852943, 54.04412)
-        self.sct.featureScaleMinMax("DE_VV_var", 4.44714, 111.17851)
+        self.sct.featureScaleMinMax("Blue", 366.108612, 2833.325195)
+        self.sct.featureScaleMinMax("Green", 354.730469, 3284.211914)
+        self.sct.featureScaleMinMax("Red", 294.364441, 3528.857910)
+        self.sct.featureScaleMinMax("NIR", 363.480164, 4164.366211)
+        self.sct.featureScaleMinMax("NDVI", -0.281195, 0.775548)
+        self.sct.featureScaleMinMax("NDWI", -0.683179, 0.359006)
+        self.sct.featureScaleMinMax("OPT_asm", 0.000000, 0.682763)
+        self.sct.featureScaleMinMax("OPT_con", 0.000000, 200.413773)
+        self.sct.featureScaleMinMax("OPT_cor", -0.003125, 0.962777)
+        self.sct.featureScaleMinMax("OPT_dis", 0.000000, 10.269228)
+        self.sct.featureScaleMinMax("OPT_ent", 0.000000, 3.891819)
+        self.sct.featureScaleMinMax("OPT_hom", 0.000000, 0.916378)
+        self.sct.featureScaleMinMax("OPT_mean", 0.000000, 59.255516)
+        self.sct.featureScaleMinMax("OPT_var", 0.000000, 337.672028)
+        self.sct.featureScaleMinMax("AS_VV", -20.900673, 16.643545)
+        self.sct.featureScaleMinMax("AS_VH", -26.645557, 7.060156)
+        self.sct.featureScaleMinMax("AS_VHDVV", 0.000149, 1.984372)
+        self.sct.featureScaleMinMax("AS_C11", -21.075790, 17.110327)
+        self.sct.featureScaleMinMax("AS_C12_imag", -2.651620, 2.423286)
+        self.sct.featureScaleMinMax("AS_C12_real", -5.776805, 3.410573)
+        self.sct.featureScaleMinMax("AS_C22", -25.058722, 7.454190)
+        self.sct.featureScaleMinMax("AS_Lambda1", -20.538422, 17.272667)
+        self.sct.featureScaleMinMax("AS_Lambda2", -25.871984, 2.598621)
+        self.sct.featureScaleMinMax("AS_SPAN", -19.152206, 17.335613)
+        self.sct.featureScaleMinMax("AS_Epsilon", -3.575741, 24.316652)
+        self.sct.featureScaleMinMax("AS_Mu", -0.936081, 0.906247)
+        self.sct.featureScaleMinMax("AS_RVI", 0.014749, 2.773232)
+        self.sct.featureScaleMinMax("AS_m", 0.114727, 0.996446)
+        self.sct.featureScaleMinMax("AS_Beta", 0.557366, 0.998223)
+        self.sct.featureScaleMinMax("AS_VV_asm", 0.000000, 0.633058)
+        self.sct.featureScaleMinMax("AS_VV_con", 0.000000, 146.806534)
+        self.sct.featureScaleMinMax("AS_VV_cor", -0.003414, 0.946148)
+        self.sct.featureScaleMinMax("AS_VV_dis", 0.000000, 9.265110)
+        self.sct.featureScaleMinMax("AS_VV_ent", 0.000000, 3.891819)
+        self.sct.featureScaleMinMax("AS_VV_hom", 0.000000, 0.836151)
+        self.sct.featureScaleMinMax("AS_VV_mean", 0.000000, 61.523441)
+        self.sct.featureScaleMinMax("AS_VV_var", 0.000000, 337.570496)
+        self.sct.featureScaleMinMax("AS_VH_asm", 0.000000, 0.829619)
+        self.sct.featureScaleMinMax("AS_VH_con", 0.000000, 139.858276)
+        self.sct.featureScaleMinMax("AS_VH_cor", -0.002550, 0.957325)
+        self.sct.featureScaleMinMax("AS_VH_dis", 0.000000, 9.079297)
+        self.sct.featureScaleMinMax("AS_VH_ent", 0.000000, 3.891819)
+        self.sct.featureScaleMinMax("AS_VH_hom", 0.000000, 0.930923)
+        self.sct.featureScaleMinMax("AS_VH_mean", 0.000000, 60.547718)
+        self.sct.featureScaleMinMax("AS_VH_var", 0.000000, 334.443359)
+        self.sct.featureScaleMinMax("DE_VV", -22.628164, 16.044880)
+        self.sct.featureScaleMinMax("DE_VH", -27.321905, 7.506963)
+        self.sct.featureScaleMinMax("DE_VHDVV", 0.000097, 2.286051)
+        self.sct.featureScaleMinMax("DE_C11", -21.412586, 16.697243)
+        self.sct.featureScaleMinMax("DE_C12_imag", -2.605879, 2.580937)
+        self.sct.featureScaleMinMax("DE_C12_real", -4.237278, 4.949156)
+        self.sct.featureScaleMinMax("DE_C22", -24.794399, 8.057488)
+        self.sct.featureScaleMinMax("DE_Lambda1", -20.405666, 17.049181)
+        self.sct.featureScaleMinMax("DE_Lambda2", -25.859194, 3.229606)
+        self.sct.featureScaleMinMax("DE_SPAN", -18.702457, 17.098742)
+        self.sct.featureScaleMinMax("DE_Epsilon", -4.977984, 24.332211)
+        self.sct.featureScaleMinMax("DE_Mu", -0.921154, 0.936814)
+        self.sct.featureScaleMinMax("DE_RVI", 0.014615, 3.027073)
+        self.sct.featureScaleMinMax("DE_Beta", 0.066218, 0.999969)
+        self.sct.featureScaleMinMax("DE_m", 0.533109, 0.999985)
+        self.sct.featureScaleMinMax("DE_VH_asm", 0.000000, 0.506621)
+        self.sct.featureScaleMinMax("DE_VH_con", 0.000000, 145.302383)
+        self.sct.featureScaleMinMax("DE_VH_cor", -0.001322, 0.949018)
+        self.sct.featureScaleMinMax("DE_VH_dis", 0.000000, 9.225253)
+        self.sct.featureScaleMinMax("DE_VH_ent", 0.000000, 3.891819)
+        self.sct.featureScaleMinMax("DE_VH_hom", 0.000000, 0.760149)
+        self.sct.featureScaleMinMax("DE_VH_mean", 0.000000, 61.277348)
+        self.sct.featureScaleMinMax("DE_VH_var", 0.000000, 334.318817)
+        self.sct.featureScaleMinMax("DE_VV_asm", 0.000000, 0.953537)
+        self.sct.featureScaleMinMax("DE_VV_con", 0.000000, 182.110428)
+        self.sct.featureScaleMinMax("DE_VV_cor", -0.003191, 0.969524)
+        self.sct.featureScaleMinMax("DE_VV_dis", 0.000000, 10.180984)
+        self.sct.featureScaleMinMax("DE_VV_ent", 0.000000, 3.891819)
+        self.sct.featureScaleMinMax("DE_VV_hom", 0.000000, 0.980469)
+        self.sct.featureScaleMinMax("DE_VV_mean", 0.000000, 62.015629)
+        self.sct.featureScaleMinMax("DE_VV_var", 0.000000, 399.645813)
 
         self.sctCategoryColor()
 
@@ -167,14 +168,16 @@ class ShadowMainCD(ShadowMain):
         self.sct.addFeatureType(
             "AS",
             "AS_VV", "AS_VH", "AS_VHDVV", "AS_C11", "AS_C22", "AS_Lambda1", "AS_Lambda2",
-            "AS_SPAN", "AS_Epsilon", "AS_Mu", "AS_RVI", "AS_m", "AS_Beta",
+            "AS_SPAN",
+            # "AS_Epsilon", "AS_Mu", "AS_RVI", "AS_m", "AS_Beta",
             "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
             "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
         )
         self.sct.addFeatureType(
             "DE",
             "DE_VV", "DE_VH", "DE_VHDVV", "DE_C11", "DE_C22", "DE_Lambda1", "DE_Lambda2",
-            "DE_SPAN", "DE_Epsilon", "DE_Mu", "DE_RVI", "DE_m", "DE_Beta",
+            "DE_SPAN",
+            # "DE_Epsilon", "DE_Mu", "DE_RVI", "DE_m", "DE_Beta",
             "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
             "DE_VV_hom", "DE_VV_mean", "DE_VV_var"
         )
@@ -220,4 +223,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowMainBeiJing import main; main()"
     main()

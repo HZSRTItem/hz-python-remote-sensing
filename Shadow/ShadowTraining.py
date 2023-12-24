@@ -409,6 +409,7 @@ class ShadowCategoryTraining(FrontShadowCategoryTraining):
 
     def train(self, *args, **kwargs):
         # self.timeModelDir()
+        time1 = time.time()
         self.saveDataToModelDirectory()
         self.save_cm_file = os.path.join(self.model_dir, "cm.txt")
 
@@ -494,15 +495,18 @@ class ShadowCategoryTraining(FrontShadowCategoryTraining):
                         self._log.print(is_to_file=True)
                         self._log.newLine()
 
+                        self.train_cm.clear()
+                        self.test_cm.clear()
+
+                        self.sic.classify(mod_fn, feats, mod_name)
+
                         self.run_time.add()
                         self.run_time.printInfo()
                         n_run += 1
                         print()
 
-                        self.train_cm.clear()
-                        self.test_cm.clear()
-
-                        self.sic.classify(mod_fn, feats, mod_name)
+        time2 = time.time()
+        print(RumTime.fmtTime(time2-time1))
 
     def getSample(self, spls: list, feats: list, tags: list):
         x_test = self.test_x[feats].values

@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from osgeo import osr, gdal
 
-from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel
+from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel, GDALRasterRange
 from SRTCodes.Utils import readcsv, Jdt, savecsv, changext
 
 RESOLUTION_ANGLE = 0.0000089831529294
@@ -233,6 +233,9 @@ class GDALRasterHist:
 
 
 def main():
+    grr = GDALRasterRange(r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_envi.dat")
+    grr.loadNPY(r"F:\ProjectSet\Shadow\Analysis\4\SH_CD_envi.dat.npy")
+    grr.save()
     pass
 
 

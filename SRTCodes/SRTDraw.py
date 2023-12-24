@@ -37,10 +37,12 @@ class SRTDrawData(SRTFeatureDataCollection):
 
 class SRTDrawHist(SRTDrawData):
 
-    def __init__(self):
+    def __init__(self, ):
         super().__init__()
         self.name = ""
         self.data_coll = {}
+        self.hist = np.array([])
+        self.bin_edges = np.array([])
 
     def plot(self, name, *plot_args, category=None, bins=256, d_range=None, density=True, scalex=True, scaley=True,
              **kwargs):
@@ -50,6 +52,7 @@ class SRTDrawHist(SRTDrawData):
             d = self.filterCategory(name, category)
             name += " " + category
         hist, bin_edges = np.histogram(d, bins=bins, range=d_range, density=density)
+        self.hist, self.bin_edges = hist, bin_edges
         if density:
             hist *= 100
         bin_edges = (bin_edges[1] - bin_edges[0]) / 2 + bin_edges

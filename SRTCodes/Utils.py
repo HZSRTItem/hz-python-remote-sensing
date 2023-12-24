@@ -356,6 +356,12 @@ def radianToAngle(radian=1.0):
     return radian * 180 / math.pi
 
 
+def listUnique(t_list):
+    new_li = list(set(t_list))
+    new_li.sort(key=t_list.index)
+    return t_list
+
+
 class SRTMultipleOpening:
     """  Multiple Opening """
 

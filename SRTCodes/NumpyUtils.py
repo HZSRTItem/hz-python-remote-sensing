@@ -182,18 +182,18 @@ def reHist(d, ratio=0.001):
             for j in range(h.shape[0]):
                 zuo += h[j]
                 k1 += 1
+                d00 = bin_edges[j]
                 if k1 == 10:
                     break
                 if zuo >= n_re:
-                    d00 = bin_edges[j]
                     break
             for j in range(h.shape[0] - 1, -1, -1):
                 you += h[j]
                 k2 += 1
+                d10 = bin_edges[j + 1]
                 if k2 == 10:
                     break
                 if you >= n_re:
-                    d10 = bin_edges[j + 1]
                     break
             print(k1, d00, k2, d10)
             if k1 != 10 and k2 != 10:
@@ -251,6 +251,7 @@ def calPCA(d, num_components=None):
     transformed_data = np.dot(centered_data, selected_eigenvectors)
     return selected_eigenvalues, selected_eigenvectors, transformed_data
 
+
 def filterLee():
     # Define a Lee filter function
     def lee_filter(image, window_size):
@@ -291,6 +292,19 @@ def filterLee():
     # plt.title('Filtered SAR Image (Lee Filter)')
     #
     # plt.show()
+
+
+def scaleMinMax(d, d_min=None, d_max=None, is_01=True):
+    if (d_min is None) and (d_max is None):
+        is_01 = True
+    if d_min is None:
+        d_min = np.min(d)
+    if d_max is None:
+        d_max = np.max(d)
+    d = np.clip(d, d_min, d_max)
+    if is_01:
+        d = (d - d_min) / (d_max - d_min)
+    return d
 
 
 def main():

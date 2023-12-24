@@ -16,6 +16,7 @@ from PIL import Image
 from osgeo import gdal
 from osgeo import gdal_array
 
+from SRTCodes.GDALRasterIO import GDALRasterRange
 from SRTCodes.GeoRasterRW import GeoRasterWrite
 from SRTCodes.SRTFeature import SRTFeatureCallBack
 from SRTCodes.SRTFeature import SRTFeatureCallBackScaleMinMax as SFCBSM
@@ -321,6 +322,7 @@ def drawShadowImage_Optical(name, x, y, rows, columns, raster_fn, to_fn, d_min=0
                             width=0.0, height=0.0, is_expand=False):
     grcd = GDALResterCenterDraw(name=name, raster_fn=raster_fn, channel_list=channel_list)
     grcd.read(x, y, rows, columns)
+
     grcd.scaleMinMax(d_min, d_max)
     to_fn = os.path.join(to_fn, name + ".png")
     grcd.toImage(to_fn, width=width, height=height, is_expand=is_expand)
@@ -450,6 +452,9 @@ def method_name1():
 
 
 class DrawShadowImage_0:
+    """
+    TODO: 这里加一个导入数据范围的代码
+    """
 
     def __init__(self, rows, columns, x, y, raster_fn, to_dirname, width=0.0, height=0.0, is_expand=False):
         self.rows = rows
@@ -463,6 +468,7 @@ class DrawShadowImage_0:
         self.is_expand = is_expand
         self.d_json = {}
         self.json_fn = os.path.join(to_dirname, "dsi.json")
+        self.grr = GDALRasterRange(raster_fn)
 
     def drawOptical(self, name, d_min=0, d_max=3500, channel_list=None):
         drawShadowImage_Optical(name, self.x, self.y, self.rows, self.columns, self.raster_fn, to_fn=self.to_dirname,
@@ -485,8 +491,8 @@ class DrawShadowImage_0:
         self.saveToJson(name, d_min=d_min, d_max=d_max,
                         width=self.width, height=self.height, is_expand=self.is_expand)
 
-    def drawImdc(self, name, categorys=None):
-        drawShadowImage_Imdc(name, self.x, self.y, self.rows, self.columns, self.raster_fn, to_fn=self.to_dirname,
+    def drawImdc(self, name, raster_fn, categorys=None):
+        drawShadowImage_Imdc(name, self.x, self.y, self.rows, self.columns, raster_fn, to_fn=self.to_dirname,
                              categorys=categorys, width=self.width, height=self.height, is_expand=self.is_expand)
         self.saveToJson(name, categorys=categorys, width=self.width, height=self.height, is_expand=self.is_expand)
 

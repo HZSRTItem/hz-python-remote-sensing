@@ -13,8 +13,6 @@ from RUN.RUNFucs import QJYTxt_main
 from RUN.RUNgetdirsize import RUNgetdirsize_main
 
 
-
-
 class GetDirSize_main:
 
     def __init__(self):

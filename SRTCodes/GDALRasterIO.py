@@ -15,10 +15,11 @@ from osgeo import gdal
 from osgeo import gdal_array
 from osgeo import osr
 
+from SRTCodes.NumpyUtils import scaleMinMax
 from SRTCodes.RasterIO import GEORaster
 from SRTCodes.SRTCollection import SRTCollection
 from SRTCodes.SRTFeature import SRTFeatures
-from SRTCodes.Utils import readcsv, savecsv, Jdt
+from SRTCodes.Utils import readcsv, savecsv, Jdt, changext, readJson, saveJson
 
 
 def _cheng(n1, n2, arr):
@@ -102,6 +103,57 @@ def getGDALRasterNames(raster_fn):
     return names
 
 
+class GDALRasterRangeData:
+
+    def __init__(self, d_min=0.0, d_max=0.0):
+        self.min = float(d_min)
+        self.max = float(d_max)
+
+    def toDict(self):
+        return {"min": self.min, "max": self.max}
+
+
+class GDALRasterRange:
+
+    def __init__(self, raster_fn=None):
+        self.raster_fn = raster_fn
+        self.range_fn = ""
+        self.range_dict = {}
+        self.init(raster_fn)
+
+    def init(self, raster_fn):
+        if raster_fn is None:
+            return
+        self.raster_fn = raster_fn
+        self.range_fn = changext(raster_fn, ".range")
+        if os.path.isfile(self.range_fn):
+            try:
+                self.range_dict = readJson(self.range_fn)
+            except:
+                pass
+
+    def isRead(self):
+        return os.path.isfile(self.range_fn)
+
+    def loadNPY(self, npy_fn, names=None):
+        if names is None:
+            names = getGDALRasterNames(self.raster_fn)
+        d = np.load(npy_fn)
+        for i in range(len(d)):
+            self.range_dict[names[i]] = GDALRasterRangeData(d[i, 0], d[i, 1])
+
+    def save(self):
+        save_dict = {k: self.range_dict[k].toDict() for k in self.range_dict}
+        saveJson(save_dict, self.range_fn)
+
+    def __getitem__(self, item) -> GDALRasterRangeData:
+        return self.range_dict[item]
+
+    def scaleMinMax(self, name, data=None, is_01=False):
+        data = scaleMinMax(data, d_min=self.range_dict[name].min, d_max=self.range_dict[name].max, is_01=is_01)
+        return data
+
+
 class GDALRasterIO(GEORaster):
     """ GDAL Raster IO"""
 
@@ -158,6 +210,8 @@ class GDALRasterIO(GEORaster):
 
         self.raster_range = None
 
+        self.grr = GDALRasterRange()
+
     def _init(self):
         self.gdal_raster_fn = None
         self.raster_ds = None
@@ -190,6 +244,7 @@ class GDALRasterIO(GEORaster):
         if self.raster_ds is None:
             raise Exception("Input geo raster file can not open -file:" + self.gdal_raster_fn)
 
+        self.grr.init(self.gdal_raster_fn)
         self.geo_transform = self.raster_ds.GetGeoTransform()
         self.inv_geo_transform = gdal.InvGeoTransform(self.geo_transform)
         self.n_rows = self.raster_ds.RasterYSize
@@ -349,16 +404,25 @@ class GDALRasterIO(GEORaster):
         x1, y1, _ = self.towgs84_coor_trans.TransformPoint(x, y)
         return x1, y1
 
-    def readGDALBand(self, n_band, ds: gdal.Dataset = None):
+    def readGDALBand(self, n_band, ds: gdal.Dataset = None, is_range=False, is_01=False):
+        """ n_band start at 1 """
         if ds is None:
             ds = self.raster_ds
         if isinstance(n_band, str):
             n_band = self.names.index(n_band) + 1
         band = ds.GetRasterBand(n_band)
-        return gdal_array.BandReadAsArray(band)
+        d = gdal_array.BandReadAsArray(band)
+        d = self._GRR(d, is_01, is_range, n_band)
+        return d
+
+    def _GRR(self, d, is_01, is_range, n_band):
+        if is_range:
+            name = self.names[n_band - 1]
+            d = self.grr.scaleMinMax(name, d, is_01=is_01)
+        return d
 
     def readAsArray(self, x_row_off=0.0, y_column_off=0.0, win_row_size=None, win_column_size=None, interleave='band',
-                    band_list=None, is_geo=False, is_trans=False):
+                    band_list=None, is_geo=False, is_trans=False, is_range=False, is_01=False):
         """ Read geographic raster data as numpy arrays by location
         \
         :param is_trans: whether Coordinate Translate default:WGS84
@@ -379,7 +443,16 @@ class GDALRasterIO(GEORaster):
         self.d = gdal_array.DatasetReadAsArray(self.raster_ds, y_column_off, x_row_off, win_xsize=win_column_size,
                                                win_ysize=win_row_size, interleave=interleave)
         self.interleave = interleave
+        # self._GRRS(interleave, is_01, is_range)
         return self.d
+
+    def _GRRS(self, interleave, is_01, is_range):
+        if interleave == "band":
+            for i in range(self.d.shape[0]):
+                self.d[i, :, :] = self._GRR(self.d[i, :, :], is_01, is_range, i + 1)
+        elif interleave == "pixel":
+            for i in range(self.d.shape[2]):
+                self.d[:, :, i] = self._GRR(self.d[:, :, i], is_01, is_range, i + 1)
 
     def isGeoIn(self, x, y):
         if not (self.x_min < x < self.x_max):
@@ -484,7 +557,6 @@ class GDALRaster(GDALRasterIO, SRTCollection):
             x0 = column_off - column_off0
             y0 = row_off - row_off0
             d[y0:y0 + row_size, x0:x0 + column_size, :] = d0
-
         return d
 
     def save(self, d: np.array = None, save_geo_raster_fn=None, fmt="ENVI", dtype=None, geo_transform=None,
