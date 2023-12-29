@@ -6,6 +6,8 @@ r"""----------------------------------------------------------------------------
 @Contact : hzsongrentou1580@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : BaseCodes of ShadowMain
+
+
 -----------------------------------------------------------------------------"""
 
 from matplotlib import pyplot as plt
@@ -920,6 +922,25 @@ class ShadowMain:
     def __init__(self):
         self.release_dfn = DirFileName(r"F:\ProjectSet\Shadow\Release")
         self.model_dfn = DirFileName(r"F:\ProjectSet\Shadow\Models")
+        
+        self.optics_feats = (
+            "Blue", "Green", "Red", "NIR", "NDVI", "NDWI",
+            # "OPT_dis", "OPT_hom", "OPT_mean", "OPT_var"
+        )
+        self.as_feats = (
+            "AS_VV", "AS_VH", "AS_VHDVV", "AS_C11", "AS_C22", "AS_Lambda1", "AS_Lambda2",
+            "AS_SPAN",
+            # "AS_Epsilon", "AS_Mu", "AS_RVI", "AS_m", "AS_Beta",
+            "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+            "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
+        )
+        self.de_feats = (
+            "DE_VV", "DE_VH", "DE_VHDVV", "DE_C11", "DE_C22", "DE_Lambda1", "DE_Lambda2",
+            "DE_SPAN",
+            # "DE_Epsilon", "DE_Mu", "DE_RVI", "DE_m", "DE_Beta",
+            "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+            "DE_VV_hom", "DE_VV_mean", "DE_VV_var"
+        )
 
     def shadowTraining(self):
         spl_fn = r"F:\ProjectSet\Shadow\QingDao\Sample\2\qd_spl2_3.csv"

@@ -11,108 +11,21 @@ r"""----------------------------------------------------------------------------
 import os.path
 from inspect import isfunction
 
+import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 from osgeo import gdal
-from osgeo import gdal_array
 
 from SRTCodes.GDALRasterIO import GDALRasterRange
+from SRTCodes.GDALUtils import GDALRasterCenter
 from SRTCodes.GeoRasterRW import GeoRasterWrite
-from SRTCodes.SRTFeature import SRTFeatureCallBack
 from SRTCodes.SRTFeature import SRTFeatureCallBackScaleMinMax as SFCBSM
 from SRTCodes.Utils import saveJson, readcsv, changext
-
-
-def coorTrans(geo_trans, x, y):
-    column = geo_trans[0] + x * geo_trans[1] + y * geo_trans[2]
-    row = geo_trans[3] + x * geo_trans[4] + y * geo_trans[5]
-    return row, column
 
 
 def isCloseInt(d, eps=0.000001):
     d_int = int(d)
     return abs(d - d_int) < eps
-
-
-class RasterCenter:
-
-    def __init__(self, name, ds, channel_list, save_dict=None, raster_fn=None):
-        if save_dict is None:
-            save_dict = {}
-        self.ds = ds
-        self.name = name
-        self.channel_list = channel_list
-        self.raster_fn = raster_fn
-        self.save_dict = {"Name": self.name}
-        for k in save_dict:
-            self.save_dict[k] = save_dict[k]
-
-    def read(self, x_row=0.0, y_column=0.0, win_row_size=0, win_column_size=0, is_geo=True, no_data=0):
-        ds: gdal.Dataset = self.ds
-        names = []
-        for i in range(ds.RasterCount):
-            names.append(ds.GetRasterBand(i + 1).GetDescription())
-        channel_list = self.channel_list.copy()
-
-        for i in range(len(channel_list)):
-            if isinstance(channel_list[i], str):
-                channel_list[i] = names.index(channel_list[i])
-
-        geo_trans = ds.GetGeoTransform()
-        inv_geo_trans = gdal.InvGeoTransform(geo_trans)
-        n_rows = ds.RasterYSize
-        n_columns = ds.RasterXSize
-        n_channels = ds.RasterCount
-        if is_geo:
-            x_row, y_column = coorTrans(inv_geo_trans, x_row, y_column)
-        x_row, y_column = int(x_row), int(y_column)
-
-        if win_row_size == 0 and win_column_size == 0:
-            d = ds.ReadAsArray(interleave="pixel")
-        else:
-            row_off0 = x_row - int(win_row_size / 2)
-            column_off0 = y_column - int(win_column_size / 2)
-            if 0 <= row_off0 < n_rows - win_row_size and 0 <= column_off0 < n_columns - win_column_size:
-                d = gdal_array.DatasetReadAsArray(ds, column_off0, row_off0, win_xsize=win_column_size,
-                                                  win_ysize=win_row_size, interleave="pixel")
-            else:
-                row_size, column_size = win_row_size, win_column_size
-
-                if row_off0 < 0:
-                    row_off = 0
-                    row_size = win_row_size + row_off0
-                else:
-                    row_off = row_off0
-
-                if column_off0 < 0:
-                    column_off = 0
-                    column_size = win_column_size + column_off0
-                else:
-                    column_off = column_off0
-
-                if row_off0 + win_row_size >= n_rows:
-                    row_size = n_rows - row_off0
-
-                if column_off0 + win_column_size >= n_columns:
-                    column_size = n_columns - column_off0
-
-                if row_size <= 0 or column_size <= 0:
-                    raise Exception("Can not get data.")
-                else:
-                    d0 = gdal_array.DatasetReadAsArray(ds, column_off, row_off, column_size, row_size,
-                                                       interleave="pixel")
-                    d = np.ones([n_channels, win_row_size, win_column_size]) * no_data
-                    x0 = column_off - column_off0
-                    y0 = row_off - row_off0
-                    d[:, y0:y0 + row_size, x0:x0 + column_size] = d0
-
-        if d is not None:
-            if len(d.shape) == 2:
-                d = np.expand_dims(d, axis=2)
-            else:
-                d = d[:, :, channel_list]
-
-        return d
 
 
 def toMinMax(x):
@@ -122,22 +35,14 @@ def toMinMax(x):
     return x
 
 
-class GDALResterCenterDraw(RasterCenter):
+class GDALResterCenterDraw(GDALRasterCenter):
     """ GDAL Rester Center Draw """
 
-    GDALDatasetCollection = {}
-
     def __init__(self, name, raster_fn, channel_list=None):
-        self.c_d = None
-        if channel_list is None:
-            channel_list = [name]
-        raster_fn = os.path.abspath(raster_fn)
-        if raster_fn not in self.GDALDatasetCollection:
-            self.GDALDatasetCollection[raster_fn] = gdal.Open(raster_fn)
         self.raster_fn = raster_fn
+        channel_list, raster_fn = self.initGeoRaster(channel_list, name, raster_fn)
         super().__init__(name, self.GDALDatasetCollection[raster_fn], channel_list)
 
-        self.d = None
         self.d_min = None
         self.d_max = None
 
@@ -222,30 +127,6 @@ class GDALResterCenterDraw(RasterCenter):
         else:
             im.save(fn, "JPEG", dpi=(300, 300))
 
-    def read(self, x_row=0.0, y_column=0.0, win_row_size=0, win_column_size=0, is_geo=True, no_data=0):
-        self.d = super(GDALResterCenterDraw, self).read(
-            x_row=x_row, y_column=y_column, win_row_size=win_row_size,
-            win_column_size=win_column_size, is_geo=is_geo, no_data=no_data)
-
-    def scaleMinMax(self, d_min, d_max):
-        self.d = np.clip(self.d, d_min, d_max)
-        self.d = (self.d - d_min) / (d_max - d_min)
-
-    def callBackFunc(self, callback, *args, **kwargs):
-        self.d = callback(self.d, args=args, kwargs=kwargs)
-
-    def callBack(self, callback: SRTFeatureCallBack, *args, **kwargs):
-        self.d = callback.fit(self.d, *args, **kwargs)
-
-    def toCategory(self):
-        self.c_d = self.d.astype("int")
-        self.c_d = self.c_d[:, :, 0]
-        to_shape = (self.c_d.shape[0], self.c_d.shape[1], 3)
-        self.d = np.zeros(to_shape, dtype="uint8")
-
-    def categoryColor(self, category, color: tuple = (0, 0, 0)):
-        self.d[self.c_d == category, :] = np.array(color, dtype="uint8")
-
     def readWhole(self):
         self.d = self.ds.ReadAsArray()
 
@@ -274,8 +155,8 @@ class ShadowGeoDraw:
         raster_fn = os.path.abspath(raster_fn)
         if raster_fn not in self.ds_dict:
             self.ds_dict[raster_fn] = gdal.Open(raster_fn)
-        self.raster_centers[name] = RasterCenter(name=name, ds=self.ds_dict[raster_fn], channel_list=channel_list,
-                                                 save_dict=save_dict)
+        self.raster_centers[name] = GDALRasterCenter(name=name, ds=self.ds_dict[raster_fn], channel_list=channel_list,
+                                                     save_dict=save_dict)
 
     def fit(self, save_dir):
         save_dict = {
@@ -293,7 +174,7 @@ class ShadowGeoDraw:
         i_data = 0
         d_list = []
         for name in self.raster_centers:
-            r_c: RasterCenter = self.raster_centers[name]
+            r_c = self.raster_centers[name]
             d = r_c.read(x_row=self.x_row,
                          y_column=self.y_column,
                          win_row_size=self.win_row_size,
@@ -623,10 +504,275 @@ def bjDrawGeoImage():
         dsi.drawSAR("DE_Lambda1", d_min=-25.503738, d_max=5.2980003)
         dsi.drawSAR("DE_Lambda2", d_min=-33.442368, d_max=-8.68537)
 
-    draw(60, 60, 116.461316,39.896712)
+    draw(60, 60, 116.461316, 39.896712)
+
+
+def readGDALRasterCenter(x, y, win_row_size, win_column_size, channel_list, min_list=None, max_list=None,
+                         callback_funcs=None, is_geo=True, no_data=0, file_list=None, geo_ranges=None):
+    if file_list is None:
+        file_list = []
+    if callback_funcs is None:
+        callback_funcs = []
+    grc = None
+    geo_range = None
+    for i, fn in enumerate(file_list):
+        grc = GDALRasterCenter(channel_list=channel_list, raster_fn=fn)
+        if grc.read(x_row=x, y_column=y, win_row_size=win_row_size, win_column_size=win_column_size,
+                    is_geo=is_geo, no_data=no_data, ) is not None:
+            geo_range = geo_ranges[i]
+            break
+    for i in range(len(channel_list)):
+        if min_list[i] is None:
+            min_list[i] = geo_range[channel_list[i]].min
+        if max_list[i] is None:
+            max_list[i] = geo_range[channel_list[i]].max
+    for callback_func in callback_funcs:
+        grc.callBack(callback_func)
+    n = min([len(min_list), len(max_list)])
+    for i in range(n):
+        grc.scaleMinMax(d_min=min_list[i], d_max=max_list[i], dim=i)
+    return grc.d
+
+
+class ShadowGeoDrawChannel:
+
+    def __init__(self, name, win_row_size, win_column_size, channel_list=None, min_list=None, max_list=None,
+                 callback_funcs=None, is_geo=True, no_data=0, ):
+        self.file_list = [
+            r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_look_tif.tif",
+            r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_tif.tif",
+            r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_look_tif.tif",
+        ]
+        self.geo_ranges = [
+            GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\MkTu\Draw\SH_BJ_envi.dat.npy.json"),
+            GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\MkTu\Draw\SH_CD_envi.dat.npy.json"),
+            GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\MkTu\Draw\SH_QD_envi.dat.npy.json"),
+        ]
+        self.name = name
+        self.win_row_size = win_row_size
+        self.win_column_size = win_column_size
+        self.channel_list = channel_list
+        self.min_list = min_list
+        self.max_list = max_list
+        self.callback_funcs = callback_funcs
+        self.is_geo = is_geo
+        self.no_data = no_data
+
+    def read(self, x, y):
+        return readGDALRasterCenter(
+            x=x, y=y, win_row_size=self.win_row_size, win_column_size=self.win_column_size,
+            channel_list=self.channel_list, min_list=self.min_list, max_list=self.max_list,
+            callback_funcs=self.callback_funcs, is_geo=self.is_geo, no_data=self.no_data,
+            geo_ranges=self.geo_ranges, file_list=self.file_list
+        )
+
+
+class ShadowGeoDrawMultiChannel(ShadowGeoDrawChannel):
+
+    def __init__(self, name, win_row_size, win_column_size, channel_list=None, min_list=None, max_list=None,
+                 callback_funcs=None, is_geo=True, no_data=0, ):
+        if channel_list is None:
+            channel_list = [0, 1, 2]
+        if min_list is None:
+            min_list = [None, None, None]
+        if max_list is None:
+            max_list = [None, None, None]
+        super().__init__(name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+                         channel_list=channel_list, min_list=min_list, max_list=max_list,
+                         callback_funcs=callback_funcs, is_geo=is_geo, no_data=no_data, )
+
+
+class ShadowGeoDrawSingleChannel(ShadowGeoDrawChannel):
+
+    def __init__(self, name, win_row_size, win_column_size, channel_list=None, min_list=None, max_list=None,
+                 callback_funcs=None, is_geo=True, no_data=0, ):
+        if channel_list is None:
+            channel_list = [0]
+        if min_list is None:
+            min_list = [None]
+        if max_list is None:
+            max_list = [None]
+        super().__init__(name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+                         channel_list=channel_list, min_list=min_list, max_list=max_list,
+                         callback_funcs=callback_funcs, is_geo=is_geo, no_data=no_data, )
+
+    def read(self, x, y):
+        d = super(ShadowGeoDrawSingleChannel, self).read(x, y)
+        d_rgb = np.zeros((d.shape[0], d.shape[1], 3))
+        for i in range(d.shape[0]):
+            for j in range(d.shape[1]):
+                d_rgb[i, j, :] = d[i, j]
+        return d_rgb
+
+
+class ShadowGeoDrawCategoryChannel(GDALRasterCenter):
+
+    def __init__(self, name, imdc_fns, win_row_size, win_column_size, is_geo=True, no_data=0, color_dict=None):
+        super().__init__(name=name, channel_list=[0], raster_fn=imdc_fns[0])
+        if color_dict is None:
+            color_dict = {}
+        self.name = name
+        self.win_row_size = win_row_size
+        self.win_column_size = win_column_size
+        self.is_geo = is_geo
+        self.no_data = no_data
+        self.imdc_fns = imdc_fns
+        self.color_dict = color_dict
+
+    def read(self, x=0.0, y=0.0, win_row_size=0, win_column_size=0, is_geo=True, no_data=0, *args, **kwargs):
+        win_row_size = self.win_row_size
+        win_column_size = self.win_column_size
+        is_geo = self.is_geo
+        no_data = self.no_data
+        d = None
+        for i in range(len(self.imdc_fns)):
+            self.initRaster(None, raster_fn=self.imdc_fns[i])
+            d = super(ShadowGeoDrawCategoryChannel, self).read(
+                x_row=x, y_column=y, win_row_size=win_row_size,
+                win_column_size=win_column_size, is_geo=is_geo, no_data=no_data)
+            if d is not None:
+                break
+        self.d = d
+        if d is not None:
+            self.toCategory()
+            for k in self.color_dict:
+                self.categoryColor(k, self.color_dict[k])
+        return self.d / 255
+
+
+class ShadowGeoDrawGradImage:
+
+    def __init__(self, win_row_size, win_column_size):
+        super().__init__()
+
+        self.win_row_size = win_row_size
+        self.win_column_size = win_column_size
+        self.columns = []
+        self.row_names = []
+        self.xys = []
+
+    def addColumnRGB(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, ):
+        win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
+        sgdmc = ShadowGeoDrawMultiChannel(
+            name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+            channel_list=["Red", "Green", "Blue"], min_list=min_list, max_list=max_list,
+            callback_funcs=[], is_geo=True, no_data=0,
+        )
+        self.columns.append(sgdmc)
+
+    def addColumnNRG(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, ):
+        win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
+        sgdmc = ShadowGeoDrawMultiChannel(
+            name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+            channel_list=["NIR", "Red", "Green"], min_list=min_list, max_list=max_list,
+            callback_funcs=[], is_geo=True, no_data=0,
+        )
+        self.columns.append(sgdmc)
+
+    def initSize(self, win_column_size, win_row_size):
+        if win_row_size is None:
+            win_row_size = self.win_row_size
+        if win_column_size is None:
+            win_column_size = self.win_column_size
+        return win_column_size, win_row_size
+
+    def addColumnSAR(self, name, channel_name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, ):
+        win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
+        sgdsc = ShadowGeoDrawSingleChannel(
+            name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+            channel_list=[channel_name], min_list=min_list, max_list=max_list,
+            callback_funcs=[], is_geo=True, no_data=0,
+        )
+        self.columns.append(sgdsc)
+
+    def addColumnSAR_ASVV(self, name, min_list=None, max_list=None,
+                          win_row_size=None, win_column_size=None):
+        self.addColumnSAR(name=name, channel_name="AS_VV", min_list=min_list, max_list=max_list,
+                          win_row_size=win_row_size, win_column_size=win_column_size)
+
+    def addColumnSAR_ASVH(self, name, min_list=None, max_list=None,
+                          win_row_size=None, win_column_size=None):
+        self.addColumnSAR(name=name, channel_name="AS_VH", min_list=min_list, max_list=max_list,
+                          win_row_size=win_row_size, win_column_size=win_column_size)
+
+    def addColumnSAR_DEVV(self, name, min_list=None, max_list=None,
+                          win_row_size=None, win_column_size=None):
+        self.addColumnSAR(name=name, channel_name="DE_VV", min_list=min_list, max_list=max_list,
+                          win_row_size=win_row_size, win_column_size=win_column_size)
+
+    def addColumnSAR_DEVH(self, name, min_list=None, max_list=None,
+                          win_row_size=None, win_column_size=None):
+        self.addColumnSAR(name=name, channel_name="DE_VH", min_list=min_list, max_list=max_list,
+                          win_row_size=win_row_size, win_column_size=win_column_size)
+
+    def addColumnImdc(self, name, imdc_fns, color_dict=None, win_row_size=None, win_column_size=None):
+        win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
+        if color_dict is None:
+            color_dict = {}
+        sgdcc = ShadowGeoDrawCategoryChannel(
+            name, imdc_fns=imdc_fns, win_row_size=win_row_size, win_column_size=win_column_size, is_geo=True, no_data=0,
+            color_dict=color_dict
+        )
+        self.columns.append(sgdcc)
+
+    def addRow(self, name, x, y):
+        self.row_names.append(name)
+        self.xys.append((x, y))
+
+    def imshow(self, n_rows_ex=1.0, n_columns_ex=1.0):
+        n_rows, n_columns = len(self.row_names), len(self.columns)
+        fig = plt.figure(
+            figsize=(n_columns * n_columns_ex, n_rows * n_rows_ex),
+            # dpi=300
+        )
+        axes = fig.subplots(n_rows, n_columns)
+        # fig.tight_layout()
+        fig.subplots_adjust(top=0.96, bottom=0.04, left=0.04, right=0.96, hspace=0.04, wspace=0.03)
+
+        for i in range(axes.shape[0]):
+            x, y = self.xys[i]
+            for j in range(axes.shape[1]):
+                ax = axes[i, j]
+                if j == 0:
+                    ax.set_ylabel(self.row_names[i], fontdict={'family': 'Times New Roman', 'size': 16})
+                if i == 0:
+                    ax.set_title(self.columns[j].name, fontdict={'family': 'Times New Roman', 'size': 16})
+                d = self.columns[j].read(x, y)
+                ax.imshow(d)
+                ax.set_xticks([])
+                ax.set_yticks([])
+                pass
 
 
 def main():
+    sgdgi = ShadowGeoDrawGradImage(21, 21)
+    sgdgi.addColumnRGB("RGB")
+    sgdgi.addColumnNRG("NRG")
+    sgdgi.addColumnImdc(
+        "IMDC1", imdc_fns=[
+            r"F:\ProjectSet\Shadow\Release\BeiJingMods\20231114H094632\SPL_SH-SVM-TAG-OPTICS-AS-DE_imdc.dat",
+            r"F:\ProjectSet\Shadow\Release\ChengDuMods\20231117H112558\SPL_SH-SVM-TAG-OPTICS-AS-DE_imdc.dat",
+            r"F:\ProjectSet\Shadow\Release\QingDaoMods\20231221H224548\SPL_SH-SVM-TAG-OPTICS-AS-DE_imdc.dat",
+        ], color_dict={1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)})
+    sgdgi.addColumnSAR_ASVV("AS VV")
+    sgdgi.addColumnSAR_ASVH("AS VH")
+    sgdgi.addColumnSAR_DEVV("DE VV")
+    sgdgi.addColumnSAR_DEVH("DE VH")
+
+    sgdgi.addRow("ROW 1", 120.330806, 36.135239)
+    sgdgi.addRow("ROW 2", 120.397521, 36.144224)
+    sgdgi.addRow("ROW 3", 116.363178, 39.858848)
+    sgdgi.addRow("ROW 4", 116.34989, 39.79670)
+    sgdgi.addRow("ROW 5", 104.07385, 30.65005)
+    sgdgi.addRow("ROW 6", 104.13064, 30.62272)
+
+    sgdgi.imshow(n_rows_ex=1.5, n_columns_ex=1.5)
+
+    plt.savefig(r"F:\ProjectSet\Shadow\MkTu\4.1Details\fig1.jpeg", dpi=300)
+    plt.show()
+
+
+def method_name4():
     raster_fn = r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_envi.dat"
     to_dir = r"F:\OpenTitle\tu\3"
     if not os.path.isdir(to_dir):

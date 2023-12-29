@@ -16,8 +16,9 @@ import time
 import joblib
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, RandomizedSearchCV
 from sklearn.svm import SVC
+from sklearn.utils import shuffle as sk_u_shuffle
 
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import samplingToCSV
@@ -298,6 +299,59 @@ def trainSvm_nocv(d_train, labels):
     return clf, ret_d
 
 
+def trainSVM_RandomizedSearchCV(x: np.ndarray, y: np.ndarray, find_grid: dict = None, n_iter=None, **kwargs, ):
+    if find_grid is None:
+        find_grid = {}
+    if len(kwargs) != 0:
+        for k in kwargs:
+            find_grid[k] = kwargs[k]
+    if len(find_grid) == 0:
+        find_grid = {"gamma": np.logspace(-1, 1, 20), "C": np.linspace(0.01, 10, 20)}
+    if n_iter is None:
+        n = 1
+        for k in find_grid:
+            n *= len(find_grid[k])
+        n_iter = int(0.2 * n)
+    svm_rs_cv = RandomizedSearchCV(
+        estimator=SVC(kernel="rbf", cache_size=5000),
+        param_distributions=find_grid,
+        n_iter=n_iter
+    )
+    svm_rs_cv.fit(x, y)
+    svm_canchu = svm_rs_cv.best_params_
+    svm_mod = svm_rs_cv.best_estimator_
+    return svm_mod, svm_canchu
+
+
+def trainRF_RandomizedSearchCV(x: np.ndarray, y: np.ndarray, find_grid: dict = None, n_iter=None, **kwargs, ):
+    if find_grid is None:
+        find_grid = {}
+    if len(kwargs) != 0:
+        for k in kwargs:
+            find_grid[k] = kwargs[k]
+    if len(find_grid) == 0:
+        find_grid = {
+            "n_estimators": list(range(1, 150, 10)),
+            "max_depth": list(range(1, 20)),
+            "min_samples_leaf": list(range(1, 5)),
+            "min_samples_split": list(range(2, 10))
+        }
+    if n_iter is None:
+        n = 1
+        for k in find_grid:
+            n *= len(find_grid[k])
+        n_iter = int(0.2 * n)
+    svm_rs_cv = RandomizedSearchCV(
+        estimator=RandomForestClassifier(n_jobs=-1),
+        param_distributions=find_grid,
+        n_iter=n_iter
+    )
+    svm_rs_cv.fit(x, y)
+    svm_canchu = svm_rs_cv.best_params_
+    svm_mod = svm_rs_cv.best_estimator_
+    return svm_mod, svm_canchu
+
+
 class FrontShadowCategoryTraining(CategoryTraining):
 
     def __init__(self, model_dir, model_name="model", n_category=2, category_names=None):
@@ -506,7 +560,7 @@ class ShadowCategoryTraining(FrontShadowCategoryTraining):
                         print()
 
         time2 = time.time()
-        print(RumTime.fmtTime(time2-time1))
+        print(RumTime.fmtTime(time2 - time1))
 
     def getSample(self, spls: list, feats: list, tags: list):
         x_test = self.test_x[feats].values
@@ -520,6 +574,7 @@ class ShadowCategoryTraining(FrontShadowCategoryTraining):
         x_train = x_train[:, :-1]
         y1 = y_train[y_train >= 5]
         y_train[y_train >= 5] = y1 - 4
+        x_train, y_train = sk_u_shuffle(x_train, y_train)
         return x_train, y_train, x_test, y_test
 
     def saveModel(self, model_name, *args, **kwargs):
@@ -759,3 +814,11 @@ class ShadowCategoryTrainImdcOne:
         if is_spl:
             samplingToCSV(spl_fn, self.gr, spl_fn)
         self.csv_spl = CSVSamples(spl_fn)
+
+
+def main():
+    return None
+
+
+if __name__ == "__main__":
+    main()

@@ -15,7 +15,6 @@ import warnings
 
 import joblib
 import numpy as np
-from sklearn.model_selection import RandomizedSearchCV
 from sklearn.svm import SVC
 
 from SRTCodes.GDALRasterIO import GDALRaster
@@ -27,30 +26,7 @@ from SRTCodes.Utils import printList, DirFileName, Jdt, readJson, writeTexts, sa
 from Shadow.ShadowDraw import cal_10log10
 from Shadow.ShadowImdC import ShadowImageClassification
 from Shadow.ShadowMain import ShadowMain
-
-
-def trainSVM_RandomizedSearchCV(x: np.ndarray, y: np.ndarray, find_grid: dict = None, n_iter=None, **kwargs, ):
-    if find_grid is None:
-        find_grid = {}
-    if len(kwargs) != 0:
-        for k in kwargs:
-            find_grid[k] = kwargs[k]
-    if len(find_grid) == 0:
-        find_grid = {"gamma": np.logspace(-1, 1, 20), "C": np.linspace(0.01, 10, 20)}
-    if n_iter is None:
-        n = 1
-        for k in find_grid:
-            n *= len(find_grid[k])
-        n_iter = int(0.2 * n)
-    svm_rs_cv = RandomizedSearchCV(
-        estimator=SVC(kernel="rbf", cache_size=5000),
-        param_distributions=find_grid,
-        n_iter=n_iter
-    )
-    svm_rs_cv.fit(x, y)
-    svm_canchu = svm_rs_cv.best_params_
-    svm_mod = svm_rs_cv.best_estimator_
-    return svm_mod, svm_canchu
+from Shadow.ShadowTraining import trainSVM_RandomizedSearchCV
 
 
 def trainTest(x: np.ndarray, y: np.ndarray):

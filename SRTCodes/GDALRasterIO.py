@@ -105,9 +105,12 @@ def getGDALRasterNames(raster_fn):
 
 class GDALRasterRangeData:
 
-    def __init__(self, d_min=0.0, d_max=0.0):
+    def __init__(self, d_min=0.0, d_max=0.0, t_dict=None):
         self.min = float(d_min)
         self.max = float(d_max)
+        if t_dict is not None:
+            self.min = float(t_dict["min"])
+            self.max = float(t_dict["max"])
 
     def toDict(self):
         return {"min": self.min, "max": self.max}
@@ -115,20 +118,27 @@ class GDALRasterRangeData:
 
 class GDALRasterRange:
 
-    def __init__(self, raster_fn=None):
+    def __init__(self, raster_fn=None, range_fn=None):
         self.raster_fn = raster_fn
         self.range_fn = ""
         self.range_dict = {}
-        self.init(raster_fn)
+        self.init(raster_fn, range_fn)
 
-    def init(self, raster_fn):
+    def init(self, raster_fn, range_fn=None):
+        if range_fn is not None:
+            dict_in = readJson(range_fn)
+            for k in dict_in:
+                self.range_dict[k] = GDALRasterRangeData(t_dict=dict_in[k])
+
         if raster_fn is None:
             return
         self.raster_fn = raster_fn
         self.range_fn = changext(raster_fn, ".range")
         if os.path.isfile(self.range_fn):
             try:
-                self.range_dict = readJson(self.range_fn)
+                dict_in = readJson(self.range_fn)
+                for k in dict_in:
+                    self.range_dict[k] = GDALRasterRangeData(t_dict=dict_in[k])
             except:
                 pass
 
@@ -142,12 +152,21 @@ class GDALRasterRange:
         for i in range(len(d)):
             self.range_dict[names[i]] = GDALRasterRangeData(d[i, 0], d[i, 1])
 
-    def save(self):
+    def save(self, range_fn=None):
+        if range_fn is None:
+            range_fn = self.range_fn
         save_dict = {k: self.range_dict[k].toDict() for k in self.range_dict}
-        saveJson(save_dict, self.range_fn)
+        saveJson(save_dict, range_fn)
 
     def __getitem__(self, item) -> GDALRasterRangeData:
-        return self.range_dict[item]
+        if isinstance(item, str):
+            grrd = self.range_dict[item]
+        elif isinstance(item, int):
+            ks = list(self.range_dict.keys())
+            grrd = self.range_dict[ks[item]]
+        else:
+            grrd = None
+        return grrd
 
     def scaleMinMax(self, name, data=None, is_01=False):
         data = scaleMinMax(data, d_min=self.range_dict[name].min, d_max=self.range_dict[name].max, is_01=is_01)

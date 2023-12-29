@@ -313,3 +313,26 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def randomSampling(x, y, n=500, select_list=None):
+    if select_list is None:
+        select_list = [0, 1]
+    random_list = [i for i in range(len(x))]
+    random.shuffle(random_list)
+    x, y = x[random_list], y[random_list]
+    out_x, out_y = [], []
+    for select_c in select_list:
+        x1 = x[y == select_c]
+        y1 = y[y == select_c]
+        if len(y1) > n:
+            x1 = x1[:n, :]
+            y1 = y1[:n]
+        out_x.append(x1)
+        out_y.append(y1)
+    out_x = np.concatenate(out_x)
+    out_y = np.concatenate(out_y)
+    random_list = [i for i in range(len(out_x))]
+    random.shuffle(random_list)
+    out_x, out_y = out_x[random_list], out_y[random_list]
+    return out_x, out_y

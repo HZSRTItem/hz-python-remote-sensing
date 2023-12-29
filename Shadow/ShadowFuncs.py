@@ -19,6 +19,9 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.axisartist import AxesZero
 from mpl_toolkits.axisartist.parasite_axes import HostAxes, ParasiteAxes
 from osgeo import gdal
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.svm import SVC
 
 import scienceplots
 from SRTCodes.GDALRasterClassification import GDALRasterClassificationAccuracy
@@ -26,6 +29,7 @@ from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterCollection, readGEORaste
 from SRTCodes.GDALRasterIO import GDALRasterFeatures
 from SRTCodes.GDALUtils import gdalStratifiedRandomSampling, samplingToCSV, RasterToVRTS
 from SRTCodes.GEEUtils import GEEImageProperty, geeCSVSelectPropertys
+from SRTCodes.GeoRasterRW import GeoRasterWrite
 from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.NumpyUtils import neighborhood, calPCA
 from SRTCodes.OGRUtils import SRTESRIShapeFileRead, sampleSpaceUniform
@@ -33,6 +37,7 @@ from SRTCodes.SRTDraw import SRTDrawHist
 from SRTCodes.Utils import savecsv, readcsv, DirFileName, Jdt
 from Shadow.ShadowDraw import ShadowDrawDirectLength, cal_10log10
 from Shadow.ShadowGeoDraw import _10log10, DrawShadowImage_0
+from Shadow.ShadowMainQingDao import ShadowMainQD
 from Shadow.ShadowUtils import ShadowSampleAdjustNumber, ShadowFindErrorSamples, ShadowTestAll
 
 imdcDirname = DirFileName(r"F:\ProjectSet\Shadow\QingDao\Mods\20230707H200910")
@@ -41,6 +46,182 @@ scienceplots.init()
 
 
 def main():
+    # DEM
+    gr = GDALRaster(r"F:\ProjectSet\Shadow\MkTu\DEM\DEM_china_1.tif")
+    d = gr.readAsArray()
+    d[d<0] = 1
+    gr.save(d, save_geo_raster_fn=r"F:\ProjectSet\Shadow\MkTu\DEM\DEM_china_3.tif", fmt="GTiff")
+    print(d.shape)
+
+    # func3()
+
+    haha = 0
+
+
+def method_name54():
+    # 调整样本 Analysis 8
+    # csv_fn = r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303\train_data.csv"
+    # mod_dirname = r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303"
+    def func1(mod_dirname, csv_fn=None):
+        method_name47(mod_dirname, True)
+        if csv_fn is None:
+            csv_fn = os.path.join(mod_dirname, "train_data.csv")
+        print(csv_fn)
+        sfes = ShadowFindErrorSamples()
+        sfes.addCategoryCode(IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=5, VEG_SH=6, SOIL_SH=7, WAT_SH=8)
+        df = pd.read_csv(csv_fn)
+        # df_test = df[df["TEST"] == 0]
+        sfes.initDataFrame(df)
+        sfes.addDataFrame()
+        to_csv_fn = sfes.fitImdcCSVS(mod_dirname, filter_list=["SPL_SH", "SVM", "OPTICS"])
+        print(to_csv_fn)
+
+    # func1(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303")
+    # func1(r"F:\ProjectSet\Shadow\ChengDu\Mods\20231225H110314")
+    # func1(r"F:\ProjectSet\Shadow\QingDao\Mods\20231225H110238")
+    # updateShadowSamplesCategory(
+    #     chang_csv_fn=r"F:\ProjectSet\Shadow\Analysis\8\train\soil_spl_1.csv",
+    #     o_csv_fn=r"F:\ProjectSet\Shadow\Analysis\8\train\bj_train_data_t.csv",
+    #     is_change_fields=True
+    # )
+    def func2():
+        n = 10
+        df = pd.read_excel(r"F:\ProjectSet\Shadow\Analysis\8\train\train1.xlsx", sheet_name="SOIL1")
+        plt.scatter(df.loc[:n, "Red"], df.loc[:n, "NIR"])
+        x1, x2, y1, y2 = 2899, 948, 3546, 1281
+        k = (y2 - y1) / (x2 - x1)
+
+        def y_soil(x):
+            return k * (x - x1) + y1
+
+        x = df["Red"].values
+        y = y_soil(x)
+
+        plt.plot([2899, 948], [3546, 1281])
+        plt.scatter(x[:n], y[:n], c="r")
+        plt.show()
+
+        df["SOIL_Y"] = y
+        df.to_csv(r"F:\ProjectSet\Shadow\Analysis\8\train\t1.csv")
+
+    def func3():
+        csv_fn = r"F:\ProjectSet\Shadow\Analysis\8\chengdu\sh_cd_sample_spl.csv"
+        df = pd.read_csv(csv_fn)
+        cnames = [
+            'IS', 'IS_SH',
+            # 'SOIL', 'SOIL_SH',
+            'VEG', 'VEG_SH',
+            # 'WAT', 'WAT_SH'
+        ]
+        for cname in cnames:
+            df_tmp = df[df["CNAME"] == cname]
+            plt.scatter(df_tmp["Blue"], df_tmp["Green"], label=cname)
+
+        plt.plot([0, 5000], [0, 5000])
+        plt.legend()
+        plt.show()
+        print(df)
+        print(list(pd.unique(df["CNAME"])))
+        # plt.scatter()
+
+
+def method_name53():
+    def func1(dirname):
+        for fn in os.listdir(dirname):
+            if ("_imdc.dat" in fn) and ("SVM" in fn) and ("SPL_SH" in fn) and ("OPTICS" in fn):
+                print(os.path.join(dirname, fn))
+
+    def func2():
+        output_vrt = r"F:\ProjectSet\Shadow\QingDao\Mods\20230707H200910\output.vrt"
+        ds = gdal.Open(output_vrt)
+        d = ds.ReadAsArray()
+        out_d = np.zeros([5, d.shape[1], d.shape[2]])
+        for i in range(d.shape[1]):
+            for j in range(d.shape[2]):
+                out_d[:, i, j] = np.bincount(d[:, i, j], minlength=5)
+            print(i)
+        grw = GeoRasterWrite(output_vrt)
+        grw.save(out_d, r"F:\ProjectSet\Shadow\QingDao\Mods\20230707H200910\imdc2.dat", dtype=gdal.GDT_Int16)
+
+    # func1(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303")
+    method_name47()
+
+
+def method_name52():
+    # 测试网格
+    class RUNT(ShadowMainQD):
+
+        def __init__(self):
+            super().__init__()
+
+        def t_getSample(self):
+            spls = self.sct.spl_types
+            feats = self.sct.feat_types
+            tags = self.sct.tag_types
+            print(spls, feats, tags, sep="\n")
+            return self.sct.getSample(
+                spls['SPL_SH'], feats["OPTICS"] + feats["AS"] + feats["DE"], tags['TAG'])
+
+    rt = RUNT()
+    rt.shadowTraining()
+    x_train, y_train, x_test, y_test = rt.t_getSample()
+    print(x_train.shape, y_train.shape, x_test.shape, y_test.shape)
+
+    def t_svm():
+        find_grid = {"gamma": np.logspace(-1, 1, 20), "C": np.linspace(0.01, 10, 20)}
+        print(find_grid)
+        n = 1
+        for k in find_grid:
+            n *= len(find_grid[k])
+        n_iter = int(0.2 * n)
+        print("Number of Iter: %d", n_iter)
+
+        for i in range(1, 60, 5):
+            print("-" * 60)
+            print("Number of Iter: %d", i)
+            svm_rs_cv = RandomizedSearchCV(
+                estimator=SVC(kernel="rbf", cache_size=5000),
+                param_distributions=find_grid,
+                n_iter=i
+            )
+            svm_rs_cv.fit(x_train, y_train)
+            print(svm_rs_cv.best_params_)
+            print(svm_rs_cv.best_estimator_)
+            print("Train Accuracy:", svm_rs_cv.score(x_train, y_train))
+            print("Test Accuracy:", svm_rs_cv.score(x_test, y_test))
+
+    def t_rf():
+        find_grid = {
+            "n_estimators": list(range(1, 150, 10)),
+            "max_depth": list(range(1, 20)),
+            "min_samples_leaf": list(range(1, 5)),
+            "min_samples_split": list(range(2, 10))
+        }
+        print(find_grid)
+        n = 1
+        for k in find_grid:
+            n *= len(find_grid[k])
+        n_iter = int(0.2 * n)
+        print("Number of Iter: %d", n_iter)
+
+        for i in range(1, 60, 5):
+            print("-" * 60)
+            print("Number of Iter: %d", i)
+            svm_rs_cv = RandomizedSearchCV(
+                estimator=RandomForestClassifier(n_jobs=-1),
+                param_distributions=find_grid,
+                n_iter=i
+            )
+            svm_rs_cv.fit(x_train, y_train)
+            print(svm_rs_cv.best_params_)
+            print(svm_rs_cv.best_estimator_)
+            print("Train Accuracy:", svm_rs_cv.score(x_train, y_train))
+            print("Test Accuracy:", svm_rs_cv.score(x_test, y_test))
+
+    t_rf()
+
+
+def method_name51():
     # 调整精度
     def func1():
         gr_as_de = GDALRaster(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253\SPL_SH-SVM-TAG-OPTICS-AS-DE_imdc.dat")
@@ -74,7 +255,6 @@ def main():
         print(df)
 
     method_name47()
-    haha = 0
 
 
 def method_name50():
@@ -229,9 +409,13 @@ def method_name48():
     # func2(r"F:\ProjectSet\Shadow\Hierarchical\Analysis\1\qd_change2.csv", r"F:\ProjectSet\Shadow\Hierarchical\Analysis\1\qd_test.csv")
 
 
-def method_name47():
+def method_name47(mod_dirname=None, is_test=True):
     # 重新使用样本测试精度
-    def func1(dirname, csv_fn):
+    def func1(dirname, csv_fn=None):
+        if csv_fn is None:
+            for fn in os.listdir(dirname):
+                if "train_data.csv" == fn:
+                    csv_fn = os.path.join(dirname, fn)
         print("-" * 60)
         print(dirname)
         for fn in os.listdir(dirname):
@@ -240,7 +424,9 @@ def method_name47():
                 sfes = ShadowFindErrorSamples()
                 sfes.addCategoryCode(IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=5, VEG_SH=6, SOIL_SH=7, WAT_SH=8)
                 df = pd.read_csv(csv_fn)
-                df_test = df[df["TEST"] == 0]
+                df_test = df
+                if is_test:
+                    df_test = df[df["TEST"] == 0]
                 sfes.imdcFN(fn)
                 sfes.initDataFrame(df_test)
                 sfes.addDataFrame()
@@ -281,12 +467,14 @@ def method_name47():
         ks["n_list"] = n_list
         savecsv(os.path.join(dirname, "n_list.csv"), ks)
 
+    if mod_dirname is not None:
+        func1(mod_dirname)
     # func1(r"F:\ProjectSet\Shadow\QingDao\Mods\20231221H224548", r"F:\ProjectSet\Shadow\Release\QingDaoSamples\sh_qd_sample_spl.csv")
     # func1(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231221H224253", r"F:\ProjectSet\Shadow\Release\BeiJingSamples\sh_bj_sample_spl.csv")
     # func1(r"F:\ProjectSet\Shadow\ChengDu\Mods\20231221H224735", r"F:\ProjectSet\Shadow\Release\ChengDuSamples\sh_cd_sample_spl.csv")
     # func2(r"F:\ProjectSet\Shadow\QingDao\Mods\20231221H224548")
-    func2(r"F:\ProjectSet\Shadow\Release\ChengDuMods\20231117H112558")
-
+    # func2(r"F:\ProjectSet\Shadow\Release\ChengDuMods\20231117H112558")
+    func1(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303")
 
 
 def method_name46():

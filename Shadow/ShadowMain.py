@@ -15,6 +15,7 @@ from SRTCodes.GDALRasterClassification import GDALRasterClassificationAccuracy
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import samplingToCSV
 from SRTCodes.SRTSample import CSVSamples
+from SRTCodes.Utils import DirFileName
 from Shadow.ShadowDraw import cal_10log10, SampleDrawBox, SampleDrawScatter, ShadowSampleNumberDraw
 from Shadow.ShadowImdC import ShadowImageClassification
 from Shadow.ShadowSample import ShadowSampleNumber
@@ -373,6 +374,7 @@ def showSampleNumber():
 class ShadowMain:
 
     def __init__(self):
+        self.init_dfn = DirFileName(r"F:\ProjectSet\Shadow")
         self.raster_dfn = None
         self.sample_dfn = None
 
@@ -387,6 +389,30 @@ class ShadowMain:
 
         self.sct = None
         self.grca = None
+
+        self.optics_as_de_feats = {
+            "OPTICS": (
+                "Blue", "Green", "Red", "NIR", "NDVI", "NDWI",
+                # "OPT_dis", "OPT_hom", "OPT_mean", "OPT_var"
+            ),
+            "AS": (
+                "AS_VV", "AS_VH", "AS_VHDVV", "AS_C11", "AS_C22", "AS_Lambda1", "AS_Lambda2",
+                "AS_SPAN",
+                # "AS_Epsilon", "AS_Mu", "AS_RVI", "AS_m", "AS_Beta",
+                "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+                "AS_VV_hom", "AS_VV_mean", "AS_VV_var"
+            ),
+            "DE": (
+                "DE_VV", "DE_VH", "DE_VHDVV", "DE_C11", "DE_C22", "DE_Lambda1", "DE_Lambda2",
+                "DE_SPAN",
+                # "DE_Epsilon", "DE_Mu", "DE_RVI", "DE_m", "DE_Beta",
+                "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+                "DE_VV_hom", "DE_VV_mean", "DE_VV_var"
+            )
+        }
+
+        self.feat_deal = None
+        self.ssn_mod_dirname = None
 
     def sampleToCsv(self, spl_fn=None, to_csv_fn=None):
         if spl_fn is None:
@@ -427,6 +453,57 @@ class ShadowMain:
         self.grca.closeSaveCSVFileName()
         self.grca.closeSaveCMFileName()
 
+    def sctAddSVMRF(self):
+        self.sct.addModelType("RF", trainRF)
+        self.sct.addModelType("SVM", trainSvm)
+
+    def sctAddSampleTypes(self):
+        self.sct.addSampleType("SPL_NOSH", "IS", "VEG", "SOIL", "WAT")
+        self.sct.addSampleType("SPL_SH", "IS", "IS_SH", "VEG", "VEG_SH", "SOIL", "SOIL_SH", "WAT", "WAT_SH")
+
+    def sctAddFeatureType(self, feat_type):
+        if feat_type == "optics_as_de":
+            self.sct.addFeatureType("OPTICS", *tuple(self.optics_as_de_feats["OPTICS"]))
+            self.sct.addFeatureType("AS", *tuple(self.optics_as_de_feats["AS"]))
+            self.sct.addFeatureType("DE", *tuple(self.optics_as_de_feats["DE"]))
+
+    def featureDeal(self, obj_feat, feat_deal=None):
+        if feat_deal is None:
+            feat_deal = self.feat_deal
+        feat_deal(obj_feat)
+
+    def trainSampleNumber(self):
+        spl_fn = self.sample_csv_spl_fn
+        mod_dir = self.ssn_mod_dirname
+        # spl_fn = r"F:\ProjectSet\Shadow\QingDao\Sample\qd_shadow_train_test_spl_s1.csv"
+
+        csv_spl = CSVSamples(spl_fn)
+        csv_spl.fieldNameCategory("CNAME")
+        csv_spl.fieldNameTag("TAG")
+        csv_spl.addCategoryNames(["NOT_KNOW", "IS", "VEG", "SOIL", "WAT", "IS_SH", "VEG_SH", "SOIL_SH", "WAT_SH"])
+        csv_spl.readData()
+        csv_spl.is_trans = True
+        csv_spl.is_scale_01 = True
+        self.featureDeal(csv_spl)
+
+        ssn = ShadowSampleNumber(mod_dir, n_category=4, category_names=["IS", "VEG", "SOIL", "WAT"])
+        ssn.setSample(csv_spl)
+        # ssn.addModelType("RF", trainRF)
+        ssn.addModelType("SVM", trainSvm)
+        ssn.sampleNumbers(1200, 200, 3)
+
+        optics_feats = self.optics_as_de_feats["OPTICS"]
+        as_feats = self.optics_as_de_feats["AS"]
+        de_feats = self.optics_as_de_feats["DE"]
+        ssn.addFeatureType("OPTICS", *tuple(optics_feats))
+        ssn.addFeatureType("OPTICS_AS", *tuple(optics_feats + as_feats))
+        ssn.addFeatureType("OPTICS_DE", *tuple(optics_feats + de_feats))
+        ssn.addFeatureType("OPTICS_AS_DE", *tuple(optics_feats + as_feats + de_feats))
+
+        ssn.sampleRandom()
+        ssn.print()
+
+        ssn.train()
 
 if __name__ == "__main__":
     showSampleNumber()

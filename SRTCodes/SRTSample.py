@@ -291,7 +291,6 @@ class CSVSamples(Samples):
             self._addTagList(df[self._field_name_tag].values.tolist())
         self._data = df
 
-
     def saveToFile(self, csv_fn):
         self._data.to_csv(csv_fn, index=False)
 

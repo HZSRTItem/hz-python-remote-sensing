@@ -15,7 +15,54 @@ import pandas as pd
 from SRTCodes.GDALRasterClassification import GDALRasterClassificationAccuracy
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.ModelTraining import ConfusionMatrix
-from SRTCodes.Utils import listUnique
+from SRTCodes.Utils import listUnique, filterFileContain
+
+SH_C_DICT = {0: 'NOT_KNOW', 'NOT_KNOW': 0, 11: 'IS', 'IS': 11, 12: 'IS_SH', 'IS_SH': 12, 21: 'VEG', 'VEG': 21,
+             22: 'VEG_SH', 'VEG_SH': 22, 31: 'SOIL', 'SOIL': 31, 32: 'SOIL_SH',
+             'SOIL_SH': 32, 41: 'WAT', 'WAT': 41, 42: 'WAT_SH', 'WAT_SH': 42}
+
+
+def updateShadowSamplesCategory(chang_csv_fn, o_csv_fn, to_csv_fn=None, srt_field_name="SRT", cname_field_name="CNAME",
+                                category_field_name="CATEGORY", change_category_field_name="CATEGORY_CODE",
+                                is_change_fields=False):
+    if to_csv_fn is None:
+        to_csv_fn = o_csv_fn
+    df_change = pd.read_csv(chang_csv_fn, index_col=srt_field_name)
+    df_o_csv_fn = pd.read_csv(o_csv_fn, index_col=srt_field_name)
+    keys = list(df_o_csv_fn)
+    if is_change_fields:
+        if "IS_CHANGE" not in keys:
+            df_o_csv_fn["IS_CHANGE"] = np.zeros(len(df_o_csv_fn))
+    df_add = {"X": [], "Y": [], "CNAME": [], "CATEGORY": [], "SRT": []}
+    if is_change_fields:
+        df_add[ "IS_CHANGE"] = []
+
+    for i, item in df_change.iterrows():
+        c_code = int(item[change_category_field_name])
+        c_name = SH_C_DICT[c_code]
+
+        if pd.isna(i):
+            df_add["X"].append(float(item["X"]))
+            df_add["Y"].append(float(item["Y"]))
+            df_add["CNAME"].append(c_name)
+            df_add["CATEGORY"].append(c_code)
+            if is_change_fields:
+                df_add["IS_CHANGE"].append(1)
+            df_add["SRT"].append(-1)
+            continue
+
+        if is_change_fields:
+            if int(df_o_csv_fn.loc[i, "IS_CHANGE"]) != 0:
+                continue
+
+        df_o_csv_fn.loc[i, category_field_name] = c_code
+        df_o_csv_fn.loc[i, cname_field_name] = c_name
+        if is_change_fields:
+            df_o_csv_fn.loc[i, "IS_CHANGE"] = 1
+    df_o_csv_fn = pd.concat([df_o_csv_fn, pd.DataFrame(df_add).set_index("SRT")])
+    df_o_csv_fn.to_csv(to_csv_fn)
+    return
+
 
 
 class _DFSamples:
@@ -204,6 +251,42 @@ class ShadowFindErrorSamples(_DFSamples, GDALRasterClassificationAccuracy):
             df = df.sort_values(by=sort_column)
         df.to_csv(to_fn, index=False)
 
+    def fitImdcCSVS(self, mod_dirname, to_csv_fn="fit_imdc_csvs.csv", filter_list=None):
+        if filter_list is None:
+            filter_list = []
+        filter_list.append("_test.csv")
+        names1 = ['T_CNAME',
+                  # 'O_CNAME',
+                  # 'T_F',
+                  'T_F_C',
+                  ]
+        sort_columns = []
+        fns = filterFileContain(mod_dirname, filter_list)
+        print(fns)
+        df_out = None
+        n_err = None
+        for fn in fns:
+            df = pd.read_csv(fn, index_col="SRT")
+            if df_out is None:
+                df_out = df.copy()
+                n_err = np.zeros(len(df_out))
+            names2 = ["{0} {1}".format(name, os.path.split(fn)[1]) for name in names1]
+            df = df.rename(columns={names1[i]: names2[i] for i in range(len(names1))})
+            df_out = pd.merge(df_out, df[names2], left_index=True, right_index=True)
+            n_err += df.sort_values(by="SRT")[names2[-1]].values == 1
+            print(df_out.keys(), names2[-1])
+            df_out = df_out.drop(columns=[names2[-1]])
+            sort_columns.append(names2[0])
+
+        print(df_out)
+        df_out = df_out.sort_values(by="SRT")
+        df_out["O_CNAME_T"] = df_out["O_CNAME"]
+        df_out["N_ERROR"] = n_err
+        df_out = df_out.sort_values(by=["N_ERROR", "CNAME"] + sort_columns, ascending=False)
+        to_csv_fn = os.path.join(mod_dirname, to_csv_fn)
+        df_out.to_csv(to_csv_fn)
+        return to_csv_fn
+
 
 class ShadowTestAll(ShadowFindErrorSamples):
 
@@ -231,7 +314,7 @@ class ShadowTestAll(ShadowFindErrorSamples):
         d_dict = {"NAME": [], "OA": [], "KAPPA": []}
         for fn, fn2 in fn_list:
             if "SVM" in fn:
-            # if ".dat" in fn:
+                # if ".dat" in fn:
                 self.imdcFN(fn)
                 cm = self.calCMImdc(fn2)
                 # print(cm.fmtCM())
@@ -243,9 +326,7 @@ class ShadowTestAll(ShadowFindErrorSamples):
         print(df)
 
 
-
 def main():
-
     pass
 
 

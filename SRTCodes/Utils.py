@@ -99,6 +99,24 @@ def filterFileExt(dirname=".", ext=""):
     return filelist
 
 
+def filterFileContain(dirname=".", *filters):
+    out_fns = []
+    filter_list = []
+    for filter_ele in filters:
+        if isinstance(filter_ele, list) or isinstance(filter_ele, tuple) :
+            filter_list += list(filter_ele)
+        else:
+            filter_list.append(str(filter_ele))
+    for fn in os.listdir(dirname):
+        n = 0
+        for fiter_str in filter_list:
+            if fiter_str in fn:
+                n+=1
+        if n == len(filter_list):
+            out_fns.append(os.path.join(dirname, fn))
+    return out_fns
+
+
 def writeTexts(filename, *texts, mode="w", end=""):
     with open(filename, mode, encoding="utf-8") as f:
         for text in texts:

@@ -120,6 +120,7 @@ class ShadowSampleNumber(FrontShadowCategoryTraining):
                 no_sh_x = np.concatenate([x, no_sh_x])
                 no_sh_y = np.concatenate([y, no_sh_y])
                 no_sh_x, no_sh_y = sampleDataShuffle(no_sh_x, no_sh_y)
+
                 self.sample_numbers[i] = {
                     "no_sh_x": pd.DataFrame(no_sh_x, columns= column_names), "no_sh_y": no_sh_y,
                     "sh_x": pd.DataFrame(sh_x, columns= column_names), "sh_y": sh_y,
@@ -234,3 +235,7 @@ class ShadowSampleNumber(FrontShadowCategoryTraining):
         print("* Sample Number:")
         for k in range(len(self.sample_numbers)):
             print("  - {0}:{1}".format(k, self.sample_numbers[k]["n"]))
+
+
+
+

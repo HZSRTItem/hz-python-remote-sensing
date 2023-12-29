@@ -614,9 +614,10 @@ def main():
         d = readGEORaster(raster_fn)
         d[k_list] = cal_10log10(d[k_list])
         fn = os.path.split(raster_fn)[1]
-        d_rh = reHist(d)
+        d_rh = reHist(d, ratio=0.002)
         # d_rh = np.array([])
         to_fn = os.path.join(r"F:\ProjectSet\Shadow\Analysis\4", fn + ".npy")
+        to_fn = os.path.join(r"F:\ProjectSet\Shadow\MkTu\Draw", fn + ".npy")
         np.save(to_fn, d_rh)
 
     func1(qd_raster_fn)
