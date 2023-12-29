@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : SRTDraw.py
 @Time    : 2023/12/14 14:39
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of SRTDraw
 -----------------------------------------------------------------------------"""

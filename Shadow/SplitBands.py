@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : SplitBands.py
 @Time    : 2023/6/29 11:00
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : GEOCodes of SplitBands
 G:\ImageData\QingDao\20211023\qd20211023\QDS2RGBN_gee_2

@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ShadowTraining.py
 @Time    : 2023/7/4 8:59
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : BaseCodes of ShadowTraining
            https://zhuanlan.zhihu.com/p/642920484

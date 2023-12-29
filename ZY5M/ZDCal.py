@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ZDCal.py
 @Time    : 2023/12/5 18:49
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ZDCal
 -----------------------------------------------------------------------------"""

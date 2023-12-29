@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ZY1FJinBian.py
 @Time    : 2023/9/20 20:23
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ZY1FJinBian
 -----------------------------------------------------------------------------"""

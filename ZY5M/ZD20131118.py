@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ZD20131118.py
 @Time    : 2023/11/18 19:48
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ZD20131118
 -----------------------------------------------------------------------------"""

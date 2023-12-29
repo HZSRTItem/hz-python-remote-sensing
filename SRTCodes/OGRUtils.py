@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : OGRUtils.py
 @Time    : 2023/10/8 19:44
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of OGRUtils
 -----------------------------------------------------------------------------"""

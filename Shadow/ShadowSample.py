@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ShadowSample.py
 @Time    : 2023/8/31 14:54
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ShadowSample
 样本基础设定n个样本，之后同时逐步加入一定数量的样本

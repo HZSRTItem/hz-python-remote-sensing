@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ShadowDistillation.py
 @Time    : 2023/11/11 14:05
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ShadowDistillation
 -----------------------------------------------------------------------------"""

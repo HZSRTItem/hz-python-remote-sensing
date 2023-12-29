@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : Huo1.py
 @Time    : 2023/9/19 20:25
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of Huo1
 

@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ShadowFeature.py
 @Time    : 2023/7/20 10:08
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : GEOCodes of ShadowFeature
 -----------------------------------------------------------------------------"""

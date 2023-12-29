@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ZY5MModel.py
 @Time    : 2023/6/22 9:24
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PytorchGeo of ZY5MModel
 -----------------------------------------------------------------------------"""

@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ShadowMainQingDao.py
 @Time    : 2023/11/13 10:20
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ShadowMainQingDao
 -----------------------------------------------------------------------------"""

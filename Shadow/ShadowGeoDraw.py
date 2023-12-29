@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ShadowGeoDraw.py
 @Time    : 2023/7/15 16:10
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : GEOCodes of ShadowGeoDraw
 -----------------------------------------------------------------------------"""

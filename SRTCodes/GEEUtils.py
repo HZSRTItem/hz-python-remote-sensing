@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : GEEUtils.py
 @Time    : 2023/9/1 11:15
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of GEEUtils
 -----------------------------------------------------------------------------"""
@@ -29,7 +29,7 @@ plt.rcParams.update(config)
 class GEEProperty:
     """
     manage collection features property of loading from gee
-    Contact: hzsongrentou1580@gmail.com
+    Contact: tourensong@gmail.com
     (C)Copyright 2023, ZhengHan. All rights reserved.
     """
 
@@ -105,7 +105,7 @@ def plt_fig(fig_style="double_row"):
 class GEEImageProperty(GEEProperty):
     """
     manage gee image collection features property of loading from gee
-    Contact: hzsongrentou1580@gmail.com
+    Contact: tourensong@gmail.com
     (C)Copyright 2023, ZhengHan. All rights reserved.
     """
 

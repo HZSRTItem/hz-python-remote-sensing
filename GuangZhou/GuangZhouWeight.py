@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : GuangZhouWeight.py
 @Time    : 2023/7/20 18:57
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PytorchGeo of GuangZhouWieght
 -----------------------------------------------------------------------------"""

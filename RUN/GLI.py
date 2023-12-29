@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : GLI.py
 @Time    : 2023/2/27 20:45
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyGdal of GLI
 -----------------------------------------------------------------------------"""

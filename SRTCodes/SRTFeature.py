@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : SRTFeature.py
 @Time    : 2023/7/7 10:30
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : BaseCodes of SRTFeature
 -----------------------------------------------------------------------------"""

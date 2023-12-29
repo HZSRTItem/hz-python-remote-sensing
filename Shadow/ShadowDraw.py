@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ShadowDraw.py
 @Time    : 2023/6/28 15:30
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : BaseCodes of Draw
 -----------------------------------------------------------------------------"""

@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : ZY2MMdwC.py
 @Time    : 2023/11/19 16:44
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ZY2MMdwC
 F:\PyCodes\ZY5M\ZY2MMdw17.py

@@ -13,7 +13,7 @@ import os
 def main():
     dirname = r"F:\PyCodes"
     to_dirname = r"F:\PyCodes"
-    find_str = "hzsongrentou1580@gmail.com"
+    find_str = "tourensong@gmail.com"
     to_str = "tourensong@gmail.com"
     for root, dirs, files in os.walk(dirname):
         for file in files:

@@ -3,7 +3,7 @@ r"""----------------------------------------------------------------------------
 @File    : FileCompare.py
 @Time    : 2023/8/29 18:22
 @Author  : Zheng Han 
-@Contact : hzsongrentou1580@gmail.com
+@Contact : tourensong@gmail.com
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of FileCompare
 -----------------------------------------------------------------------------"""
