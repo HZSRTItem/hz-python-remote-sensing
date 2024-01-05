@@ -584,7 +584,13 @@ class SRTDrawHistShadow(SRTDrawHist):
         self._collection[field_name].addCallBack(func_callback)
 
 
+
+
 def main():
+    method_name1()
+
+
+def method_name1():
     sdhs = SRTDrawHistShadow()
     qd_raster_fn = r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_envi.dat"
     bj_raster_fn = r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_envi.dat"
@@ -603,7 +609,6 @@ def main():
     # field_names = getGDALRasterNames(cd_raster_fn)
     # for field_name in field_names:
     #     sdhs.addGDALRaster(cd_raster_fn, field_name)
-
     def func1(raster_fn):
         field_names = getGDALRasterNames(raster_fn)
         k_list = [field_names.index(k) for k in
@@ -623,7 +628,6 @@ def main():
     func1(qd_raster_fn)
     func1(bj_raster_fn)
     func1(cd_raster_fn)
-
     # sdhs.featureScaleMinMax("Blue", 99.76996, 2500)
     # sdhs.featureScaleMinMax("Green", 45.83414, 2395.735)
     # sdhs.featureScaleMinMax("Red", 77.79654, 2726.7026)

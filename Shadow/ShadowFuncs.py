@@ -46,16 +46,26 @@ scienceplots.init()
 
 
 def main():
+    imdc_fn1 = r"F:\ProjectSet\Shadow\QingDao\Mods\20231226H093225\SPL_SH-SVM-TAG-OPTICS-AS_imdc.dat"
+    imdc_fn2 = r"F:\ProjectSet\Shadow\QingDao\Mods\20231226H093225\SPL_SH-SVM-TAG-OPTICS-DE_imdc.dat"
+    gr1 = GDALRaster(imdc_fn1)
+    gr2 = GDALRaster(imdc_fn2)
+    imdc1 = gr1.readAsArray()
+    imdc2 = gr2.readAsArray()
+    imdc_diff = (imdc1 != imdc2) * 1
+    gr1.save(imdc_diff, r"F:\ProjectSet\Shadow\Analysis\9\qd_as_de_diff1.tif", dtype=gdal.GDT_Byte, fmt="GTiff")
+
+    haha = 0
+
+
+def method_name55():
     # DEM
     gr = GDALRaster(r"F:\ProjectSet\Shadow\MkTu\DEM\DEM_china_1.tif")
     d = gr.readAsArray()
-    d[d<0] = 1
+    d[d < 0] = 1
     gr.save(d, save_geo_raster_fn=r"F:\ProjectSet\Shadow\MkTu\DEM\DEM_china_3.tif", fmt="GTiff")
     print(d.shape)
-
     # func3()
-
-    haha = 0
 
 
 def method_name54():

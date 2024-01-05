@@ -11,16 +11,17 @@ r"""----------------------------------------------------------------------------
 import os.path
 from inspect import isfunction
 
+import matplotlib.patches as mpl_patches
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 from osgeo import gdal
 
-from SRTCodes.GDALRasterIO import GDALRasterRange
-from SRTCodes.GDALUtils import GDALRasterCenter
+from SRTCodes.GDALRasterIO import GDALRasterRange, GDALMBTiles
+from SRTCodes.GDALUtils import GDALRasterCenter, readGDALRasterCenter
 from SRTCodes.GeoRasterRW import GeoRasterWrite
 from SRTCodes.SRTFeature import SRTFeatureCallBackScaleMinMax as SFCBSM
-from SRTCodes.Utils import saveJson, readcsv, changext
+from SRTCodes.Utils import saveJson, readcsv, changext, filterFileContain
 
 
 def isCloseInt(d, eps=0.000001):
@@ -507,33 +508,6 @@ def bjDrawGeoImage():
     draw(60, 60, 116.461316, 39.896712)
 
 
-def readGDALRasterCenter(x, y, win_row_size, win_column_size, channel_list, min_list=None, max_list=None,
-                         callback_funcs=None, is_geo=True, no_data=0, file_list=None, geo_ranges=None):
-    if file_list is None:
-        file_list = []
-    if callback_funcs is None:
-        callback_funcs = []
-    grc = None
-    geo_range = None
-    for i, fn in enumerate(file_list):
-        grc = GDALRasterCenter(channel_list=channel_list, raster_fn=fn)
-        if grc.read(x_row=x, y_column=y, win_row_size=win_row_size, win_column_size=win_column_size,
-                    is_geo=is_geo, no_data=no_data, ) is not None:
-            geo_range = geo_ranges[i]
-            break
-    for i in range(len(channel_list)):
-        if min_list[i] is None:
-            min_list[i] = geo_range[channel_list[i]].min
-        if max_list[i] is None:
-            max_list[i] = geo_range[channel_list[i]].max
-    for callback_func in callback_funcs:
-        grc.callBack(callback_func)
-    n = min([len(min_list), len(max_list)])
-    for i in range(n):
-        grc.scaleMinMax(d_min=min_list[i], d_max=max_list[i], dim=i)
-    return grc.d
-
-
 class ShadowGeoDrawChannel:
 
     def __init__(self, name, win_row_size, win_column_size, channel_list=None, min_list=None, max_list=None,
@@ -605,6 +579,29 @@ class ShadowGeoDrawSingleChannel(ShadowGeoDrawChannel):
         return d_rgb
 
 
+class ShadowGeoDrawMBTiles(ShadowGeoDrawChannel):
+
+    def __init__(self, name, win_row_size, win_column_size, mb_tiles_fns=None,
+                 callback_funcs=None, is_geo=True, no_data=0, ):
+        if mb_tiles_fns is None:
+            mb_tiles_fns = []
+        if mb_tiles_fns is not None:
+            self.file_list = mb_tiles_fns
+        self.mb_tiles = [GDALMBTiles(fn) for fn in self.file_list]
+
+        super().__init__(name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+                         channel_list=None, min_list=None, max_list=None,
+                         callback_funcs=callback_funcs, is_geo=is_geo, no_data=no_data, )
+
+    def read(self, x, y):
+        d = None
+        for mb_tile in self.mb_tiles:
+            d = mb_tile.getCenterImage(x, y, (self.win_row_size, self.win_column_size))
+            if d is not None:
+                break
+        return d
+
+
 class ShadowGeoDrawCategoryChannel(GDALRasterCenter):
 
     def __init__(self, name, imdc_fns, win_row_size, win_column_size, is_geo=True, no_data=0, color_dict=None):
@@ -651,6 +648,17 @@ class ShadowGeoDrawGradImage:
         self.row_names = []
         self.xys = []
 
+        self.mb_tile_file_list = [
+            r"F:\ProjectSet\Shadow\MkTu\4.1Details\BingImages\cd_googleimages.mbtiles",
+            r"F:\ProjectSet\Shadow\MkTu\4.1Details\BingImages\bj_googleimages.mbtiles",
+            r"F:\ProjectSet\Shadow\MkTu\4.1Details\BingImages\qd_googleimages.mbtiles",
+        ]
+
+        self.imdc_file_dict = {}
+        self.color_dict = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
+
+        self.row_ellipse_dict = {}
+
     def addColumnRGB(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, ):
         win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
         sgdmc = ShadowGeoDrawMultiChannel(
@@ -659,6 +667,12 @@ class ShadowGeoDrawGradImage:
             callback_funcs=[], is_geo=True, no_data=0,
         )
         self.columns.append(sgdmc)
+
+    def addColumnGoogle(self, name, win_row_size=None, win_column_size=None):
+        win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
+        dgdmbt = ShadowGeoDrawMBTiles(name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+                                      mb_tiles_fns=self.mb_tile_file_list, callback_funcs=[], is_geo=True, no_data=0, )
+        self.columns.append(dgdmbt)
 
     def addColumnNRG(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, ):
         win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
@@ -705,6 +719,26 @@ class ShadowGeoDrawGradImage:
         self.addColumnSAR(name=name, channel_name="DE_VH", min_list=min_list, max_list=max_list,
                           win_row_size=win_row_size, win_column_size=win_column_size)
 
+    def addColumnSAR_ASC11(self, name, min_list=None, max_list=None,
+                           win_row_size=None, win_column_size=None):
+        self.addColumnSAR(name=name, channel_name="AS_C11", min_list=min_list, max_list=max_list,
+                          win_row_size=win_row_size, win_column_size=win_column_size)
+
+    def addColumnSAR_ASC22(self, name, min_list=None, max_list=None,
+                           win_row_size=None, win_column_size=None):
+        self.addColumnSAR(name=name, channel_name="AS_C22", min_list=min_list, max_list=max_list,
+                          win_row_size=win_row_size, win_column_size=win_column_size)
+
+    def addColumnSAR_DEC11(self, name, min_list=None, max_list=None,
+                           win_row_size=None, win_column_size=None):
+        self.addColumnSAR(name=name, channel_name="DE_C11", min_list=min_list, max_list=max_list,
+                          win_row_size=win_row_size, win_column_size=win_column_size)
+
+    def addColumnSAR_DEC22(self, name, min_list=None, max_list=None,
+                           win_row_size=None, win_column_size=None):
+        self.addColumnSAR(name=name, channel_name="DE_C22", min_list=min_list, max_list=max_list,
+                          win_row_size=win_row_size, win_column_size=win_column_size)
+
     def addColumnImdc(self, name, imdc_fns, color_dict=None, win_row_size=None, win_column_size=None):
         win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
         if color_dict is None:
@@ -719,6 +753,38 @@ class ShadowGeoDrawGradImage:
         self.row_names.append(name)
         self.xys.append((x, y))
 
+    def addImdcs(self, dirname_list=None):
+        if dirname_list is None:
+            dirname_list = [
+                r"F:\ProjectSet\Shadow\ChengDu\Mods\20231226H203759",
+                r"F:\ProjectSet\Shadow\BeiJing\Mods\20231227H151054",
+                r"F:\ProjectSet\Shadow\QingDao\Mods\20231226H093225",
+            ]
+        files_dict = {}
+        for dirname in dirname_list:
+            fns = filterFileContain(dirname, "_imdc.dat")
+            for fn in fns:
+                fn1 = os.path.split(fn)[1]
+                fn2 = fn1[:fn1.index("_imdc.dat")]
+                if fn2 not in files_dict:
+                    files_dict[fn2] = []
+                    print("\"{0}\"".format(fn2))
+                files_dict[fn2].append(fn)
+        self.imdc_file_dict = files_dict
+
+    def addColumnImdcKey(self, name, imdc_key, color_dict=None, win_row_size=None, win_column_size=None):
+        if color_dict is None:
+            color_dict = self.color_dict
+        self.addColumnImdc(name, self.imdc_file_dict[imdc_key], color_dict=color_dict,
+                           win_row_size=win_row_size, win_column_size=win_column_size)
+
+    def addRowEllipse(self, n_row, xy, width, height, angle=0, **kwargs):
+        e = mpl_patches.Ellipse(xy=xy, width=width, height=height, angle=angle, **kwargs)
+        if n_row not in self.row_ellipse_dict:
+            self.row_ellipse_dict[n_row] = []
+        self.row_ellipse_dict[n_row].append(e)
+        return e
+
     def imshow(self, n_rows_ex=1.0, n_columns_ex=1.0):
         n_rows, n_columns = len(self.row_names), len(self.columns)
         fig = plt.figure(
@@ -727,49 +793,84 @@ class ShadowGeoDrawGradImage:
         )
         axes = fig.subplots(n_rows, n_columns)
         # fig.tight_layout()
-        fig.subplots_adjust(top=0.96, bottom=0.04, left=0.04, right=0.96, hspace=0.04, wspace=0.03)
+        fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.04, wspace=0.03)
 
-        for i in range(axes.shape[0]):
+        for i in range(n_rows):
             x, y = self.xys[i]
-            for j in range(axes.shape[1]):
-                ax = axes[i, j]
+            e_list = None
+            if i in self.row_ellipse_dict:
+                e_list = self.row_ellipse_dict[i]
+            for j in range(n_columns):
+                if n_rows != 1:
+                    ax = axes[i, j]
+                else:
+                    ax = axes[j]
                 if j == 0:
-                    ax.set_ylabel(self.row_names[i], fontdict={'family': 'Times New Roman', 'size': 16})
+                    ax.set_ylabel(self.row_names[i], fontdict={'family': 'Times New Roman', 'size': 12})
                 if i == 0:
-                    ax.set_title(self.columns[j].name, fontdict={'family': 'Times New Roman', 'size': 16})
+                    ax.set_title(self.columns[j].name, fontdict={'family': 'Times New Roman', 'size': 12})
                 d = self.columns[j].read(x, y)
-                ax.imshow(d)
+                # ax.imshow(d)
+                if e_list is not None:
+                    for ell in e_list:
+                        ax.add_patch(ell)
                 ax.set_xticks([])
                 ax.set_yticks([])
                 pass
 
 
 def main():
-    sgdgi = ShadowGeoDrawGradImage(21, 21)
+    sgdgi = ShadowGeoDrawGradImage(131, 131)
+    sgdgi.addImdcs()
+
     sgdgi.addColumnRGB("RGB")
     sgdgi.addColumnNRG("NRG")
-    sgdgi.addColumnImdc(
-        "IMDC1", imdc_fns=[
-            r"F:\ProjectSet\Shadow\Release\BeiJingMods\20231114H094632\SPL_SH-SVM-TAG-OPTICS-AS-DE_imdc.dat",
-            r"F:\ProjectSet\Shadow\Release\ChengDuMods\20231117H112558\SPL_SH-SVM-TAG-OPTICS-AS-DE_imdc.dat",
-            r"F:\ProjectSet\Shadow\Release\QingDaoMods\20231221H224548\SPL_SH-SVM-TAG-OPTICS-AS-DE_imdc.dat",
-        ], color_dict={1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)})
+    sgdgi.addColumnGoogle("Google Image", 410, 410)
+    sgdgi.addColumnImdcKey("SH-AS-DE", "SPL_SH-SVM-TAG-OPTICS-AS-DE")
+    sgdgi.addColumnImdcKey("SH-AS", "SPL_SH-SVM-TAG-OPTICS-AS")
+    sgdgi.addColumnImdcKey("SH-DE", "SPL_SH-SVM-TAG-OPTICS-DE")
+    sgdgi.addColumnImdcKey("SH-OPT", "SPL_SH-SVM-TAG-OPTICS")
     sgdgi.addColumnSAR_ASVV("AS VV")
-    sgdgi.addColumnSAR_ASVH("AS VH")
     sgdgi.addColumnSAR_DEVV("DE VV")
+    sgdgi.addColumnSAR_ASVH("AS VH")
     sgdgi.addColumnSAR_DEVH("DE VH")
+    # sgdgi.addColumnSAR_ASC11("AS C11")
+    # sgdgi.addColumnSAR_DEC11("DE C11")
+    # sgdgi.addColumnSAR_ASC22("AS C22")
+    # sgdgi.addColumnSAR_DEC22("DE C22")
 
-    sgdgi.addRow("ROW 1", 120.330806, 36.135239)
-    sgdgi.addRow("ROW 2", 120.397521, 36.144224)
-    sgdgi.addRow("ROW 3", 116.363178, 39.858848)
-    sgdgi.addRow("ROW 4", 116.34989, 39.79670)
-    sgdgi.addRow("ROW 5", 104.07385, 30.65005)
-    sgdgi.addRow("ROW 6", 104.13064, 30.62272)
+    sgdgi.addRow("IS", 120.3418499, 36.0884511)
+    sgdgi.addRow("IS", 120.374407,36.064563)
+    sgdgi.addRow("IS", 120.332966,36.118072)
+    sgdgi.addRow("IS", 120.3780005, 36.1084047)
+    sgdgi.addRow("IS", 120.353551, 36.082023)
+    sgdgi.addRow("IS", 120.339454, 36.052821)
 
-    sgdgi.imshow(n_rows_ex=1.5, n_columns_ex=1.5)
+    # sgdgi.addRow("IS", 120.3418499,36.0884511)
+    # sgdgi.addRow("IS", 120.3418499,36.0884511)
+    # sgdgi.addRow("IS", 120.3418499,36.0884511)
 
-    plt.savefig(r"F:\ProjectSet\Shadow\MkTu\4.1Details\fig1.jpeg", dpi=300)
+    # sgdgi.addRow("IS", 120.397521, 36.144224)
+    # sgdgi.addRow("IS", 116.363178, 39.858848)
+    # sgdgi.addRow("VEG", 116.34989, 39.79670)
+    # sgdgi.addRow("VEG", 104.07385, 30.65005)
+    # sgdgi.addRow("VEG", 104.13064, 30.62272)
+    # sgdgi.addRow("SOIL", 104.07385, 30.65005)
+    # sgdgi.addRow("SOIL", 104.13064, 30.62272)
+    # sgdgi.addRow("WAT", 104.07385, 30.65005)
+    # sgdgi.addRow("WAT", 104.13064, 30.62272)
+
+    e = sgdgi.addRowEllipse(0, xy=(0.1, 0.1), width=0.2, height=0.3, angle=20)
+    # fig = plt.figure()
+    # axes = fig.subplots(1, 1)
+    # axes.add_patch(e)
+
+    sgdgi.imshow(n_rows_ex=1.6, n_columns_ex=1.6)
+
+    # plt.savefig(r"F:\ProjectSet\Shadow\MkTu\4.1Details\fig2.jpeg", dpi=300)
     plt.show()
+
+    pass
 
 
 def method_name4():

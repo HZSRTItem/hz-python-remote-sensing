@@ -67,6 +67,11 @@ def getfilext(fn):
     return os.path.splitext(fn)[1]
 
 
+def getfilenamewithoutext(fn):
+    fn = os.path.splitext(fn)[0]
+    return os.path.split(fn)[1]
+
+
 def changefiledirname(filename, dirname):
     filename = os.path.split(filename)[1]
     return os.path.join(dirname, filename)
@@ -103,7 +108,7 @@ def filterFileContain(dirname=".", *filters):
     out_fns = []
     filter_list = []
     for filter_ele in filters:
-        if isinstance(filter_ele, list) or isinstance(filter_ele, tuple) :
+        if isinstance(filter_ele, list) or isinstance(filter_ele, tuple):
             filter_list += list(filter_ele)
         else:
             filter_list.append(str(filter_ele))
@@ -111,7 +116,7 @@ def filterFileContain(dirname=".", *filters):
         n = 0
         for fiter_str in filter_list:
             if fiter_str in fn:
-                n+=1
+                n += 1
         if n == len(filter_list):
             out_fns.append(os.path.join(dirname, fn))
     return out_fns

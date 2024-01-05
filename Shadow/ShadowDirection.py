@@ -12,8 +12,13 @@ import math
 
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits.axisartist.axislines import AxesZero
+from mpl_toolkits.mplot3d import Axes3D
 
 from SRTCodes.Utils import angleToRadian, radianToAngle
+
+plt.rc('font', family='Times New Roman')
+FONT_SIZE = 10
 
 
 def is_in_poly(p, poly):
@@ -46,6 +51,16 @@ def findMinWhere(xulie):
     for i, d in enumerate(xulie):
         if d < dmin:
             dmin = d
+            i0 = i
+    return i0
+
+
+def findMaxWhere(xulie):
+    dmax = xulie[0]
+    i0 = 0
+    for i, d in enumerate(xulie):
+        if d > dmax:
+            dmax = d
             i0 = i
     return i0
 
@@ -403,6 +418,451 @@ class ShadowDirection:
         plt.show()
 
 
+class SHSketchMapLine(SHDLine):
+
+    def __init__(self):
+        super(SHSketchMapLine, self).__init__()
+
+        self.fx = 1
+
+    def init(self, k, x0, y0):
+        self.k = k
+        self.x0 = x0
+        self.y0 = y0
+        self._distanceCal()
+        self._calABC()
+        self._calNormalAzimuth()
+        return self
+
+    def x(self, y):
+        return (y - self.b) / self.k
+
+    def vK(self):
+        return -1 / self.k
+
+    def xAddDistance(self, x0, distance=1.0, fx=1):
+        y0 = self.y(x0)
+        x1, y1 = self.xyAddDistance(distance, fx, x0, y0)
+        return x1, y1
+
+    def xyAddDistance(self, distance, fx, x0, y0):
+        t = math.sqrt(distance * distance / (1 + self.k * self.k))
+        x1 = x0 + fx * t
+        y1 = y0 + fx * t * self.k
+        return x1, y1
+
+    def yAddDistance(self, y0, distance=1.0, fx=1):
+        x0 = self.x(y0)
+        x1, y1 = self.xyAddDistance(distance, fx, x0, y0)
+        return x1, y1
+
+    # @classmethod
+    # def linesDistance(cls, line1, line2):
+    #
+
+
+def varToList(xys):
+    datas = []
+    for xy in xys:
+        if hasattr(xy, "__len__") and hasattr(xy, "__getitem__"):
+            for i in range(len(xy)):
+                datas.append(xy[i])
+        else:
+            datas.append(xy)
+    return tuple(datas)
+
+
+class ShadowSketchMap:
+    """
+    https://matplotlib.org/stable/api/index.html
+    """
+
+    def __init__(self):
+        self.name = ""
+        self.vlri_coors = []
+
+    def plotLine_2p(self, *xys, color="red"):
+        line, x_max, x_min = self.line2p(xys)
+        line.plot(x0=x_min, x1=x_max, color=color)
+        return line
+
+    def line2p(self, xys):
+        args = varToList(xys)
+        x1, y1, x2, y2, x_min, x_max = 0, 0, 0, 0, None, None,
+        if len(args) == 4:
+            x1, y1, x2, y2 = args
+        elif len(args) == 5:
+            x1, y1, x2, y2, x_min = args
+        elif len(args) >= 6:
+            x1, y1, x2, y2, x_min, x_max = args[:6]
+        line = SHSketchMapLine()
+        line.twoPoint(x1, y1, x2, y2, is_range=True)
+        return line, x_max, x_min
+
+    def lineK(self, *xys):
+        args = varToList(xys)
+        k = 0
+        if len(args) >= 4:
+            x1, y1, x2, y2 = args[:4]
+            k = (y2 - y1) / (x2 - x1)
+        return k
+
+    def plotLine_kb(self, k, x0, y0, x_min=0, x_max=1, color="red"):
+        line = self.lineKB(k, x0, y0)
+        line.plot(x0=x_min, x1=x_max, color=color)
+        return line
+
+    def plotLine(self, line: SHSketchMapLine, x0=None, x1=None, y0=None, y1=None,
+                 scalex=True, scaley=True, data=None, **kwargs):
+        if (x0 is not None) and (x1 is not None) and (y0 is None) and (y1 is None):
+            y0 = line.y(x0)
+            y1 = line.y(x1)
+        elif (x0 is None) and (x1 is None) and (y0 is not None) and (y1 is not None):
+            x0 = line.x(y0)
+            x1 = line.x(y1)
+        args = self.plotXY(x0, y0, x1, y1)
+        plt.plot(*args, scalex=scalex, scaley=scaley, data=data, **kwargs)
+
+    def plotLine3D(self, ax: Axes3D, line: SHSketchMapLine, x0=None, x1=None, y0=None, y1=None, **kwargs):
+        if (x0 is not None) and (x1 is not None) and (y0 is None) and (y1 is None):
+            y0 = line.y(x0)
+            y1 = line.y(x1)
+        elif (x0 is None) and (x1 is None) and (y0 is not None) and (y1 is not None):
+            x0 = line.x(y0)
+            x1 = line.x(y1)
+        ax.plot3D([x0, x1], [y0, y1], [0, 0], **kwargs)
+
+    def lineKB(self, k, x0, y0):
+        line = SHSketchMapLine()
+        line.init(k, x0, y0)
+        return line
+
+    def coorAxis(self, ax):
+        for direction in ["xzero", "yzero"]:
+            ax.axis[direction].set_axisline_style("->", size=1.5)
+            ax.axis[direction].set_visible(False)
+        # for direction in ["left", "right", "bottom", "top"]:
+        #     ax.axis[direction].set_visible(False)
+        plt.arrow(-1, 0, 1.9, 0, length_includes_head=True, head_width=0.025, head_length=0.06, fc='black')
+        plt.arrow(0, -0.8, 0, 1.9, length_includes_head=True, head_width=0.025, head_length=0.06, fc='black')
+
+    def plotXY(self, *xys):
+        args = varToList(xys)
+        x, y = [], []
+        for i in range(0, len(args) - 1, 2):
+            x.append(args[i])
+            y.append(args[i + 1])
+        return x, y
+
+    def plotRectangle(self, *xys, scalex=True, scaley=True, data=None, **kwargs):
+        args = self.plotXY(*xys)
+        plt.plot(*args, scalex=scalex, scaley=scaley, data=data, **kwargs)
+
+    def plotArrow(self, line: SHSketchMapLine, x_min=0.0, x_max=1.0, fx=1, **kwargs):
+        y_min = line.y(x_min)
+        y_max = line.y(x_max)
+        if fx == 1:
+            plt.arrow(x_min, y_min, x_max - x_min, y_max - y_min, **kwargs)
+        elif fx == -1:
+            plt.arrow(x_max, y_max, x_min - x_max, y_min - y_max, **kwargs)
+        line.fx = fx
+        return line
+
+    def plotArrow3D(self, ax: Axes3D, line: SHSketchMapLine, x_min=0.0, x_max=1.0, fx=1, **kwargs):
+        y_min = line.y(x_min)
+        y_max = line.y(x_max)
+        if fx == 1:
+            ax.arrow(x_min, y_min, x_max - x_min, y_max - y_min, **kwargs)
+        elif fx == -1:
+            ax.arrow(x_max, y_max, x_min - x_max, y_min - y_max, **kwargs)
+        line.fx = fx
+        return line
+
+    def plotLinePointDistance(self, line: SHSketchMapLine, x0, distance=1.0, fx=1,
+                              scalex=True, scaley=True, data=None, **kwargs):
+        x1, y1 = line.xAddDistance(x0, distance, fx=fx)
+        y0 = line.y(x0)
+        args = self.plotXY(x0, y0, x1, y1)
+        plt.plot(*args, scalex=scalex, scaley=scaley, data=data, **kwargs)
+        return x0, y0, x1, y1
+
+    def plotLinePointDistance3D(self, ax: Axes3D, line: SHSketchMapLine, x0, *args, distance=1.0, fx=1, **kwargs):
+        x1, y1 = line.xAddDistance(x0, distance, fx=fx)
+        y0 = line.y(x0)
+        ax.plot3D([x0, x1], [y0, y1], zs=[0, 0], **kwargs)
+
+    def vLineRectangleIntersect(self, line: SHSketchMapLine, rectangle_coors):
+        lines = [SHSketchMapLine().init(line.vK(), x, y) for x, y in rectangle_coors[:-1]]
+        lines_select = []
+        lines_n = []
+        lines_d = []
+        for i in range(len(lines)):
+            for j in range(i + 1, len(lines)):
+                lines_select.append((lines[i], lines[j]))
+                lines_n.append((i, j))
+                lines_d.append(abs(lines[i].c - lines[j].c))
+        n = findMaxWhere(lines_d)
+        n_select = lines_n[n]
+        self.vlri_coors = []
+        for i in range(len(lines)):
+            if i not in n_select:
+                self.vlri_coors.append(rectangle_coors[i])
+        return lines_select[n]
+
+    def rectangleTrans(self, *xys, theta=0.0):
+        if theta == 0:
+            return xys
+        rad = angleToRadian(theta)
+        xys_out = []
+        for x, y in xys:
+            x1 = x * math.cos(rad) + y * math.sin(rad)
+            y1 = -x * math.sin(rad) + y * math.cos(rad)
+            xys_out.append((x1, y1))
+        return xys_out
+
+    def plotRectangle3D(self, *xyzs, ax: Axes3D = None, height=0.6, theta=0.0, args=(), **kwargs):
+        if ax is None:
+            ax = plt.axes(projection='3d')
+        # if theta != 0:
+        #     xys = []
+        #     for xyz in xyzs:
+        #         xys.append(xyz[:2])
+        #     xys = self.rectangleTrans(*tuple(xys), theta=theta)
+        #     xys = [list(xy) for xy in xys]
+        #     for i, xyz in enumerate(xyzs):
+        #         if len(xyz) >= 3:
+        #             xys[i].append(xyz[2])
+        #     xyzs = xys
+        xyzs = list(xyzs)
+        x_list, y_list, z_list = [], [], []
+        for i in range(len(xyzs)):
+            x_list.append(xyzs[i][0])
+            y_list.append(xyzs[i][1])
+            if len(xyzs[i]) == 2:
+                z_list.append(0)
+            else:
+                z_list.append(xyzs[i][2])
+        ax.plot3D(x_list, y_list, z_list, **kwargs)
+        for i in range(len(xyzs) - 1):
+            xs = [x_list[i], x_list[i], x_list[i + 1], x_list[i + 1]]
+            ys = [y_list[i], y_list[i], y_list[i + 1], y_list[i + 1]]
+            zs = [0, height, height, 0]
+            ax.plot3D(xs, ys, zs, **kwargs)
+
+    def fill(self, xys, *args, **kwargs):
+        xys = varToList(xys)
+        x, y = self.plotXY(xys)
+        # plt.scatter(x, y)
+        plt.fill(x, y, *args, **kwargs)
+
+    def main(self):
+        self.draw3D()
+
+    def draw3D(self):
+        self.name = ""
+        ax: Axes3D = plt.figure().add_subplot(projection='3d')
+        x0, y0 = 0.3, 0.2
+        building_coors = self.rectangleTrans((x0, y0), (-x0, y0), (-x0, -y0), (x0, -y0), (x0, y0), theta=-5)
+        self.plotRectangle3D(*tuple(building_coors), ax=ax, color="gray")
+        ax.plot3D([-1, 1], [0, 0], [0, 0], color="black")
+        ax.plot3D([0, 0], [-1, 1], [0, 0], color="black")
+
+        def sh_as(fx=1):
+            line_as = self.lineKB(self.lineK(-0.2493, -0.05480094, -0.25319841, -0.03558636), -0.8, 0)
+            self.plotLine3D(ax, line_as, -0.96, -0.60)
+            line1, line2 = self.vLineRectangleIntersect(line_as, building_coors)
+            self.plotLinePointDistance3D(ax, line1, line1.x0, distance=0.8, fx=fx, color="green")
+            self.plotLinePointDistance3D(ax, line2, line2.x0, distance=0.8, fx=fx, color="green")
+            # self.plotLinePointDistance3D(ax, line1, line1.x0, distance=0.8, fx=-fx, color="green")
+            # self.plotLinePointDistance3D(ax, line2, line2.x0, distance=0.8, fx=-fx, color="green")
+
+        def sh_de(fx=-1):
+            line_de = self.lineKB(self.lineK(0.24939, -0.05480094, 0.25319841, -0.03558636), 0.8, 0)
+            self.plotLine3D(ax, line_de, 0.60, 0.96)
+            line1, line2 = self.vLineRectangleIntersect(line_de, building_coors)
+            self.plotLinePointDistance3D(ax, line1, line1.x0, distance=0.8, fx=fx, color="red")
+            self.plotLinePointDistance3D(ax, line2, line2.x0, distance=0.8, fx=fx, color="red")
+            # self.plotLinePointDistance3D(ax, line1, line1.x0, distance=0.8, fx=-fx, color="red")
+            # self.plotLinePointDistance3D(ax, line2, line2.x0, distance=0.8, fx=-fx, color="red")
+
+        def sh_opt():
+            line_sun = SHSketchMapLine().init(0.3, 0, -0.6)
+            # self.plotLine(line_sun, -1, 1)
+            line1, line2 = self.vLineRectangleIntersect(line_sun, building_coors)
+            self.plotLinePointDistance3D(ax, line1, line1.x0, distance=1, fx=-1, color="blue")
+            self.plotLinePointDistance3D(ax, line2, line2.x0, distance=1, fx=-1, color="blue")
+
+        sh_as(1)
+        # sh_de(-1)
+        # sh_opt()
+        # ax.set_xlim(-1, 1)
+        # ax.set_ylim(-1, 1)
+        # ax.set_zlim(0, 1)
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        # ax.set_zticks([])
+        # Make legend, set axes limits and labels
+        # ax.legend()
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
+        ax.set_zlim(0, 1)
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_zticks([])
+        # Customize the view angle so it's easier to see that the scatter points lie
+        # on the plane y=0
+        ax.view_init(elev=20., azim=-35, roll=0)
+        # plt.text(-0.1, -0.1, "O", fontdict={"size": FONT_SIZE})
+        plt.show()
+
+    def draw2D(self):
+
+        def plotDraw2D(subplot_number=111, theta=0,
+                       is_as=False, is_de=False, is_opt=False, fig=None,
+                       number_fig="a"
+                       ):
+            if fig is None:
+                fig = plt.figure(figsize=(6, 6))
+                plt.subplots_adjust(top=0.96, bottom=0.04, left=0.04, right=0.96, hspace=0.2, wspace=0.2)
+
+            ax = fig.add_subplot(subplot_number, axes_class=AxesZero)
+            ax.set_aspect('equal', adjustable='box')
+            self.coorAxis(ax)
+
+            x0, y0 = 0.3, 0.2
+            building_coors = self.rectangleTrans((x0, y0), (-x0, y0), (-x0, -y0), (x0, -y0), (x0, y0), theta=theta)
+            self.plotRectangle(*tuple(building_coors), color="black")
+            is_draw = True
+
+            line_as = self.lineKB(self.lineK(-0.2493, -0.05480094, -0.25319841, -0.03558636), -0.8, 0)
+            line_de = self.lineKB(self.lineK(0.24939, -0.05480094, 0.25319841, -0.03558636), 0.8, 0)
+            line_sun = SHSketchMapLine().init(0.3, 0, -0.9)
+
+            def sh_as(fx=1):
+                self.plotArrow(line_as, -0.95, -0.66, fx=-1, length_includes_head=True,
+                               head_width=0.025, head_length=0.06, fc='blue', color="blue")
+                line1, line2 = self.vLineRectangleIntersect(line_as, building_coors)
+                distance1 = line_as.pointDistance(line1.x0, line1.y0) - 0.1
+                distance2 = line_as.pointDistance(line2.x0, line2.y0) - 0.1
+                coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance2, fx=fx, color="darkblue")
+                coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance1, fx=fx, color="darkblue")
+                self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[0]), alpha=0.5,
+                          color="darkblue", label="Ascending shadow")
+                if is_draw:
+                    distance1 = line_as.pointDistance(line1.x0, line1.y0) - 0.1
+                    distance2 = line_as.pointDistance(line2.x0, line2.y0) - 0.1
+                    coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance1, fx=-fx, color="royalblue")
+                    coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance2, fx=-fx, color="royalblue")
+                    self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[1]), alpha=0.5,
+                              color="royalblue", label="Ascending double-bounce")
+                plt.text(-1.12, 0.8, "Ascending orbit", fontdict={"size": FONT_SIZE})
+
+            def sh_de(fx=-1):
+                self.plotArrow(line_de, 0.68, 0.95, fx=-1, length_includes_head=True,
+                               head_width=0.025, head_length=0.06, fc='red', color="red")
+                line1, line2 = self.vLineRectangleIntersect(line_de, building_coors)
+                distance1 = line_de.pointDistance(line1.x0, line1.y0) - 0.1
+                distance2 = line_de.pointDistance(line2.x0, line2.y0) - 0.1
+                coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance2, fx=fx, color="darkred")
+                coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance1, fx=fx, color="darkred")
+                self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[1]), alpha=0.5,
+                          color="darkred", label="Descending image shadow")
+                if is_draw:
+                    distance1 = line_de.pointDistance(line1.x0, line1.y0) - 0.1
+                    distance2 = line_de.pointDistance(line2.x0, line2.y0) - 0.1
+                    coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance1, fx=-fx, color="red")
+                    coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance2, fx=-fx, color="red")
+                    self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[0]), alpha=0.5,
+                              color="red", label="Descending double-bounce")
+                plt.text(0.2, -0.7, "Descending orbit", fontdict={"size": FONT_SIZE})
+
+            def sh_opt():
+                # self.plotLine(line_sun, -1, 1, color="orange")
+                line1, line2 = self.vLineRectangleIntersect(line_sun, building_coors)
+                distance1 = line_sun.pointDistance(line1.x0, line1.y0) - 0.1
+                distance2 = line_sun.pointDistance(line2.x0, line2.y0) - 0.1
+                coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance2, fx=-1, color="dimgrey")
+                coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance1, fx=-1, color="dimgrey")
+                self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[0]), alpha=0.5,
+                          color="dimgrey", label="Optical image shadow")
+
+            if is_as:
+                sh_as(1)
+            if is_de:
+                sh_de(-1)
+            if is_opt:
+                sh_opt()
+
+            self.fill(tuple(building_coors), color="gray")
+
+            plt.xlim([-1.2, 1.2])
+            plt.ylim([-1.2, 1.2])
+            plt.xticks([])
+            plt.yticks([])
+
+            plt.text(0.05, 0.9, "North", fontdict={"size": FONT_SIZE})
+            plt.text(0.9, 0.05, "East", fontdict={"size": FONT_SIZE})
+            plt.text(-0.2, 0, "Building", fontdict={"size": FONT_SIZE})
+            plt.text(-1.1, 0.96, "({0})".format(number_fig), fontdict={"size": 16})
+
+        def func1(filename, theta, ):
+            plotDraw2D(111, theta, is_as=True)
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\as_{0}.svg".format(filename), dpi=300)
+            plt.show()
+            plotDraw2D(111, theta, is_de=True)
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\de_{0}.svg".format(filename), dpi=300)
+            plt.show()
+            plotDraw2D(111, theta, is_opt=True)
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\opt_{0}.svg".format(filename), dpi=300)
+            plt.show()
+
+        fig_this = plt.figure(figsize=(9, 9))
+        plt.subplots_adjust(top=0.98, bottom=0.02, left=0.02, right=0.98, hspace=0.01, wspace=0.01)
+
+        def func2(filename, theta):
+            plotDraw2D(331, 0, is_as=True, fig=fig_this, number_fig="a")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plotDraw2D(332, 0, is_de=True, fig=fig_this, number_fig="b")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plotDraw2D(333, 0, is_opt=True, fig=fig_this, number_fig="c")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\{0}.svg".format(filename), dpi=300)
+
+            plotDraw2D(334, theta, is_as=True, fig=fig_this, number_fig="d")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plotDraw2D(335, theta, is_de=True, fig=fig_this, number_fig="e")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plotDraw2D(336, theta, is_opt=True, fig=fig_this, number_fig="f")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\{0}.svg".format(filename), dpi=300)
+
+            plotDraw2D(337, -theta, is_as=True, fig=fig_this, number_fig="g")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plotDraw2D(338, -theta, is_de=True, fig=fig_this, number_fig="h")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plotDraw2D(339, -theta, is_opt=True, fig=fig_this, number_fig="i")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\{0}.svg".format(filename), dpi=300)
+            plt.show()
+
+        # func1("fig2  20", 20)
+        # func1("fig2 -20", -20)
+        # func1("fig2  0", 0)
+        func2("fig3", 16)
+        # plotDraw2D(111, -6, True,True,True)
+        # plt.legend(
+        #     # bbox_to_anchor=(1.05, 0), loc=3, borderaxespad=0,
+        #     prop={"size": FONT_SIZE}, frameon=False)
+        # plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\fig2.svg", dpi=300)
+        # plt.show()
+
+
 def main():
     # line = SHDLine()
     # line.azimuthCoor(360 - 8.9, 1, 2)
@@ -412,7 +872,9 @@ def main():
 
     # shd = ShadowDirection()
     # shd.main()
-    plt.colorbar()
+    # plt.colorbar()
+    scm = ShadowSketchMap()
+    scm.draw2D()
 
     pass
 

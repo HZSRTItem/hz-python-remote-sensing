@@ -9,6 +9,7 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 from osgeo import __version__
 from osgeo import gdal
@@ -126,9 +127,7 @@ class GDALRasterRange:
 
     def init(self, raster_fn, range_fn=None):
         if range_fn is not None:
-            dict_in = readJson(range_fn)
-            for k in dict_in:
-                self.range_dict[k] = GDALRasterRangeData(t_dict=dict_in[k])
+            self.loadJsonFile(range_fn)
 
         if raster_fn is None:
             return
@@ -136,11 +135,20 @@ class GDALRasterRange:
         self.range_fn = changext(raster_fn, ".range")
         if os.path.isfile(self.range_fn):
             try:
-                dict_in = readJson(self.range_fn)
-                for k in dict_in:
-                    self.range_dict[k] = GDALRasterRangeData(t_dict=dict_in[k])
+                self.loadJsonFile(self.range_fn)
             except:
                 pass
+        return self
+
+    def loadJsonFile(self, range_fn):
+        dict_in = readJson(range_fn)
+        self.loadDict(dict_in)
+        return self
+
+    def loadDict(self, dict_in):
+        for k in dict_in:
+            self.range_dict[k] = GDALRasterRangeData(t_dict=dict_in[k])
+        return self
 
     def isRead(self):
         return os.path.isfile(self.range_fn)
@@ -151,6 +159,7 @@ class GDALRasterRange:
         d = np.load(npy_fn)
         for i in range(len(d)):
             self.range_dict[names[i]] = GDALRasterRangeData(d[i, 0], d[i, 1])
+        return self
 
     def save(self, range_fn=None):
         if range_fn is None:
@@ -201,6 +210,7 @@ class GDALRasterIO(GEORaster):
     def __init__(self):
         GEORaster.__init__(self)
 
+        self.wgs84_to_this = None
         self.gdal_raster_fn = None
         self.raster_ds: gdal.Dataset = None
 
@@ -253,13 +263,16 @@ class GDALRasterIO(GEORaster):
         self.save_geo_transform = None
         self.save_probing = None
 
+    def ioOpen(self, *args, **kwargs):
+        return gdal.Open(self.gdal_raster_fn)
+
     def initGDALRasterIO(self, gdal_raster_fn):
         self.initRaster()
         self.initGEORaster()
         self._init()
 
         self.gdal_raster_fn = gdal_raster_fn
-        self.raster_ds: gdal.Dataset = gdal.Open(self.gdal_raster_fn)
+        self.raster_ds: gdal.Dataset = self.ioOpen()
         if self.raster_ds is None:
             raise Exception("Input geo raster file can not open -file:" + self.gdal_raster_fn)
 
@@ -291,6 +304,7 @@ class GDALRasterIO(GEORaster):
         if wkt != "":
             self.coor_trans = osr.CoordinateTransformation(self.src_srs, self.dst_srs)
             self.towgs84_coor_trans = osr.CoordinateTransformation(self.dst_srs, wgs84_srs)
+            self.wgs84_to_this = osr.CoordinateTransformation(wgs84_srs, self.dst_srs)
 
         self.save_geo_transform = self.geo_transform
         self.save_probing = self.dst_srs.ExportToWkt()
@@ -479,6 +493,10 @@ class GDALRasterIO(GEORaster):
         if not (self.y_min < y < self.y_max):
             return False
         return True
+
+    def coorWGS84ToThis(self, x, y):
+        x1, y1, _ = self.wgs84_to_this.TransformPoint(x, y)
+        return x1, y1
 
 
 class GDALRaster(GDALRasterIO, SRTCollection):
@@ -1040,15 +1058,34 @@ def samplingGDALRastersToCSV(raster_fns: list, csv_fn, to_csv_fn):
     savecsv(to_csv_fn, to_df)
 
 
+class GDALMBTiles(GDALRaster):
+
+    def __init__(self, mb_tiles_fn=""):
+        super().__init__(gdal_raster_fn=mb_tiles_fn)
+
+    def getCenterImage(self, x_center, y_center, win_size=(10, 10), is_to_wgs84=True):
+        if is_to_wgs84:
+            x_center, y_center = self.coorWGS84ToThis(x_center, y_center)
+        d = self.readAsArrayCenter(x_center, y_center, win_row_size=win_size[0], win_column_size=win_size[1],
+                                   is_geo=True, interleave="pixel")
+        return d
+
 def main():
     # gr = GDALRaster(r"F:\ProjectSet\ASDEShadow_T1\ImageDeal\qd_rgbn_si_asdeC_raw.dat")
     # gr.readAsArray()
     # print(gr.d.shape)
     # print(gr.readAsArrayCenter(0, 0, 5, 5))
 
-    bj3_vrt_fn = r"F:\ProjectSet\Shadow\BeiJing\Image\3\BJ_SH3.vrt"
-    grfc = GDALRasterFeatureCollection()
-    grfc.addGDALData(bj3_vrt_fn, "Blue")
+    # bj3_vrt_fn = r"F:\ProjectSet\Shadow\BeiJing\Image\3\BJ_SH3.vrt"
+    # grfc = GDALRasterFeatureCollection()
+    # grfc.addGDALData(bj3_vrt_fn, "Blue")
+
+    gmbt = GDALMBTiles(r"F:\ProjectSet\Shadow\MkTu\4.1Details\BingImages\qd\qd_googleimage2.mbtiles")
+    x, y = 120.37623005, 36.07113323
+    d = gmbt.getCenterImage(x, y, (100, 100))
+    plt.imshow(d)
+    plt.show()
+    print(x, y)
 
     pass
 
