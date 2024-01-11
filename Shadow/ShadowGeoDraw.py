@@ -11,6 +11,7 @@ r"""----------------------------------------------------------------------------
 import os.path
 from inspect import isfunction
 
+import matplotlib as mpl
 import matplotlib.patches as mpl_patches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -637,6 +638,19 @@ class ShadowGeoDrawCategoryChannel(GDALRasterCenter):
         return self.d / 255
 
 
+class _mpl_patches_Ellipse:
+
+    def __init__(self, xy, width, height, angle=0, **kwargs):
+        self.xy = xy
+        self.width = width
+        self.height = height
+        self.angle = angle
+        self.kwargs = kwargs
+
+    def fit(self, *args, **kwargs):
+        return mpl_patches.Ellipse(xy=self.xy, width=self.width, height=self.height, angle=self.angle, **self.kwargs)
+
+
 class ShadowGeoDrawGradImage:
 
     def __init__(self, win_row_size, win_column_size):
@@ -655,7 +669,7 @@ class ShadowGeoDrawGradImage:
         ]
 
         self.imdc_file_dict = {}
-        self.color_dict = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
+        self.color_dict = {1: (255, 255,255), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
 
         self.row_ellipse_dict = {}
 
@@ -667,6 +681,7 @@ class ShadowGeoDrawGradImage:
             callback_funcs=[], is_geo=True, no_data=0,
         )
         self.columns.append(sgdmc)
+        return sgdmc
 
     def addColumnGoogle(self, name, win_row_size=None, win_column_size=None):
         win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
@@ -779,7 +794,8 @@ class ShadowGeoDrawGradImage:
                            win_row_size=win_row_size, win_column_size=win_column_size)
 
     def addRowEllipse(self, n_row, xy, width, height, angle=0, **kwargs):
-        e = mpl_patches.Ellipse(xy=xy, width=width, height=height, angle=angle, **kwargs)
+        # xy, width, height, angle=0, **kwargs
+        e = _mpl_patches_Ellipse(xy=xy, width=width, height=height, angle=angle, **kwargs)
         if n_row not in self.row_ellipse_dict:
             self.row_ellipse_dict[n_row] = []
         self.row_ellipse_dict[n_row].append(e)
@@ -810,20 +826,21 @@ class ShadowGeoDrawGradImage:
                 if i == 0:
                     ax.set_title(self.columns[j].name, fontdict={'family': 'Times New Roman', 'size': 12})
                 d = self.columns[j].read(x, y)
-                # ax.imshow(d)
+                ax.imshow(d)
                 if e_list is not None:
                     for ell in e_list:
-                        ax.add_patch(ell)
+                        ax.add_patch(ell.fit())
                 ax.set_xticks([])
                 ax.set_yticks([])
                 pass
 
 
 def main():
-    sgdgi = ShadowGeoDrawGradImage(131, 131)
+    sgdgi = ShadowGeoDrawGradImage(31, 31)
+    # sgdgi.color_dict = {1: (221,74,76), 2: (214,238,155), 3: (254,212,129), 4: (61,149,184)}
     sgdgi.addImdcs()
 
-    sgdgi.addColumnRGB("RGB")
+    sgdmc = sgdgi.addColumnRGB("RGB")
     sgdgi.addColumnNRG("NRG")
     sgdgi.addColumnGoogle("Google Image", 410, 410)
     sgdgi.addColumnImdcKey("SH-AS-DE", "SPL_SH-SVM-TAG-OPTICS-AS-DE")
@@ -839,12 +856,14 @@ def main():
     # sgdgi.addColumnSAR_ASC22("AS C22")
     # sgdgi.addColumnSAR_DEC22("DE C22")
 
+
     sgdgi.addRow("IS", 120.3418499, 36.0884511)
-    sgdgi.addRow("IS", 120.374407,36.064563)
-    sgdgi.addRow("IS", 120.332966,36.118072)
-    sgdgi.addRow("IS", 120.3780005, 36.1084047)
-    sgdgi.addRow("IS", 120.353551, 36.082023)
-    sgdgi.addRow("IS", 120.339454, 36.052821)
+    sgdgi.addRow("IS", 116.4860893, 39.8936288)
+    sgdgi.addRow("IS", 120.374407, 36.064563)
+    # sgdgi.addRow("IS", 120.332966,36.118072)
+    # sgdgi.addRow("IS", 120.3780005, 36.1084047)
+    # sgdgi.addRow("IS", 120.353551, 36.082023)
+    # sgdgi.addRow("IS", 120.339454, 36.052821)
 
     # sgdgi.addRow("IS", 120.3418499,36.0884511)
     # sgdgi.addRow("IS", 120.3418499,36.0884511)
@@ -860,7 +879,7 @@ def main():
     # sgdgi.addRow("WAT", 104.07385, 30.65005)
     # sgdgi.addRow("WAT", 104.13064, 30.62272)
 
-    e = sgdgi.addRowEllipse(0, xy=(0.1, 0.1), width=0.2, height=0.3, angle=20)
+    e = sgdgi.addRowEllipse(1, xy=(17, 14), width=20, height=6, angle=0, linewidth=1, fill=False, zorder=2, edgecolor="green")
     # fig = plt.figure()
     # axes = fig.subplots(1, 1)
     # axes.add_patch(e)
@@ -868,7 +887,20 @@ def main():
     sgdgi.imshow(n_rows_ex=1.6, n_columns_ex=1.6)
 
     # plt.savefig(r"F:\ProjectSet\Shadow\MkTu\4.1Details\fig2.jpeg", dpi=300)
+
+    # fig = plt.figure(figsize=(6, 6), )
+    # axes = fig.add_subplot(111, aspect='auto')
+    # d = sgdmc.read(120.3418499, 36.0884511)
+    # e = _mpl_patches_Ellipse( xy=(50, 60), width=20, height=30, angle=20, linewidth=2, fill=False, zorder=2).fit()
+    # axes.add_patch(e)
+    # # plt.imshow(d)
+    # plt.xlim((0,100))
+    # plt.ylim((0,100))
+    # print(plt.xlim())
+    # print(plt.ylim())
+
     plt.show()
+
 
     pass
 
@@ -912,3 +944,46 @@ def method_name4():
 
 if __name__ == "__main__":
     main()
+    def main_t1():
+        import numpy as np
+        from matplotlib import patches
+        import matplotlib.pyplot as plt
+
+        # 绘制一个椭圆需要制定椭圆的中心，椭圆的长和高
+        xcenter, ycenter = 1, 1
+        width, height = 0.8, 0.5
+        angle = -30  # 椭圆的旋转角度
+
+        # 第一步：创建绘图对象
+        fig = plt.figure()
+        ax = fig.add_subplot(211, aspect='auto')
+        ax.set_xbound(-1, 3)
+        ax.set_ybound(-1, 3)
+
+        # 第二步
+        e1 = patches.Ellipse((xcenter, ycenter), width, height,
+                             angle=angle, linewidth=2, fill=False, zorder=2)
+
+        # 第三步
+        ax.add_patch(e1)
+
+        # 第一步
+        ax = fig.add_subplot(212, aspect='equal')
+        ax.set_xbound(-1, 3)
+        ax.set_ybound(-1, 3)
+
+        # 第二步
+        e2 = patches.Arc((xcenter, ycenter), width, height,
+                         angle=angle, linewidth=2, fill=False, zorder=2)
+
+        # 第三步
+        ax.add_patch(e2)
+
+        plt.show()
+
+
+    # main_t1()
+
+
+
+

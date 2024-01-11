@@ -132,6 +132,9 @@ def writeTexts(filename, *texts, mode="w", end=""):
 def copyFile(filename, to_filename):
     shutil.copyfile(filename, to_filename)
 
+def listMap(_list, _func):
+    return list(map(_func, _list))
+
 
 class DirFileName:
     """ Directory file name """

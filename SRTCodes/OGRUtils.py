@@ -13,7 +13,7 @@ import numpy as np
 from osgeo import ogr
 
 from SRTCodes.GDALUtils import RESOLUTION_ANGLE
-from SRTCodes.Utils import readJson, saveJson
+from SRTCodes.Utils import readJson, saveJson, Jdt
 
 
 class SRTGeoField:
@@ -165,21 +165,38 @@ def initFromGeoJson(geojson: SRTGeoJson, name="geojson_name") -> SRTGeoJson:
     return d
 
 
-def sampleSpaceUniform(coors: list, x_len: float, y_len: float, is_trans_jiaodu=False):
+def sampleSpaceUniform(coors: list, x_len: float, y_len: float, is_trans_jiaodu=False, is_jdt=False, ret_index=False):
     if is_trans_jiaodu:
         x_len = x_len * RESOLUTION_ANGLE
         y_len = y_len * RESOLUTION_ANGLE
-    random.shuffle(coors)
+    index_list = [i for i in range(len(coors))]
+    random.shuffle(index_list)
+
     d = np.array(coors)
     d_min = np.min(d, axis=1)
     x0, y0 = d_min[0], d_min[1]
+
+    out_index_list = []
     coors2 = []
     grid = []
-    for coor in coors:
+    if is_jdt:
+        jdt = Jdt(len(coors), "sampleSpaceUniform")
+        jdt.start()
+
+    for i in index_list:
+        coor = coors[i]
         grid0 = (int((coor[0] - x0) / x_len), int((coor[1] - y0) / y_len))
         if grid0 not in grid:
             coors2.append(coor)
             grid.append(grid0)
+            out_index_list.append(i)
+
+        if is_jdt:
+            jdt.add()
+    if is_jdt:
+        jdt.end()
+    if ret_index:
+        return coors2, out_index_list
     return coors2
 
 
@@ -251,6 +268,7 @@ class SRTESRIShapeFileRead:
             return [feat["geometry"][0] for feat in self.feature_list]
         else:
             return []
+
 
 def main():
     pass

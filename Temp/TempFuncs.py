@@ -9,8 +9,27 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 import os
 
+import matplotlib.colors as mcolors
+
+from Draw.m_color_data import CSS4_COLORS
+
 
 def main():
+    def sort_color(colors):
+        names = sorted(colors, key=lambda c: tuple(mcolors.rgb_to_hsv(mcolors.to_rgb(c))))
+        return {name: colors[name] for name in names}
+
+    colors = sort_color(CSS4_COLORS)
+    with open(r"F:\PyCodes\Draw\CSS4_COLORS.css", "w", encoding="utf-8") as f:
+        f.write("mcolor {\n")
+        for k, v in colors.items():
+            print("    color: {0};".format(k, v), file=f)
+        f.write("}\n")
+
+    pass
+
+
+def method_name1():
     dirname = r"F:\PyCodes"
     to_dirname = r"F:\PyCodes"
     find_str = "tourensong@gmail.com"
@@ -33,8 +52,6 @@ def main():
                 fw = open(to_fn, "w", encoding="utf-8")
                 fw.writelines(lines)
                 fw.close()
-
-    pass
 
 
 if __name__ == "__main__":

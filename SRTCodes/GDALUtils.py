@@ -95,6 +95,10 @@ def samplingToCSV(csv_fn: str, gr: GDALRaster, to_csv_fn: str, x_field="X", y_fi
     jdt.start()
     for i in range(n):
         d0 = gr.readAsArray(x[i], y[i], win_row_size=1, win_column_size=1, is_trans=True, is_geo=True)
+        if d0 is None:
+            for j, name in enumerate(gr.names):
+                d[name].append(0)
+            continue
         d0 = d0.ravel()
         for j, name in enumerate(gr.names):
             d[name].append(d0[j])

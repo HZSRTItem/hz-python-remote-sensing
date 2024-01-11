@@ -378,20 +378,6 @@ class GDALRasterIO(GEORaster):
 
     def _save(self, d: np.array = None, save_geo_raster_fn=None, fmt="ENVI", dtype=None, geo_transform=None,
               probing=None, start_xy=None, interleave='band', options=None, descriptions=None):
-        """ Save geo image
-        \
-        :param descriptions: descriptions
-        :param options: save options list
-        :param interleave: The data is organized as `band`:(b,y,x) or `pixel`:(x,y,b)
-        :param start_xy: Coordinates of the upper left corner of the image
-        :param probing: projection information
-        :param geo_transform: projection transformation information
-        :param d: data
-        :param save_geo_raster_fn: saved image path
-        :param fmt: save type
-        :param dtype: save data type default:gdal.GDT_Float32
-        :return: None
-        """
 
         if d is None:
             d = self.readAsArray()
@@ -598,6 +584,20 @@ class GDALRaster(GDALRasterIO, SRTCollection):
 
     def save(self, d: np.array = None, save_geo_raster_fn=None, fmt="ENVI", dtype=None, geo_transform=None,
              probing=None, start_xy=None, interleave='band', options=None, descriptions=None):
+        """ Save geo image
+        \
+        :param descriptions: descriptions
+        :param options: save options list
+        :param interleave: The data is organized as `band`:(b,y,x) or `pixel`:(x,y,b)
+        :param start_xy: Coordinates of the upper left corner of the image
+        :param probing: projection information
+        :param geo_transform: projection transformation information
+        :param d: data
+        :param save_geo_raster_fn: saved image path
+        :param fmt: save type
+        :param dtype: save data type default:gdal.GDT_Float32
+        :return: None
+        """
         if d is None:
             if self.d is None:
                 self.d = self.readAsArray()
