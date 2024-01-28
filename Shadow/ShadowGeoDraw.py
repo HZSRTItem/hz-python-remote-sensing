@@ -11,7 +11,6 @@ r"""----------------------------------------------------------------------------
 import os.path
 from inspect import isfunction
 
-import matplotlib as mpl
 import matplotlib.patches as mpl_patches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -199,6 +198,10 @@ class ShadowGeoDraw:
 
 def _10log10(x, *args, **kwargs):
     return 10 * np.log10(x)
+
+
+def _power10(x, *args, **kwargs):
+    return np.power(10.0, x / 10.0)
 
 
 def drawShadowImage_Optical(name, x, y, rows, columns, raster_fn, to_fn, d_min=0, d_max=3500, channel_list=None,
@@ -656,6 +659,8 @@ class ShadowGeoDrawGradImage:
     def __init__(self, win_row_size, win_column_size):
         super().__init__()
 
+        self.is_row_name_show = True
+        self.is_column_name_show = True
         self.win_row_size = win_row_size
         self.win_column_size = win_column_size
         self.columns = []
@@ -669,7 +674,7 @@ class ShadowGeoDrawGradImage:
         ]
 
         self.imdc_file_dict = {}
-        self.color_dict = {1: (255, 255,255), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
+        self.color_dict = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
 
         self.row_ellipse_dict = {}
 
@@ -710,7 +715,9 @@ class ShadowGeoDrawGradImage:
         sgdsc = ShadowGeoDrawSingleChannel(
             name=name, win_row_size=win_row_size, win_column_size=win_column_size,
             channel_list=[channel_name], min_list=min_list, max_list=max_list,
-            callback_funcs=[], is_geo=True, no_data=0,
+            # callback_funcs=[SRTFeatureCallBack(_power10, is_trans=True)],
+            callback_funcs=[],
+            is_geo=True, no_data=0,
         )
         self.columns.append(sgdsc)
 
@@ -822,9 +829,11 @@ class ShadowGeoDrawGradImage:
                 else:
                     ax = axes[j]
                 if j == 0:
-                    ax.set_ylabel(self.row_names[i], fontdict={'family': 'Times New Roman', 'size': 12})
+                    if self.is_row_name_show:
+                        ax.set_ylabel(self.row_names[i], fontdict={'family': 'Times New Roman', 'size': 12})
                 if i == 0:
-                    ax.set_title(self.columns[j].name, fontdict={'family': 'Times New Roman', 'size': 12})
+                    if self.is_column_name_show:
+                        ax.set_title(self.columns[j].name, fontdict={'family': 'Times New Roman', 'size': 12})
                 d = self.columns[j].read(x, y)
                 ax.imshow(d)
                 if e_list is not None:
@@ -834,12 +843,98 @@ class ShadowGeoDrawGradImage:
                 ax.set_yticks([])
                 pass
 
+    def isColumnName(self, is_show: bool = True):
+        self.is_column_name_show = is_show
+
+    def isRowName(self, is_show: bool = True):
+        self.is_row_name_show = is_show
 
 def main():
+    drawRowColumn41()
+
+    pass
+
+
+def drawRowColumn41():
+    sgdgi = ShadowGeoDrawGradImage(61, 61)
+    # sgdgi.color_dict = {1: (221,74,76), 2: (214,238,155), 3: (254,212,129), 4: (61,149,184)}
+    sgdgi.addImdcs()
+    sgdgi.isRowName(False)
+
+    sgdmc = sgdgi.addColumnRGB("RGB")
+    sgdgi.addColumnNRG("NRG")
+    sgdgi.addColumnGoogle("Google Image", 1000, 1000)
+
+    sgdgi.addColumnImdcKey("SH-AS-DE", "SPL_SH-SVM-TAG-OPTICS-AS-DE")
+    sgdgi.addColumnImdcKey("NOSH-AS-DE", "SPL_NOSH-SVM-TAG-OPTICS-AS-DE")
+    sgdgi.addColumnImdcKey("SH-AS", "SPL_SH-SVM-TAG-OPTICS-AS")
+    sgdgi.addColumnImdcKey("NOSH-AS", "SPL_NOSH-SVM-TAG-OPTICS-AS")
+    sgdgi.addColumnImdcKey("SH-DE", "SPL_SH-SVM-TAG-OPTICS-DE")
+    sgdgi.addColumnImdcKey("NOSH-DE", "SPL_NOSH-SVM-TAG-OPTICS-DE")
+    sgdgi.addColumnImdcKey("SH-OPT", "SPL_SH-SVM-TAG-OPTICS")
+    sgdgi.addColumnImdcKey("NOSH-OPT", "SPL_NOSH-SVM-TAG-OPTICS")
+
+    # sgdgi.addColumnSAR_ASVV("AS VV")
+    # sgdgi.addColumnSAR_DEVV("DE VV")
+    # sgdgi.addColumnSAR_ASVH("AS VH")
+    # sgdgi.addColumnSAR_DEVH("DE VH")
+
+    # sgdgi.addColumnSAR_ASC11("AS C11")
+    # sgdgi.addColumnSAR_DEC11("DE C11")
+    # sgdgi.addColumnSAR_ASC22("AS C22")
+    # sgdgi.addColumnSAR_DEC22("DE C22").
+
+    sgdgi.addRow("IS", 116.445817, 39.936849)
+    sgdgi.addRow("IS", 116.4860893, 39.8936288)
+    sgdgi.addRow("IS", 120.339454, 36.052821)
+    sgdgi.addRow("VEG", 116.559579, 39.946365)
+    sgdgi.addRow("VEG", 116.34989, 39.79670)
+    sgdgi.addRow("VEG", 104.07385, 30.65005)
+    sgdgi.addRow("SOIL", 116.350292, 39.798293)
+    sgdgi.addRow("WAT", 116.310359, 39.915394)
+
+    # sgdgi.addRow("IS", 116.305999, 39.965146)
+    # sgdgi.addRow("IS", 116.302365, 39.962880)
+    # sgdgi.addRow("VEG", 116.575445, 39.935084)
+
+    # sgdgi.addRow("IS", 120.3418499, 36.0884511)
+    # sgdgi.addRow("IS", 116.4860893, 39.8936288)
+    # sgdgi.addRow("IS", 120.374407, 36.064563)
+    # sgdgi.addRow("IS", 120.332966, 36.118072)
+    # sgdgi.addRow("IS", 120.3780005, 36.1084047)
+    # sgdgi.addRow("IS", 120.353551, 36.082023)
+
+    # sgdgi.addRow("IS", 120.339454, 36.052821)
+    # sgdgi.addRow("IS", 120.397521, 36.144224)
+    # sgdgi.addRow("IS", 116.363178, 39.858848)
+    # sgdgi.addRow("VEG", 116.34989, 39.79670)
+    # sgdgi.addRow("VEG", 104.07385, 30.65005)
+    # sgdgi.addRow("VEG", 104.13064, 30.62272)
+
+    # e = sgdgi.addRowEllipse(1, xy=(17, 14), width=20, height=6, angle=0, linewidth=1, fill=False, zorder=2,
+    #                         edgecolor="green")
+    # fig = plt.figure()lki
+    # axes = fig.subplots(1, 1)
+    # axes.add_patch(e)
+    sgdgi.imshow(n_rows_ex=1.2, n_columns_ex=1.2)
+    # plt.savefig(r"F:\ProjectSet\Shadow\MkTu\4.1Details\fig2.jpeg", dpi=300)
+    # fig = plt.figure(figsize=(6, 6), )
+    # axes = fig.add_subplot(111, aspect='auto')
+    # d = sgdmc.read(120.3418499, 36.0884511)
+    # e = _mpl_patches_Ellipse( xy=(50, 60), width=20, height=30, angle=20, linewidth=2, fill=False, zorder=2).fit()
+    # axes.add_patch(e)
+    # # plt.imshow(d)
+    # plt.xlim((0,100))
+    # plt.ylim((0,100))
+    # print(plt.xlim())
+    # print(plt.ylim())
+    plt.show()
+
+
+def method_name5():
     sgdgi = ShadowGeoDrawGradImage(31, 31)
     # sgdgi.color_dict = {1: (221,74,76), 2: (214,238,155), 3: (254,212,129), 4: (61,149,184)}
     sgdgi.addImdcs()
-
     sgdmc = sgdgi.addColumnRGB("RGB")
     sgdgi.addColumnNRG("NRG")
     sgdgi.addColumnGoogle("Google Image", 410, 410)
@@ -855,8 +950,6 @@ def main():
     # sgdgi.addColumnSAR_DEC11("DE C11")
     # sgdgi.addColumnSAR_ASC22("AS C22")
     # sgdgi.addColumnSAR_DEC22("DE C22")
-
-
     sgdgi.addRow("IS", 120.3418499, 36.0884511)
     sgdgi.addRow("IS", 116.4860893, 39.8936288)
     sgdgi.addRow("IS", 120.374407, 36.064563)
@@ -864,11 +957,9 @@ def main():
     # sgdgi.addRow("IS", 120.3780005, 36.1084047)
     # sgdgi.addRow("IS", 120.353551, 36.082023)
     # sgdgi.addRow("IS", 120.339454, 36.052821)
-
     # sgdgi.addRow("IS", 120.3418499,36.0884511)
     # sgdgi.addRow("IS", 120.3418499,36.0884511)
     # sgdgi.addRow("IS", 120.3418499,36.0884511)
-
     # sgdgi.addRow("IS", 120.397521, 36.144224)
     # sgdgi.addRow("IS", 116.363178, 39.858848)
     # sgdgi.addRow("VEG", 116.34989, 39.79670)
@@ -878,16 +969,13 @@ def main():
     # sgdgi.addRow("SOIL", 104.13064, 30.62272)
     # sgdgi.addRow("WAT", 104.07385, 30.65005)
     # sgdgi.addRow("WAT", 104.13064, 30.62272)
-
-    e = sgdgi.addRowEllipse(1, xy=(17, 14), width=20, height=6, angle=0, linewidth=1, fill=False, zorder=2, edgecolor="green")
+    e = sgdgi.addRowEllipse(1, xy=(17, 14), width=20, height=6, angle=0, linewidth=1, fill=False, zorder=2,
+                            edgecolor="green")
     # fig = plt.figure()
     # axes = fig.subplots(1, 1)
     # axes.add_patch(e)
-
     sgdgi.imshow(n_rows_ex=1.6, n_columns_ex=1.6)
-
     # plt.savefig(r"F:\ProjectSet\Shadow\MkTu\4.1Details\fig2.jpeg", dpi=300)
-
     # fig = plt.figure(figsize=(6, 6), )
     # axes = fig.add_subplot(111, aspect='auto')
     # d = sgdmc.read(120.3418499, 36.0884511)
@@ -898,11 +986,7 @@ def main():
     # plt.ylim((0,100))
     # print(plt.xlim())
     # print(plt.ylim())
-
     plt.show()
-
-
-    pass
 
 
 def method_name4():
@@ -944,6 +1028,23 @@ def method_name4():
 
 if __name__ == "__main__":
     main()
+
+
+    def main_t2():
+        filelist = [
+            r"F:\ProjectSet\Shadow\MkTu\Draw\SH_QD_envi.dat2.npy",
+            r"F:\ProjectSet\Shadow\MkTu\Draw\SH_BJ_envi.dat2.npy",
+            r"F:\ProjectSet\Shadow\MkTu\Draw\SH_CD_envi.dat2.npy",
+        ]
+        filelist2 = [
+            r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_envi.dat",
+            r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_envi.dat",
+            r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_envi.dat",
+        ]
+        for i, fn in enumerate(filelist):
+            GDALRasterRange(filelist2[i]).loadNPY(fn).save(fn + ".json")
+
+
     def main_t1():
         import numpy as np
         from matplotlib import patches
@@ -981,9 +1082,4 @@ if __name__ == "__main__":
 
         plt.show()
 
-
     # main_t1()
-
-
-
-

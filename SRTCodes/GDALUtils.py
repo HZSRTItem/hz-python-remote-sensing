@@ -85,26 +85,38 @@ def samplingToCSV(csv_fn: str, gr: GDALRaster, to_csv_fn: str, x_field="X", y_fi
     d = readcsv(csv_fn)
     x = list(map(float, d[x_field]))
     y = list(map(float, d[y_field]))
+
+    d = samplingSingle(x, y, coor_srs, gr, data_dict=d)
+    savecsv(to_csv_fn, d)
+
+
+def samplingSingle(x, y, coor_srs, gr, data_dict=None, is_jdt=True):
+    if data_dict is None:
+        data_dict = {}
     srs = osr.SpatialReference()
     srs.SetFromUserInput(coor_srs)
     gr.setDstSrs(srs)
     n = min(len(x), len(y))
     for name in gr.names:
-        d[name] = []
+        data_dict[name] = []
     jdt = Jdt(total=n, desc="Sampling To CSV")
-    jdt.start()
+    if is_jdt:
+        jdt.start()
     for i in range(n):
         d0 = gr.readAsArray(x[i], y[i], win_row_size=1, win_column_size=1, is_trans=True, is_geo=True)
         if d0 is None:
             for j, name in enumerate(gr.names):
-                d[name].append(0)
+                data_dict[name].append(0)
             continue
         d0 = d0.ravel()
         for j, name in enumerate(gr.names):
-            d[name].append(d0[j])
-        jdt.add()
-    jdt.end()
-    savecsv(to_csv_fn, d)
+            data_dict[name].append(d0[j])
+        if is_jdt:
+            jdt.add()
+    if is_jdt:
+        jdt.end()
+    return data_dict
+
 
 
 def vrtAddDescriptions(filename, to_filename=None, descriptions=None):

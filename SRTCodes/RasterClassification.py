@@ -81,7 +81,7 @@ class RasterPrediction(Raster, Prediction):
 
         jdt = Jdt(total=row_end - row_start, desc="RasterClassification")
         jdt.start()
-        col_imdc = np.zeros([self.n_columns, self.n_channels, spl_size[0], spl_size[1]])
+        col_imdc = np.zeros([self.n_columns, self.d.shape[0], spl_size[0], spl_size[1]])
         select_spl = np.array([False for i in range(self.n_columns)])
 
         row_size, column_size = spl_size[0], spl_size[1]

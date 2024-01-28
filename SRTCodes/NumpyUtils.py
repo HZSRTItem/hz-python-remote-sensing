@@ -311,10 +311,6 @@ def main():
     return
 
 
-if __name__ == "__main__":
-    main()
-
-
 def randomSampling(x, y, n=500, select_list=None):
     if select_list is None:
         select_list = [0, 1]
@@ -336,3 +332,21 @@ def randomSampling(x, y, n=500, select_list=None):
     random.shuffle(random_list)
     out_x, out_y = out_x[random_list], out_y[random_list]
     return out_x, out_y
+
+
+def conv2dDim1(data, kernel):
+    data, kernel = np.array(data), np.array(kernel)
+    row, column = kernel.shape
+    row_center, column_center = int(row / 2.0), int(column / 2.0)
+    out_data = np.zeros_like(data)
+
+    for i in range(row_center, data.shape[0] - row_center - 1):
+        for j in range(column_center, data.shape[1] - column_center - 1):
+            data_tmp = data[i - row_center:i + row_center + 1, j - column_center:j + column_center + 1]
+            out_data[i, j] = np.sum(data_tmp * kernel)
+
+    return out_data
+
+
+if __name__ == "__main__":
+    main()

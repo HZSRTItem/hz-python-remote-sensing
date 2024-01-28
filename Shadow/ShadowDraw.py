@@ -584,8 +584,6 @@ class SRTDrawHistShadow(SRTDrawHist):
         self._collection[field_name].addCallBack(func_callback)
 
 
-
-
 def main():
     method_name1()
 
@@ -617,17 +615,18 @@ def method_name1():
                    "DE_C22",
                    "DE_Lambda1", "DE_Lambda2", "DE_SPAN", "DE_Epsilon"]]
         d = readGEORaster(raster_fn)
-        d[k_list] = cal_10log10(d[k_list])
+        # d[k_list] = cal_10log10(d[k_list])
         fn = os.path.split(raster_fn)[1]
         d_rh = reHist(d, ratio=0.002)
         # d_rh = np.array([])
         to_fn = os.path.join(r"F:\ProjectSet\Shadow\Analysis\4", fn + ".npy")
-        to_fn = os.path.join(r"F:\ProjectSet\Shadow\MkTu\Draw", fn + ".npy")
+        to_fn = os.path.join(r"F:\ProjectSet\Shadow\MkTu\Draw", fn + "2.npy")
         np.save(to_fn, d_rh)
 
     func1(qd_raster_fn)
     func1(bj_raster_fn)
     func1(cd_raster_fn)
+
     # sdhs.featureScaleMinMax("Blue", 99.76996, 2500)
     # sdhs.featureScaleMinMax("Green", 45.83414, 2395.735)
     # sdhs.featureScaleMinMax("Red", 77.79654, 2726.7026)

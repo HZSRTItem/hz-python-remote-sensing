@@ -204,6 +204,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
+    print("start training")
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
@@ -213,12 +214,17 @@ def main():
             labels = labels.to(device)
 
             optimizer.zero_grad()
+
             outputs = model(images)
+
             loss = criterion(outputs, labels)
+
             loss.backward()
+
             optimizer.step()
 
-            running_loss += loss.item()
+            # running_loss += loss.item()
+            print(loss.item())
             if n % 16 == 0:
                 print(f"Epoch [{epoch + 1}/{num_epochs}], N:{n}, Loss: {running_loss / len(train_loader)}")
 

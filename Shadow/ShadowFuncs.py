@@ -38,6 +38,7 @@ from SRTCodes.Utils import savecsv, readcsv, DirFileName, Jdt
 from Shadow.ShadowDraw import ShadowDrawDirectLength, cal_10log10
 from Shadow.ShadowGeoDraw import _10log10, DrawShadowImage_0
 from Shadow.ShadowMainQingDao import ShadowMainQD
+from Shadow.ShadowSample import ShadowCSVSample, ShadowCSVSampleCollection
 from Shadow.ShadowUtils import ShadowSampleAdjustNumber, ShadowFindErrorSamples, ShadowTestAll
 
 imdcDirname = DirFileName(r"F:\ProjectSet\Shadow\QingDao\Mods\20230707H200910")
@@ -46,6 +47,20 @@ scienceplots.init()
 
 
 def main():
+    # df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\20231209\20231214H093733\20231214H093733_train_spl.csv")
+    # print(df.keys())
+    # as_c11 = df["AS_C11"]
+    # as_c12_imag = df["AS_C12_imag"]
+    # as_c12_real = df["AS_C12_real"]
+    # as_c22 = df["AS_C22"]
+
+    sh_csv_sc = ShadowCSVSampleCollection(True, True, True)
+    samplingCenter(sh_csv_sc.qd_raster_fn, r"G:\FM\Samples\1\spl1", [13, 13], channel_list=[0,1,2,3])
+
+    haha = 0
+
+
+def method_name56():
     imdc_fn1 = r"F:\ProjectSet\Shadow\QingDao\Mods\20231226H093225\SPL_SH-SVM-TAG-OPTICS-AS_imdc.dat"
     imdc_fn2 = r"F:\ProjectSet\Shadow\QingDao\Mods\20231226H093225\SPL_SH-SVM-TAG-OPTICS-DE_imdc.dat"
     gr1 = GDALRaster(imdc_fn1)
@@ -54,8 +69,6 @@ def main():
     imdc2 = gr2.readAsArray()
     imdc_diff = (imdc1 != imdc2) * 1
     gr1.save(imdc_diff, r"F:\ProjectSet\Shadow\Analysis\9\qd_as_de_diff1.tif", dtype=gdal.GDT_Byte, fmt="GTiff")
-
-    haha = 0
 
 
 def method_name55():

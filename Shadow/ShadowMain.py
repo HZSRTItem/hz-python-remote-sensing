@@ -505,5 +505,6 @@ class ShadowMain:
 
         ssn.train()
 
+
 if __name__ == "__main__":
     showSampleNumber()

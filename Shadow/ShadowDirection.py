@@ -18,7 +18,15 @@ from mpl_toolkits.mplot3d import Axes3D
 from SRTCodes.Utils import angleToRadian, radianToAngle
 
 plt.rc('font', family='Times New Roman')
-FONT_SIZE = 9
+FONT_SIZE = 14
+
+
+def calculateBearing(x1, y1, x2, y2):
+    delta_x = x2 - x1
+    delta_y = y2 - y1
+    bearing_rad = math.atan2(delta_x, delta_y)
+    bearing_deg = math.degrees(bearing_rad)
+    return bearing_deg
 
 
 def is_in_poly(p, poly):
@@ -103,6 +111,7 @@ class SHDLine:
         self.z_max = None
 
         self.normal_azimuth = None
+        self.azimuth = None
 
     def _distanceCal(self):
         self.distance_c = self.y0 - self.k * self.x0
@@ -116,6 +125,10 @@ class SHDLine:
     def _calNormalAzimuth(self):
         self.normal_azimuth = radianToAngle(math.atan(-self.k))
 
+    def _calAzimuth(self):
+        y0, y1 = self.y(0), self.y(1)
+        self.azimuth = calculateBearing(0, y0, 1, y1)
+
     def azimuthCoor(self, alpha, x0=0.0, y0=0.0):
         self.k = 1 / (math.tan(angleToRadian(alpha)) + 0.000001)
         self.x0 = x0
@@ -123,6 +136,7 @@ class SHDLine:
         self._distanceCal()
         self._calABC()
         self._calNormalAzimuth()
+        self._calAzimuth()
         return self
 
     def twoPoint(self, x1, y1, x2, y2, is_range=False, ):
@@ -137,9 +151,10 @@ class SHDLine:
         self._distanceCal()
         self._calABC()
         self._calNormalAzimuth()
+        self._calAzimuth()
         return self
 
-    def plot(self, x0=None, x1=None, color="red"):
+    def plot(self, x0=None, x1=None, color="red", **kwargs):
         if x0 is None:
             x0 = self.x_min
         if x0 is None:
@@ -149,7 +164,7 @@ class SHDLine:
         if x1 is None:
             x1 = 1.0
         # plt.scatter(self.x0, self.y0)
-        plt.plot([x0, x1], [self.y(x0), self.y(x1)], color=color)
+        plt.plot([x0, x1], [self.y(x0), self.y(x1)], color=color, **kwargs)
         # plt.xlim(x0, x1)
         # plt.ylim(x0, x1)
 
@@ -435,6 +450,7 @@ class SHSketchMapLine(SHDLine):
         self._distanceCal()
         self._calABC()
         self._calNormalAzimuth()
+        self._calAzimuth()
         return self
 
     def x(self, y):
@@ -459,9 +475,10 @@ class SHSketchMapLine(SHDLine):
         x1, y1 = self.xyAddDistance(distance, fx, x0, y0)
         return x1, y1
 
-    # @classmethod
-    # def linesDistance(cls, line1, line2):
-    #
+    def initXJiaoCoor(self, x0, y0, theta, fx=1, fy=1):
+        x1 = x0 + fx * 1
+        y1 = y0 + fy * math.tan(angleToRadian(theta))
+        self.twoPoint(x0, y0, x1, y1)
 
 
 def varToList(xys):
@@ -540,14 +557,26 @@ class ShadowSketchMap:
         line.init(k, x0, y0)
         return line
 
-    def coorAxis(self, ax):
+    def coorAxis(self, ax, x0=None, x1=None, y0=None, y1=None):
         for direction in ["xzero", "yzero"]:
             ax.axis[direction].set_axisline_style("->", size=1.5)
             ax.axis[direction].set_visible(False)
         # for direction in ["left", "right", "bottom", "top"]:
         #     ax.axis[direction].set_visible(False)
-        plt.arrow(-1, 0, 1.9, 0, length_includes_head=True, head_width=0.025, head_length=0.06, fc='black')
-        plt.arrow(0, -0.8, 0, 1.9, length_includes_head=True, head_width=0.025, head_length=0.06, fc='black')
+        if (x0 is None) and (y0 is None) and (y0 is None) and (y1 is None):
+            plt.arrow(-1, 0, 1.9, 0, length_includes_head=True, head_width=0.025, head_length=0.06, fc='black')
+            plt.arrow(0, -0.8, 0, 1.9, length_includes_head=True, head_width=0.025, head_length=0.06, fc='black')
+        else:
+            if x0 is None:
+                x0 = -1.0
+            if x1 is None:
+                x1 = 1.0
+            if y0 is None:
+                y0 = -1.0
+            if y1 is None:
+                y1 = 1
+            plt.arrow(x0, 0, x1 - x0, 0, length_includes_head=True, head_width=0.025, head_length=0.06, fc='black')
+            plt.arrow(0, y0, 0, y1 - y0, length_includes_head=True, head_width=0.025, head_length=0.06, fc='black')
 
     def plotXY(self, *xys):
         args = varToList(xys)
@@ -657,6 +686,15 @@ class ShadowSketchMap:
         x, y = self.plotXY(xys)
         # plt.scatter(x, y)
         plt.fill(x, y, *args, **kwargs)
+
+    def plotLineThree(self, ax, line: SHSketchMapLine, x0, d, h, fx=0, **kwargs):
+        y0 = line.y(x0)
+        xys = self.rectangleTrans((-d / 2.0, 0), (d / 2.0, 0), (0, h), theta=line.azimuth + fx * 180)
+        x, y = self.plotXY(*tuple(xys))
+        x, y = np.array(x), np.array(y)
+        x, y = x + x0, y + y0
+        three_xz = plt.Polygon(xy=[[x[i], y[i]] for i in range(len(x))], **kwargs)
+        ax.add_patch(three_xz)
 
     def main(self):
         self.draw3D()
@@ -1055,6 +1093,427 @@ class ShadowSketchMap:
         # plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\fig2.svg", dpi=300)
         plt.show()
 
+    def drawASDE(self):
+
+        def same_sign(num1, num2):
+            return (num1 * num2) > 0
+
+        def plotDraw2D(subplot_number=111, theta=0.0,
+                       is_as=False, is_de=False, is_opt=False, fig=None,
+                       number_fig="a", is_draw=True):
+
+            if fig is None:
+                fig = plt.figure(figsize=(2, 3))
+                plt.subplots_adjust(top=0.96, bottom=0.04, left=0.04, right=0.96, hspace=0.2, wspace=0.2)
+
+            ax = fig.add_subplot(subplot_number, axes_class=AxesZero)
+            ax.set_aspect('equal', adjustable='box')
+            self.coorAxis(ax, y0=-0.7)
+
+            x0, y0 = 0.3, 0.2
+            building_coors = self.rectangleTrans((x0, y0), (-x0, y0), (-x0, -y0), (x0, -y0), (x0, y0), theta=theta)
+            self.plotRectangle(*tuple(building_coors), color="black")
+
+            line_as = self.lineKB(self.lineK(-0.2493, -0.05480094, -0.25319841, -0.03558636), -0.8, 0)
+            line_de = self.lineKB(self.lineK(0.24939, -0.05480094, 0.25319841, -0.03558636), 0.8, 0)
+            line_sun = SHSketchMapLine().init(0.3, 0, -0.9)
+
+            def sh_as(fx=1):
+                self.plotArrow(line_as, -0.95, -0.66, fx=-1, length_includes_head=True,
+                               head_width=0.025, head_length=0.06, fc='blue', color="blue")
+                line1, line2 = self.vLineRectangleIntersect(line_as, building_coors)
+                distance1 = line_as.pointDistance(line1.x0, line1.y0) - 0.1
+                distance2 = line_as.pointDistance(line2.x0, line2.y0) - 0.1
+                coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance2, fx=fx, color="darkblue")
+                coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance1, fx=fx, color="darkblue")
+                self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[0]), alpha=0.5,
+                          color="darkblue", label="Ascending shadow")
+                if is_draw:
+                    distance1 = line_as.pointDistance(line1.x0, line1.y0) - 0.1
+                    distance2 = line_as.pointDistance(line2.x0, line2.y0) - 0.1
+                    coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance1, fx=-fx, color="royalblue")
+                    coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance2, fx=-fx, color="royalblue")
+                    self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[1]), alpha=0.5,
+                              color="royalblue", label="Ascending double-bounce")
+                plt.text(-1.12, 0.8, "Ascending orbit", fontdict={"size": FONT_SIZE})
+                return line1, line2
+
+            def sh_de(fx=-1):
+                self.plotArrow(line_de, 0.68, 0.95, fx=-1, length_includes_head=True,
+                               head_width=0.025, head_length=0.06, fc='red', color="red")
+                line1, line2 = self.vLineRectangleIntersect(line_de, building_coors)
+                distance1 = line_de.pointDistance(line1.x0, line1.y0) - 0.1
+                distance2 = line_de.pointDistance(line2.x0, line2.y0) - 0.1
+                coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance2, fx=fx, color="darkred")
+                coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance1, fx=fx, color="darkred")
+                self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[1]), alpha=0.5,
+                          color="darkred", label="Descending shadow")
+                if is_draw:
+                    distance1 = line_de.pointDistance(line1.x0, line1.y0) - 0.1
+                    distance2 = line_de.pointDistance(line2.x0, line2.y0) - 0.1
+                    coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance1, fx=-fx, color="red")
+                    coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance2, fx=-fx, color="red")
+                    self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[0]), alpha=0.5,
+                              color="red", label="Descending double-bounce")
+                plt.text(0.2, -0.7, "Descending orbit", fontdict={"size": FONT_SIZE})
+                return line1, line2
+
+            def sh_opt():
+                # self.plotLine(line_sun, -1, 1, color="orange")
+                line1, line2 = self.vLineRectangleIntersect(line_sun, building_coors)
+                distance1 = line_sun.pointDistance(line1.x0, line1.y0) - 0.1
+                distance2 = line_sun.pointDistance(line2.x0, line2.y0) - 0.1
+                coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance2, fx=-1, color="dimgrey")
+                coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance1, fx=-1, color="dimgrey")
+                color_str = "dimgrey"
+                alpha = 0.5
+                if (not is_as) and (not is_de) and is_opt:
+                    color_str = "black"
+                    alpha = 1
+                self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[0]), alpha=alpha,
+                          color=color_str, label="Optical shadow")
+                return line1, line2
+
+            line_as_1, line_as_2, line_de_1, line_de_2, line_opt_1, line_opt_2 = (None for _ in range(6))
+            if is_as:
+                line_as_1, line_as_2 = sh_as(1)
+            if is_de:
+                line_de_1, line_de_2 = sh_de(-1)
+            if is_opt:
+                line_opt_1, line_opt_2 = sh_opt()
+
+            if is_as and is_de:
+                coor1 = line_as_1.intersect(line_de_1)
+                coor2 = line_as_1.intersect(line_de_2)
+                coor3 = line_as_2.intersect(line_de_1)
+                coor4 = line_as_2.intersect(line_de_2)
+                coors = [coor for coor in [coor1, coor2, coor3, coor4] if -1 < coor[0] < 1 and -1 < coor[1] < 1]
+
+                def plot_coor_line(coor_init):
+                    _coor_line = [coor_init]
+                    for coor in building_coors[:4]:
+                        if same_sign(coor[1], _coor_line[0][1]):
+                            _coor_line.append(coor)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.scatter(x, y, color="red", s=60)
+                    _coor_line.append(coor_init)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.plot(x, y)
+                    plt.fill(x, y, color="black", label="Shadow overlap area")
+
+                plot_coor_line(coors[0])
+                # plot_coor_line(coors[1])
+
+            if is_opt and is_as and (not is_de):
+                coor1 = line_opt_1.intersect(line_as_1)
+                coor2 = line_opt_1.intersect(line_as_2)
+                coor3 = line_opt_2.intersect(line_as_1)
+                coor4 = line_opt_2.intersect(line_as_2)
+                coors = [coor for coor in [coor1, coor2, coor3, coor4] if -1 < coor[0] < 1 and -1 < coor[1] < 1]
+
+                def plot_coor_line(coor_init):
+                    _coor_line = [coor_init]
+                    for coor in building_coors[:4]:
+                        if same_sign(coor[1], _coor_line[0][1]):
+                            _coor_line.append(coor)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.scatter(x, y, color="red", s=60)
+                    _coor_line.append(coor_init)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.plot(x, y)
+                    plt.fill(x, y, color="black", label="Shadow overlap area")
+
+                plot_coor_line(coors[0])
+                # plot_coor_line(coors[1])
+
+            if is_opt and is_de and (not is_as):
+                coor1 = line_opt_1.intersect(line_de_1)
+                coor2 = line_opt_1.intersect(line_de_2)
+                coor3 = line_opt_2.intersect(line_de_1)
+                coor4 = line_opt_2.intersect(line_de_2)
+                coors = [coor for coor in [coor1, coor2, coor3, coor4] if -1 < coor[0] < 1 and -1 < coor[1] < 1]
+
+                def plot_coor_line(coor_init, ):
+                    _coor_line = [coor_init]
+                    for coor in building_coors[:4]:
+                        if same_sign(coor[1], _coor_line[0][1]):
+                            _coor_line.append(coor)
+                        elif coor[0] < 0:
+                            _coor_line.append(coor)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.scatter(x, y, color="red", s=60)
+                    _coor_line.append(coor_init)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.plot(x, y)
+                    plt.fill(x, y, color="black", label="Shadow overlap area")
+
+                # plot_coor_line(coors[0])
+                plot_coor_line(coors[2])
+                # plot_coor_line(coors[3])
+
+            self.fill(tuple(building_coors), color="lightgrey")
+
+            plt.xlim([-1.2, 1.2])
+            plt.ylim([-0.9, 1.2])
+            plt.xticks([])
+            plt.yticks([])
+
+            plt.text(0.05, 0.9, "North", fontdict={"size": FONT_SIZE})
+            plt.text(0.9, 0.05, "East", fontdict={"size": FONT_SIZE})
+            plt.text(-0.22, -0.05, "Building", fontdict={"size": FONT_SIZE})
+            plt.text(-1.1, 0.96, "({0})".format(number_fig), fontdict={"size": 16})
+
+        fig_this = plt.figure(figsize=(12, 7.3))
+        plt.subplots_adjust(top=0.96, bottom=0.04, left=0.02, right=0.98, hspace=0.01, wspace=0.01)
+
+        def func1(theta):
+            plotDraw2D(231, theta, False, False, True, is_draw=False, fig=fig_this, number_fig="a")
+            plotDraw2D(232, theta, True, False, True, is_draw=False, fig=fig_this, number_fig="b")
+            plotDraw2D(233, theta, False, True, True, is_draw=False, fig=fig_this, number_fig="c")
+            plotDraw2D(235, theta, True, True, True, is_draw=False, fig=fig_this, number_fig="e")
+            plt.legend(bbox_to_anchor=(1.05, 0.0), loc=3, borderaxespad=0, prop={"size": FONT_SIZE}, frameon=False)
+            plotDraw2D(234, theta, True, True, False, is_draw=False, fig=fig_this, number_fig="d")
+
+        func1(0)
+        # plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+        plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\as_de_opt.jpg", dpi=300)
+        plt.show()
+
+    def drawDoubleBounds(self):
+
+        def same_sign(num1, num2):
+            return (num1 * num2) > 0
+
+        def plotDraw2D(subplot_number=111, theta=0.0,
+                       is_as=False, is_de=False, is_opt=False, fig=None,
+                       number_fig="a", is_draw=True):
+
+            if fig is None:
+                fig = plt.figure(figsize=(2, 3))
+                plt.subplots_adjust(top=0.96, bottom=0.04, left=0.04, right=0.96, hspace=0.2, wspace=0.2)
+
+            ax = fig.add_subplot(subplot_number, axes_class=AxesZero)
+            ax.set_aspect('equal', adjustable='box')
+            self.coorAxis(ax, y0=-0.7)
+
+            x0, y0 = 0.3, 0.2
+            building_coors = self.rectangleTrans((x0, y0), (-x0, y0), (-x0, -y0), (x0, -y0), (x0, y0), theta=theta)
+            self.plotRectangle(*tuple(building_coors), color="black")
+
+            line_as = self.lineKB(self.lineK(-0.2493, -0.05480094, -0.25319841, -0.03558636), -0.8, 0)
+            line_de = self.lineKB(self.lineK(0.24939, -0.05480094, 0.25319841, -0.03558636), 0.8, 0)
+            line_sun = SHSketchMapLine().init(0.3, 0, -0.9)
+
+            def sh_as(fx=1):
+                self.plotArrow(line_as, -0.95, -0.66, fx=-1, length_includes_head=True,
+                               head_width=0.025, head_length=0.06, fc='blue', color="blue")
+                line1, line2 = self.vLineRectangleIntersect(line_as, building_coors)
+                if not is_draw:
+                    distance1 = line_as.pointDistance(line1.x0, line1.y0) - 0.1
+                    distance2 = line_as.pointDistance(line2.x0, line2.y0) - 0.1
+                    coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance2, fx=fx, color="darkblue")
+                    coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance1, fx=fx, color="darkblue")
+                    self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[0]), alpha=0.5,
+                              color="darkblue", label="Ascending shadow")
+                if is_draw:
+                    distance1 = line_as.pointDistance(line1.x0, line1.y0) - 0.1
+                    distance2 = line_as.pointDistance(line2.x0, line2.y0) - 0.1
+                    coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance1, fx=-fx, color="royalblue")
+                    coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance2, fx=-fx, color="royalblue")
+                    self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[1]), alpha=0.5,
+                              color="royalblue", label="Ascending double-bounce")
+                plt.text(-1.12, 0.8, "Ascending orbit", fontdict={"size": FONT_SIZE})
+                return line1, line2
+
+            def sh_de(fx=-1):
+                self.plotArrow(line_de, 0.68, 0.95, fx=-1, length_includes_head=True,
+                               head_width=0.025, head_length=0.06, fc='red', color="red")
+                line1, line2 = self.vLineRectangleIntersect(line_de, building_coors)
+                if not is_draw:
+                    distance1 = line_de.pointDistance(line1.x0, line1.y0) - 0.1
+                    distance2 = line_de.pointDistance(line2.x0, line2.y0) - 0.1
+                    coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance2, fx=fx, color="darkred")
+                    coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance1, fx=fx, color="darkred")
+                    self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[1]), alpha=0.5,
+                              color="darkred", label="Descending shadow")
+                if is_draw:
+                    distance1 = line_de.pointDistance(line1.x0, line1.y0) - 0.1
+                    distance2 = line_de.pointDistance(line2.x0, line2.y0) - 0.1
+                    coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance1, fx=-fx, color="red")
+                    coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance2, fx=-fx, color="red")
+                    self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[0]), alpha=0.5,
+                              color="red", label="Descending double-bounce")
+                plt.text(0.2, -0.7, "Descending orbit", fontdict={"size": FONT_SIZE})
+                return line1, line2
+
+            def sh_opt():
+                # self.plotLine(line_sun, -1, 1, color="orange")
+                line1, line2 = self.vLineRectangleIntersect(line_sun, building_coors)
+                distance1 = line_sun.pointDistance(line1.x0, line1.y0) - 0.1
+                distance2 = line_sun.pointDistance(line2.x0, line2.y0) - 0.1
+                coors1 = self.plotLinePointDistance(line1, line1.x0, distance=distance2, fx=-1, color="dimgrey")
+                coors2 = self.plotLinePointDistance(line2, line2.x0, distance=distance1, fx=-1, color="dimgrey")
+                color_str = "dimgrey"
+                alpha = 0.5
+                if (not is_as) and (not is_de) and is_opt:
+                    color_str = "black"
+                    alpha = 1
+                self.fill((coors1, coors2[2], coors2[3], coors2[0], coors2[1], self.vlri_coors[0]), alpha=alpha,
+                          color=color_str, label="Optical shadow")
+                return line1, line2
+
+            line_as_1, line_as_2, line_de_1, line_de_2, line_opt_1, line_opt_2 = (None for _ in range(6))
+            if is_as:
+                line_as_1, line_as_2 = sh_as(1)
+            if is_de:
+                line_de_1, line_de_2 = sh_de(-1)
+            if is_opt:
+                line_opt_1, line_opt_2 = sh_opt()
+
+            if is_as and is_de:
+                coor1 = line_as_1.intersect(line_de_1)
+                coor2 = line_as_1.intersect(line_de_2)
+                coor3 = line_as_2.intersect(line_de_1)
+                coor4 = line_as_2.intersect(line_de_2)
+                coors = [coor for coor in [coor1, coor2, coor3, coor4] if -1 < coor[0] < 1 and -1 < coor[1] < 1]
+
+                def plot_coor_line(coor_init):
+                    _coor_line = [coor_init]
+                    for coor in building_coors[:4]:
+                        if same_sign(coor[1], _coor_line[0][1]):
+                            _coor_line.append(coor)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.scatter(x, y, color="red", s=60)
+                    _coor_line.append(coor_init)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.plot(x, y)
+                    plt.fill(x, y, color="black", label="Shadow overlap area")
+
+                plot_coor_line(coors[0])
+                # plot_coor_line(coors[1])
+
+            if is_opt and is_as and (not is_de):
+                coor1 = line_opt_1.intersect(line_as_1)
+                coor2 = line_opt_1.intersect(line_as_2)
+                coor3 = line_opt_2.intersect(line_as_1)
+                coor4 = line_opt_2.intersect(line_as_2)
+                coors = [coor for coor in [coor1, coor2, coor3, coor4] if -1 < coor[0] < 1 and -1 < coor[1] < 1]
+
+                def plot_coor_line(coor_init):
+                    _coor_line = [coor_init]
+                    for coor in building_coors[:4]:
+                        if same_sign(coor[1], _coor_line[0][1]):
+                            _coor_line.append(coor)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.scatter(x, y, color="red", s=60)
+                    _coor_line.append(coor_init)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.plot(x, y)
+                    plt.fill(x, y, color="black", label="Shadow overlap area")
+
+                plot_coor_line(coors[0])
+                # plot_coor_line(coors[1])
+
+            if is_opt and is_de and (not is_as):
+                coor1 = line_opt_1.intersect(line_de_1)
+                coor2 = line_opt_1.intersect(line_de_2)
+                coor3 = line_opt_2.intersect(line_de_1)
+                coor4 = line_opt_2.intersect(line_de_2)
+                coors = [coor for coor in [coor1, coor2, coor3, coor4] if -1 < coor[0] < 1 and -1 < coor[1] < 1]
+
+                def plot_coor_line(coor_init, ):
+                    _coor_line = [coor_init]
+                    for coor in building_coors[:4]:
+                        if same_sign(coor[1], _coor_line[0][1]):
+                            _coor_line.append(coor)
+                        elif coor[0] < 0:
+                            _coor_line.append(coor)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.scatter(x, y, color="red", s=60)
+                    _coor_line.append(coor_init)
+                    x, y = self.plotXY(*tuple(_coor_line))
+                    # plt.plot(x, y)
+                    plt.fill(x, y, color="black", label="Shadow overlap area")
+
+                # plot_coor_line(coors[0])
+                plot_coor_line(coors[2])
+                # plot_coor_line(coors[3])
+
+            self.fill(tuple(building_coors), color="lightgrey")
+
+            plt.xlim([-1.2, 1.2])
+            plt.ylim([-1.2, 1.2])
+            plt.xticks([])
+            plt.yticks([])
+
+            plt.text(0.05, 0.9, "North", fontdict={"size": FONT_SIZE})
+            plt.text(0.9, 0.05, "East", fontdict={"size": FONT_SIZE})
+            plt.text(-0.22, -0.05, "Building", fontdict={"size": FONT_SIZE})
+            plt.text(-1.1, 0.96, "({0})".format(number_fig), fontdict={"size": 16})
+
+        fig_this = plt.figure(figsize=(12, 4))
+        plt.subplots_adjust(top=0.96, bottom=0.04, left=0.02, right=0.98, hspace=0.01, wspace=0.01)
+
+        def plot_double_bounce(subplot_number, theta, fig, number_fig=None):
+
+            ax = fig.add_subplot(subplot_number, axes_class=AxesZero)
+            ax.set_aspect('equal', adjustable='box')
+
+            x0, y0 = 0.2, 0.6
+            dx, dy = -0.6, 0.1
+            building_coors = self.rectangleTrans((x0, y0), (-x0, y0), (-x0, -y0), (x0, -y0), (x0, y0), theta=theta)
+
+            x, y = self.plotXY(*tuple(building_coors))
+            x = np.array(x) + dx
+            y = np.array(y) + dy
+            plt.plot(x, y, color="black")
+            plt.plot([-x0 + dx - 0.1, 1.0], [-y0 + dy, -y0 + dy], color="black")
+            plt.fill(x, y, color="lightgrey", label="Building")
+
+            incidence_angle = 38
+            x_double_bounce = 0.2
+            color_double_bounce = "midnightblue"
+
+            line1 = SHSketchMapLine()
+            line1.initXJiaoCoor(x_double_bounce, -y0 + dy, incidence_angle)
+            line1.plot(x_double_bounce, 1.0, color=color_double_bounce,
+                       label="Electromagnetic wave")
+
+            line2 = SHSketchMapLine()
+            line2.initXJiaoCoor(x_double_bounce, -y0 + dy, incidence_angle, fx=-1)
+            line2.plot(x0 + dx, x_double_bounce, color=color_double_bounce)
+
+            line3 = SHSketchMapLine()
+            line3.initXJiaoCoor(x0 + dx, line2.y(x0 + dx), incidence_angle, fx=1)
+            line3.plot(x0 + dx, 0.8, color=color_double_bounce)
+
+            self.plotLineThree(ax, line1, (x_double_bounce + 1.0) / 2.0-0.05,     0.08, 0.12, color=color_double_bounce, fx=1)
+            self.plotLineThree(ax, line2, (x0 + dx + x_double_bounce) / 2.0-0.05, 0.08, 0.12, color=color_double_bounce, fx=1)
+            self.plotLineThree(ax, line3, (x0 + dx + 0.8) / 2.0-0.05,             0.08, 0.12, color=color_double_bounce, fx=0)
+
+            plt.xlim([-1.2, 1.2])
+            plt.ylim([-1.2, 1.2])
+
+            plt.xticks([])
+            plt.yticks([])
+
+            if number_fig is not None:
+                plt.text(-1.1, 0.96, "({0})".format(number_fig), fontdict={"size": 16})
+
+        def func1(theta):
+            # plotDraw2D(131, theta, False, False, True, is_draw=False, fig=fig_this, number_fig="a")
+            plot_double_bounce(131, theta, fig=fig_this, number_fig="a")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plotDraw2D(132, theta, True, False, False, is_draw=True, fig=fig_this, number_fig="b")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+            plotDraw2D(133, theta, False, True, False, is_draw=True, fig=fig_this, number_fig="c")
+            plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+
+        func1(0)
+        # plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
+        plt.savefig(r"F:\ProjectSet\Shadow\MkTu\SketchMap\double_bounds.jpg", dpi=300)
+        plt.show()
+
 
 def main():
     # line = SHDLine()
@@ -1067,7 +1526,7 @@ def main():
     # shd.main()
     # plt.colorbar()
     scm = ShadowSketchMap()
-    scm.draw2D2()
+    scm.drawDoubleBounds()
 
     pass
 

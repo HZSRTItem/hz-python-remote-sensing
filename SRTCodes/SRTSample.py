@@ -7,6 +7,8 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : BaseCodes of SRTSample
 -----------------------------------------------------------------------------"""
+import random
+
 import numpy as np
 import pandas as pd
 
@@ -293,6 +295,76 @@ class CSVSamples(Samples):
 
     def saveToFile(self, csv_fn):
         self._data.to_csv(csv_fn, index=False)
+
+    def getDFData(self):
+        return self._data.copy()
+
+
+class SRTSampleSelect:
+    """
+    输入每个类别抽样的个数和类别之间的映射
+    """
+
+    def __init__(self, x: pd.DataFrame = None, y=None, sampling_type="no_back"):
+        """
+        sampling_type: Is the sample a sample that has been returned or a sample that has not been returned `back|no_back`
+        """
+        self.x = x
+        self.y = y
+        self.data = {}
+        self.sampling_type = sampling_type
+
+        self.init()
+
+    def init(self, x: pd.DataFrame = None, y=None):
+        if x is None:
+            x = self.x
+        if y is None:
+            y = self.y
+        if (x is None) and (y is None):
+            return
+
+        for i in range(len(y)):
+            y_tmp = int(y[i])
+            if y_tmp not in self.data:
+                self.data[y_tmp] = []
+            self.data[y_tmp].append(x.loc[i].to_dict())
+
+    def get(self, category_number_dict, map_dict=None):
+        if map_dict is None:
+            map_dict = {}
+        out_df_list, out_y_list = [], []
+        for category, number in category_number_dict.items():
+            df_list = self.getByCategory(category, number)
+            out_df_list += df_list
+            if category in map_dict:
+                category = map_dict[category]
+            out_y_list += [category] * len(df_list)
+        return pd.DataFrame(out_df_list), np.array(out_y_list)
+
+    def getByCategory(self, category, number):
+        number = min(number, len(self.data[category]))
+        select_list = [i for i in range(len(self.data[category]))]
+        random.shuffle(select_list)
+        out_data_list = []
+        if self.sampling_type == "back":
+            for i in range(number):
+                out_data_list.append(self.data[category][select_list[i]])
+        elif self.sampling_type == "no_back":
+            data = []
+            for i in range(len(self.data[category])):
+                d = self.data[category][select_list[i]]
+                if i < number:
+                    out_data_list.append(d)
+                else:
+                    data.append(d)
+            self.data[category] = data
+        return out_data_list
+
+    def printNumber(self):
+        for k in self.data:
+            print("{0}:{1} ".format(k, len(self.data[k])), end="")
+        print()
 
 
 def main():

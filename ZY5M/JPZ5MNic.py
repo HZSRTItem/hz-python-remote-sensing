@@ -13,6 +13,7 @@ import os
 import time
 
 import joblib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from osgeo import gdal
@@ -24,6 +25,9 @@ from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import samplingToCSV
 from SRTCodes.OGRUtils import sampleSpaceUniform
 from SRTCodes.Utils import readcsv, listMap, filterFileExt, readJson, saveJson, Jdt
+
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文
+plt.rcParams['axes.unicode_minus'] = False  # 显示负号
 
 
 class JPZ5MNicTrainImage:
@@ -45,7 +49,6 @@ class JPZ5MNicTrainImage:
         self.clf = None
 
         self.time_str = None
-
 
     def train(self):
         filename = os.path.join(self.model_dirname, time.strftime("%Y%m%dH%H%M%S") + ".mod")
@@ -181,6 +184,101 @@ class JPZ5MNicTrainImage:
         self.imdc()
 
 
+def reportFuncs():
+    def filter_grids():
+        csv_fn = r"F:\ProjectSet\Huo\jpz5m4nian\Temp\jpz_region1_cal2.csv"
+        df = pd.read_csv(csv_fn)
+        del df[".geo"]
+        df.to_csv(r"F:\ProjectSet\Huo\jpz5m4nian\Report\jpz_region1_cal2_nogeo.csv")
+        return
+
+    def cat_grids(*grids_fns, to_fn=None):
+        to_json_dict = None
+        for fn in grids_fns:
+            if to_json_dict is None:
+                to_json_dict = readJson(fn)
+            else:
+                json_dict = readJson(fn)
+                i_find = 0
+                for feat in to_json_dict["features"]:
+                    find_d = feat["properties"]["id"]
+
+                    for feat2 in json_dict["features"]:
+                        find_d2 = feat2["properties"]["id"]
+                        if find_d == find_d2:
+                            for k in feat2["properties"]:
+                                to_json_dict["features"][i_find]["properties"][k] = feat2["properties"][k]
+                            break
+
+                    i_find += 1
+        saveJson(to_json_dict, to_fn)
+
+    def fun2():
+        cat_grids(
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\jinbian_grids_area.geojson",
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\jinbian_grids_wbei18.geojson",
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\jinbian_grids_wbei21.geojson",
+            to_fn=r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\jinbian_grids.geojson"
+        )
+
+        cat_grids(
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\mdw_grids_area.geojson",
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\mdw_grids_wbei18.geojson",
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\mdw_grids_wbei21.geojson",
+            to_fn=r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\mdw_grids.geojson"
+        )
+
+        cat_grids(
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\xl_grids__area.geojson",
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\xl_grids_wbei18.geojson",
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\xl_grids_wbei21.geojson",
+            to_fn=r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\xl_grids.geojson"
+        )
+
+    def plotScatter(csv_fn):
+        fig = plt.figure(figsize=(8, 8))
+        fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.4, wspace=0.3)
+        plt.subplot(331)
+
+        def scatter_show(csv_fn_plot, n, name=""):
+            df = pd.read_csv(csv_fn_plot)
+            df["del_is"] = df["ais21"] - df["ais17"]
+            df["del_veg"] = df["aveg21"] - df["aveg17"]
+            df["del_wl"] = df["awl21"] - df["awl17"]
+            df["del_wbei"] = df["wbei_22"] - df["wbei_18"]
+
+            plt.subplot(330 + n)
+            plt.title(name)
+            plt.scatter(df["del_is"], df["del_wbei"], s=2, color="red")
+            plt.xlabel("不透水面变化面积(km2)")
+            plt.ylabel("WBEI")
+
+            plt.subplot(330 + n + 1)
+            plt.title(name)
+            plt.scatter(df["del_veg"], df["del_wbei"], s=2, color="green")
+            plt.xlabel("植被变化面积(km2)")
+            plt.ylabel("WBEI")
+
+            plt.subplot(330 + n + 2)
+            plt.title(name)
+            plt.scatter(df["del_wl"], df["del_wbei"], s=2, color="blue")
+            plt.xlabel("湿地变化面积(km2)")
+            plt.ylabel("WBEI")
+
+        scatter_show(
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\jinbian_grids.csv",
+            1, name="金边")
+        scatter_show(
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\xl_grids.csv", 4,
+            name="暹粒")
+        scatter_show(
+            r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\mdw_grids.csv", 7,
+            name="马德望")
+        plt.show()
+
+    plotScatter(r"F:\ProjectSet\Huo\jpz5m4nian\Temp\ZY5MCitysGrids-20240113T143733Z-001\ZY5MCitysGrids\xl_grids.csv")
+
+
 def main():
     def func1():
         # 样本空间均匀
@@ -252,6 +350,21 @@ def main():
             to_csv_fn=csv_fn + "_imdc17.csv"
         )
 
+    def func4():
+
+        gr1 = GDALRaster(r"G:\Downloads\drive-download-20240112T035911Z-001\jpz5m_17_3_imclass1_tif.tif")
+        d1 = gr1.readAsArray()
+        print(d1.shape)
+
+        gr2 = GDALRaster(r"G:\Downloads\drive-download-20240112T035911Z-001\jpz5m_17_3_imclass22_dat.dat")
+        d2 = gr2.readAsArray()
+        print(d2.shape)
+
+        d = (d1 != d2) * 1
+
+        gr1.save(d.astype("int8"), r"G:\Downloads\drive-download-20240112T035911Z-001\jpz5m_17_3_imclass1_tif_t.dat",
+                 fmt="ENVI", dtype=gdal.GDT_Byte)
+
     # func2()
     # filter_yaosu(
     #     json_fn=r"G:\ShapeData\cambodia-latest-free.shp\gis_osm_roads_free_1.geojson",
@@ -265,7 +378,8 @@ def main():
     # func1()
     # func3()
     # func2()
-    JPZ5MNicTrainImage().main()
+    # JPZ5MNicTrainImage().main()
+    reportFuncs()
 
 
 if __name__ == "__main__":
