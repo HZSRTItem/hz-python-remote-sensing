@@ -193,6 +193,8 @@ class ConfusionMatrix:
             if int(y_true[i]) > 0 or int(y_pred[i]) > 0:
                 if (int(y_pred[i]) - 1) == 40:
                     continue
+                if (int(y_true[i]) <= 0) or (int(y_pred[i]) <= 0):
+                    continue
                 self._cm[int(y_true[i]) - 1, int(y_pred[i]) - 1] += 1
         self._cm_accuracy = self.calCM()
 

@@ -14,6 +14,7 @@ import os
 import random
 import shutil
 import time
+from datetime import datetime
 
 
 def getRandom(x0, x1):
@@ -559,6 +560,18 @@ def printListTable(d_list, columns_names=None, precision=2, rcl="^"):
         for i in range(n_columns):
             print(fmt[i].fmt(line[i]), end=" ")
         print()
+
+
+def timeDirName(dirname=None, is_mk=False):
+    current_time = datetime.now()
+    save_dirname = current_time.strftime("%Y%m%dH%H%M%S")
+    if dirname is not None:
+        save_dirname = os.path.join(dirname, save_dirname)
+    if is_mk:
+        if not os.path.isdir(save_dirname):
+            os.mkdir(save_dirname)
+    return save_dirname
+
 
 
 def main():

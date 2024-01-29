@@ -7,19 +7,27 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ShadowUtils
 -----------------------------------------------------------------------------"""
+import csv
 import os.path
+import shutil
 
 import numpy as np
 import pandas as pd
 
+from RUN.RUNFucs import QJYTxt_main
 from SRTCodes.GDALRasterClassification import GDALRasterClassificationAccuracy
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.ModelTraining import ConfusionMatrix
-from SRTCodes.Utils import listUnique, filterFileContain
+from SRTCodes.PandasUtils import filterDF
+from SRTCodes.SRTReadWrite import SRTInfoFileRW
+from SRTCodes.Utils import listUnique, filterFileContain, Jdt, saveJson, readJson, timeDirName, changefiledirname, \
+    changext
 
 SH_C_DICT = {0: 'NOT_KNOW', 'NOT_KNOW': 0, 11: 'IS', 'IS': 11, 12: 'IS_SH', 'IS_SH': 12, 21: 'VEG', 'VEG': 21,
              22: 'VEG_SH', 'VEG_SH': 22, 31: 'SOIL', 'SOIL': 31, 32: 'SOIL_SH',
              'SOIL_SH': 32, 41: 'WAT', 'WAT': 41, 42: 'WAT_SH', 'WAT_SH': 42}
+pd.set_option('expand_frame_repr', False)
+
 
 
 def updateShadowSamplesCategory(chang_csv_fn, o_csv_fn, to_csv_fn=None, srt_field_name="SRT", cname_field_name="CNAME",
@@ -35,7 +43,7 @@ def updateShadowSamplesCategory(chang_csv_fn, o_csv_fn, to_csv_fn=None, srt_fiel
             df_o_csv_fn["IS_CHANGE"] = np.zeros(len(df_o_csv_fn))
     df_add = {"X": [], "Y": [], "CNAME": [], "CATEGORY": [], "SRT": []}
     if is_change_fields:
-        df_add[ "IS_CHANGE"] = []
+        df_add["IS_CHANGE"] = []
 
     for i, item in df_change.iterrows():
         c_code = int(item[change_category_field_name])
@@ -325,7 +333,302 @@ class ShadowTestAll(ShadowFindErrorSamples):
         print(df)
 
 
+def _isTo01(_is):
+    if _is:
+        return 1
+    else:
+        return 0
+
+
+def _listToInt(_list: list):
+    return list(map(int, _list))
+
+
+class ShadowTiaoTestAcc:
+
+    def __init__(self, init_dirname=None, init_name=None, ):
+        self.init_dirname = init_dirname
+        self.init_name = init_name
+        if self.init_dirname is not None:
+            if not os.path.isdir(self.init_dirname):
+                os.mkdir(self.init_dirname)
+            if init_name is None:
+                self.init_name = os.path.split(self.init_dirname)[1]
+
+        self.mod_dirname = None
+        self.imdc_fns = {}
+        self.imdc_grs = {}
+        self.category_map = {}
+        self.c_field_name = "CNAME"
+        self.cm_names = []
+
+        self.spl_df = pd.DataFrame()
+
+    def buildNew(self, mod_dirname, csv_fn=None, *filters, x_field_name="X", y_field_name="Y", is_jdt=True):
+        self.mod_dirname = mod_dirname
+        self._getImdcFNS()
+        self.addCSV(csv_fn=csv_fn, *filters)
+        self.samplingImdc(x_field_name=x_field_name, y_field_name=y_field_name, is_jdt=is_jdt)
+        self.saveDFToCSV()
+        self.save()
+
+    def saveDFToCSV(self):
+        to_csv_fn = os.path.join(self.init_dirname, self.init_name + "_data.csv")
+        self.spl_df.to_csv(to_csv_fn, index=False)
+
+    def categoryMap(self, _map_dict=None, *args, **kwargs):
+        if _map_dict is None:
+            _map_dict = {}
+        for k, v in args:
+            _map_dict[k] = v
+        for k, v in kwargs.items():
+            _map_dict[k] = v
+        self.category_map = _map_dict.copy()
+
+    def save(self, save_json_fn=None):
+        if save_json_fn is None:
+            save_json_fn = os.path.join(self.init_dirname, self.init_name + "_STTA.json")
+        save_dict = {
+            "NAME": self.init_name,
+            "MOD_DIRNAME": self.mod_dirname,
+            "IMDC_FNS": self.imdc_fns,
+            "CATEGORY_MAP": self.category_map,
+            "CATEGORY_FIELD_NAME": self.c_field_name,
+            "CM_NAMES": self.cm_names,
+        }
+        saveJson(save_dict, save_json_fn)
+
+    def load(self, load_json_fn=None):
+        if load_json_fn is None:
+            load_json_fn = os.path.join(self.init_dirname, self.init_name + "_STTA.json")
+        load_dict = readJson(load_json_fn)
+        self.init_name = load_dict["NAME"]
+        self.mod_dirname = load_dict["MOD_DIRNAME"]
+        self.imdc_fns = load_dict["IMDC_FNS"]
+        self.category_map = load_dict["CATEGORY_MAP"]
+        self.c_field_name = load_dict["CATEGORY_FIELD_NAME"]
+        self.cm_names = load_dict["CM_NAMES"]
+
+        self.imdc_grs = {k: GDALRaster(fn) for k, fn in self.imdc_fns.items()}
+        self.readCSVSplDF()
+
+    def readCSVSplDF(self):
+        to_csv_fn = os.path.join(self.init_dirname, self.init_name + "_data.csv")
+        self.spl_df = pd.read_csv(to_csv_fn)
+
+    def _getImdcFNS(self):
+        for fn in os.listdir(self.mod_dirname):
+            if fn.endswith("_imdc.dat"):
+                fn2 = os.path.join(self.mod_dirname, fn)
+                name = fn[:fn.find("_imdc.dat")]
+                self.imdc_fns[name] = fn2
+                self.imdc_grs[name] = GDALRaster(fn2)
+
+    def addCSV(self, csv_fn=None, *filters, **kwargs):
+        if csv_fn is None:
+            csv_fn = os.path.join(self.mod_dirname, "train_data.csv")
+        df = pd.read_csv(csv_fn)
+        df = filterDF(df, *filters, **kwargs)
+        self.spl_df = df
+        return df
+
+    def samplingImdc(self, x_field_name="X", y_field_name="Y", is_jdt=True):
+        x_list, y_list = self.spl_df[x_field_name].tolist(), self.spl_df[y_field_name].tolist()
+        imdc_dict = {k: [] for k in self.imdc_fns}
+        jdt = Jdt(len(self.spl_df), "ShadowTiaoTestAcc samplingImdc")
+        if is_jdt:
+            jdt.start()
+        for i in range(len(self.spl_df)):
+            x, y = x_list[i], y_list[i]
+            for k, gr in self.imdc_grs.items():
+                gr: GDALRaster
+                category = gr.readAsArray(x, y, 1, 1, is_geo=True)
+                if category is not None:
+                    category = category.ravel()
+                    imdc_dict[k].append(int(category[0]))
+                else:
+                    imdc_dict[k].append(0)
+            if is_jdt:
+                jdt.add()
+        if is_jdt:
+            jdt.end()
+        for k in imdc_dict:
+            self.spl_df[k] = imdc_dict[k]
+        imdc_dict[x_field_name] = x_list
+        imdc_dict[y_field_name] = y_list
+        return pd.DataFrame(imdc_dict)
+
+    def getCategoryList(self):
+        cname_list = self.spl_df[self.c_field_name].to_list()
+        c_list = [self.category_map[cname] for cname in cname_list]
+        return c_list
+
+    def updateTrueFalseColumn(self, is_to_csv=False):
+        to_dict = {}
+        init_c_list = np.array(self.getCategoryList())
+        for k in self.imdc_fns:
+            to_k = "TF_{0}".format(k)
+            c_list = self.spl_df[k].values
+            to_dict[to_k] = (init_c_list == c_list) * 1
+        for k in to_dict:
+            self.spl_df[k] = to_dict[k]
+        to_dict[self.c_field_name] = init_c_list
+        if is_to_csv:
+            self.saveDFToCSV()
+        return pd.DataFrame(to_dict)
+
+    def sortColumn(self, column_names, ascending=True, is_to_csv=False):
+        self.spl_df = self.spl_df.sort_values(column_names, ascending=ascending)
+        if is_to_csv:
+            self.saveDFToCSV()
+
+    def sumColumns(self, name, *filters, column_names=None, is_to_csv=False):
+        if column_names is None:
+            column_names = []
+        column_names = list(column_names)
+        for k in self.spl_df:
+            if k not in column_names:
+                if all(f in k for f in filters):
+                    column_names.append(k)
+        print("FUNC:sumColumns --COLUMN_NAMES=", column_names)
+        self.spl_df[name] = self.spl_df[column_names].sum(axis=1)
+        if is_to_csv:
+            self.saveDFToCSV()
+        return self.spl_df[name]
+
+    def toCSV(self, to_csv_fn, field_names=None, *filters, **filter_maps):
+        if field_names is None:
+            field_names = list(self.spl_df.keys())
+        to_df = filterDF(self.spl_df, *filters, **filter_maps)
+        to_df[field_names].to_csv(to_csv_fn, index=False)
+
+    def addQJY(self, name, field_names=None, *filters, **filter_maps):
+        to_dirname = os.path.join(self.init_dirname, "QJY_{0}".format(name))
+        if not os.path.isdir(to_dirname):
+            os.mkdir(to_dirname)
+        to_csv_fn = os.path.join(to_dirname, "{0}_qjy_{1}.csv".format(self.init_name, name))
+        to_txt_fn = os.path.join(to_dirname, "{0}_qjy_{1}.txt".format(self.init_name, name))
+        field_names += list(self.imdc_fns.keys())
+        self.toCSV(to_csv_fn, field_names=field_names, *filters, **filter_maps)
+        qjy_main = QJYTxt_main()
+        qjy_main.run(["", to_csv_fn, "-o", to_txt_fn])
+
+    def accQJY(self, name, is_save=False):
+        to_dirname = os.path.join(self.init_dirname, "QJY_{0}".format(name))
+        csv_fn = os.path.join(to_dirname, "{0}_qjy_{1}.csv".format(self.init_name, name))
+        txt_fn = os.path.join(to_dirname, "{0}_qjy_{1}.txt".format(self.init_name, name))
+        srt_fr = SRTInfoFileRW(txt_fn)
+        d = srt_fr.readAsDict()
+        df_dict = {"__X": [], "__Y": [], "__CNAME": [], "__IS_TAG": []}
+        for k in d["FIELDS"]:
+            df_dict[k] = []
+
+        fields = d["FIELDS"].copy()
+        cr = csv.reader(d["DATA"])
+        for line in cr:
+            for k in df_dict:
+                df_dict[k].append(None)
+
+            x = float(line[3])
+            y = float(line[4])
+            c_name = line[1].strip()
+            is_tag = eval(line[2])
+            df_dict["__X"][-1] = x
+            df_dict["__Y"][-1] = y
+            df_dict["__CNAME"][-1] = c_name
+            df_dict["__IS_TAG"][-1] = is_tag
+
+            for i in range(5, len(line)):
+                df_dict[fields[i - 5]][-1] = line[i]
+
+        c_list = [self.category_map[cname] for cname in df_dict["__CNAME"]]
+
+        df_acc = []
+        cm_dict = {}
+        for k in self.imdc_fns:
+            print(k)
+            imdc_list = _listToInt(df_dict[k])
+            cm = ConfusionMatrix(4, self.cm_names)
+            cm.addData(c_list, imdc_list)
+            print(cm.fmtCM())
+            cm_dict[k] = cm.fmtCM()
+            to_dict = {"NAME": k, "OA": cm.OA(), "Kappa": cm.getKappa(), }
+            for cm_name in cm:
+                to_dict[cm_name + " UATest"] = cm.UA(cm_name)
+                to_dict[cm_name + " PATest"] = cm.PA(cm_name)
+            df_acc.append(to_dict)
+
+        df_acc = pd.DataFrame(df_acc)
+        df_acc = df_acc.sort_values("OA", ascending=False)
+        pd.options.display.precision = 2
+        print(df_acc)
+        pd.options.display.precision = 6
+
+        if is_save:
+            to_dirname_save = timeDirName(to_dirname, True)
+            time_name = os.path.split(to_dirname_save)[1]
+
+            to_csv_fn = changefiledirname(csv_fn, to_dirname_save)
+            to_csv_fn = changext(to_csv_fn, "_{0}.csv".format(time_name))
+            shutil.copyfile(csv_fn, to_csv_fn)
+
+            to_txt_fn = changefiledirname(txt_fn, to_dirname_save)
+            to_txt_fn = changext(to_txt_fn, "_{0}.txt".format(time_name))
+            shutil.copyfile(csv_fn, to_txt_fn)
+
+            df_acc.to_csv(os.path.join(to_dirname_save, "{0}_acc.csv".format(time_name)))
+            to_cm_fn = os.path.join(to_dirname_save, "{0}_cm.txt".format(time_name))
+            with open(to_cm_fn, "w", encoding="utf-8") as fw:
+                for k, cm in cm_dict.items():
+                    print(">", k, file=fw)
+                    print(cm, file=fw)
+                    print(file=fw)
+
+        return
+
+
 def main():
+    # 'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'Blue', 'Green', 'Red', 'NIR', 'NDVI', 'NDWI', 'OPT_asm',
+    # 'OPT_con', 'OPT_cor', 'OPT_dis', 'OPT_ent', 'OPT_hom', 'OPT_mean', 'OPT_var', 'AS_VV', 'AS_VH', 'AS_VHDVV',
+    # 'AS_C11', 'AS_C12_imag', 'AS_C12_real', 'AS_C22', 'AS_Lambda1', 'AS_Lambda2', 'AS_SPAN', 'AS_Epsilon', 'AS_Mu',
+    # 'AS_RVI', 'AS_m', 'AS_Beta', 'AS_VH_asm', 'AS_VH_con', 'AS_VH_cor', 'AS_VH_dis', 'AS_VH_ent', 'AS_VH_hom',
+    # 'AS_VH_mean', 'AS_VH_var', 'AS_VV_asm', 'AS_VV_con', 'AS_VV_cor', 'AS_VV_dis', 'AS_VV_ent', 'AS_VV_hom',
+    # 'AS_VV_mean', 'AS_VV_var', 'DE_VV', 'DE_VH', 'DE_VHDVV', 'DE_C11', 'DE_C12_imag', 'DE_C12_real', 'DE_C22',
+    # 'DE_SPAN', 'DE_Lambda1', 'DE_Lambda2', 'DE_Epsilon', 'DE_Mu', 'DE_RVI', 'DE_m', 'DE_Beta', 'DE_VH_asm',
+    # 'DE_VH_con', 'DE_VH_cor', 'DE_VH_dis', 'DE_VH_ent', 'DE_VH_hom', 'DE_VH_mean', 'DE_VH_var', 'DE_VV_asm',
+    # 'DE_VV_con', 'DE_VV_cor', 'DE_VV_dis', 'DE_VV_ent', 'DE_VV_hom', 'DE_VV_mean', 'DE_VV_var',
+    # 'SPL_NOSH-RF-TAG-AS-DE', 'SPL_NOSH-RF-TAG-AS', 'SPL_NOSH-RF-TAG-DE', 'SPL_NOSH-RF-TAG-OPTICS-AS-DE',
+    # 'SPL_NOSH-RF-TAG-OPTICS-AS', 'SPL_NOSH-RF-TAG-OPTICS-DE', 'SPL_NOSH-RF-TAG-OPTICS', 'SPL_NOSH-SVM-TAG-AS-DE',
+    # 'SPL_NOSH-SVM-TAG-AS', 'SPL_NOSH-SVM-TAG-DE', 'SPL_NOSH-SVM-TAG-OPTICS-AS-DE', 'SPL_NOSH-SVM-TAG-OPTICS-AS',
+    # 'SPL_NOSH-SVM-TAG-OPTICS-DE', 'SPL_NOSH-SVM-TAG-OPTICS', 'SPL_SH-RF-TAG-AS-DE', 'SPL_SH-RF-TAG-AS',
+    # 'SPL_SH-RF-TAG-DE', 'SPL_SH-RF-TAG-OPTICS-AS-DE', 'SPL_SH-RF-TAG-OPTICS-AS', 'SPL_SH-RF-TAG-OPTICS-DE',
+    # 'SPL_SH-RF-TAG-OPTICS', 'SPL_SH-SVM-TAG-AS-DE', 'SPL_SH-SVM-TAG-AS', 'SPL_SH-SVM-TAG-DE',
+    # 'SPL_SH-SVM-TAG-OPTICS-AS-DE', 'SPL_SH-SVM-TAG-OPTICS-AS', 'SPL_SH-SVM-TAG-OPTICS-DE', 'SPL_SH-SVM-TAG-OPTICS',
+    # 'TF_SPL_NOSH-RF-TAG-AS-DE', 'TF_SPL_NOSH-RF-TAG-AS', 'TF_SPL_NOSH-RF-TAG-DE', 'TF_SPL_NOSH-RF-TAG-OPTICS-AS-DE',
+    # 'TF_SPL_NOSH-RF-TAG-OPTICS-AS', 'TF_SPL_NOSH-RF-TAG-OPTICS-DE', 'TF_SPL_NOSH-RF-TAG-OPTICS',
+    # 'TF_SPL_NOSH-SVM-TAG-AS-DE', 'TF_SPL_NOSH-SVM-TAG-AS', 'TF_SPL_NOSH-SVM-TAG-DE',
+    # 'TF_SPL_NOSH-SVM-TAG-OPTICS-AS-DE', 'TF_SPL_NOSH-SVM-TAG-OPTICS-AS', 'TF_SPL_NOSH-SVM-TAG-OPTICS-DE',
+    # 'TF_SPL_NOSH-SVM-TAG-OPTICS', 'TF_SPL_SH-RF-TAG-AS-DE', 'TF_SPL_SH-RF-TAG-AS', 'TF_SPL_SH-RF-TAG-DE',
+    # 'TF_SPL_SH-RF-TAG-OPTICS-AS-DE', 'TF_SPL_SH-RF-TAG-OPTICS-AS', 'TF_SPL_SH-RF-TAG-OPTICS-DE',
+    # 'TF_SPL_SH-RF-TAG-OPTICS', 'TF_SPL_SH-SVM-TAG-AS-DE', 'TF_SPL_SH-SVM-TAG-AS', 'TF_SPL_SH-SVM-TAG-DE',
+    # 'TF_SPL_SH-SVM-TAG-OPTICS-AS-DE', 'TF_SPL_SH-SVM-TAG-OPTICS-AS', 'TF_SPL_SH-SVM-TAG-OPTICS-DE',
+    # 'TF_SPL_SH-SVM-TAG-OPTICS', 'SUM1'
+
+    stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\10\bj")
+    # stta.buildNew(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303")
+    stta.load()
+    # stta.categoryMap(NOT_KNOW=0, IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=1, VEG_SH=2, SOIL_SH=3, WAT_SH=4)
+    # stta.cm_names = ["IS", "VEG", "SOIL", "WAT"]
+    # stta.updateTrueFalseColumn(True)
+    # stta.sumColumns("SUM1", "TF_", "OPTICS")
+    # stta.sortColumn(["SUM1", "CATEGORY"], ascending=True)
+    # stta.addQJY("2", field_names=[
+    #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
+    # ], TEST=0)
+    stta.accQJY("2", is_save=False)
+    stta.saveDFToCSV()
+    stta.save()
+
     pass
 
 

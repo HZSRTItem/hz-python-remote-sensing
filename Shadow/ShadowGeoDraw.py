@@ -710,6 +710,25 @@ class ShadowGeoDrawGradImage:
             win_column_size = self.win_column_size
         return win_column_size, win_row_size
 
+    def addColumn(self, name, channel_name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, ):
+        win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
+        sgdsc = ShadowGeoDrawSingleChannel(
+            name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+            channel_list=[channel_name], min_list=min_list, max_list=max_list,
+            # callback_funcs=[SRTFeatureCallBack(_power10, is_trans=True)],
+            callback_funcs=[],
+            is_geo=True, no_data=0,
+        )
+        self.columns.append(sgdsc)
+
+    def addColumnNDVI(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, ):
+        self.addColumn(name=name, channel_name="NDVI", min_list=min_list, max_list=max_list,
+                       win_row_size=win_row_size, win_column_size=win_column_size)
+
+    def addColumnNDWI(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, ):
+        self.addColumn(name=name, channel_name="NDWI", min_list=min_list, max_list=max_list,
+                       win_row_size=win_row_size, win_column_size=win_column_size)
+
     def addColumnSAR(self, name, channel_name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, ):
         win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
         sgdsc = ShadowGeoDrawSingleChannel(
@@ -849,6 +868,7 @@ class ShadowGeoDrawGradImage:
     def isRowName(self, is_show: bool = True):
         self.is_row_name_show = is_show
 
+
 def main():
     drawRowColumn41()
 
@@ -861,37 +881,47 @@ def drawRowColumn41():
     sgdgi.addImdcs()
     sgdgi.isRowName(False)
 
-    sgdmc = sgdgi.addColumnRGB("RGB")
+    sgdgi.addColumnRGB("RGB")
     sgdgi.addColumnNRG("NRG")
     sgdgi.addColumnGoogle("Google Image", 1000, 1000)
+    sgdgi.addColumnNDVI("NDVI")
+    sgdgi.addColumnNDWI("NDWI")
 
-    sgdgi.addColumnImdcKey("SH-AS-DE", "SPL_SH-SVM-TAG-OPTICS-AS-DE")
-    sgdgi.addColumnImdcKey("NOSH-AS-DE", "SPL_NOSH-SVM-TAG-OPTICS-AS-DE")
-    sgdgi.addColumnImdcKey("SH-AS", "SPL_SH-SVM-TAG-OPTICS-AS")
-    sgdgi.addColumnImdcKey("NOSH-AS", "SPL_NOSH-SVM-TAG-OPTICS-AS")
-    sgdgi.addColumnImdcKey("SH-DE", "SPL_SH-SVM-TAG-OPTICS-DE")
-    sgdgi.addColumnImdcKey("NOSH-DE", "SPL_NOSH-SVM-TAG-OPTICS-DE")
-    sgdgi.addColumnImdcKey("SH-OPT", "SPL_SH-SVM-TAG-OPTICS")
-    sgdgi.addColumnImdcKey("NOSH-OPT", "SPL_NOSH-SVM-TAG-OPTICS")
+    # sgdgi.addColumnImdcKey("SH-AS-DE", "SPL_SH-SVM-TAG-OPTICS-AS-DE")
+    # sgdgi.addColumnImdcKey("NOSH-AS-DE", "SPL_NOSH-SVM-TAG-OPTICS-AS-DE")
+    # sgdgi.addColumnImdcKey("SH-AS", "SPL_SH-SVM-TAG-OPTICS-AS")
+    # sgdgi.addColumnImdcKey("NOSH-AS", "SPL_NOSH-SVM-TAG-OPTICS-AS")
+    # sgdgi.addColumnImdcKey("SH-DE", "SPL_SH-SVM-TAG-OPTICS-DE")
+    # sgdgi.addColumnImdcKey("NOSH-DE", "SPL_NOSH-SVM-TAG-OPTICS-DE")
+    # sgdgi.addColumnImdcKey("SH-OPT", "SPL_SH-SVM-TAG-OPTICS")
+    # sgdgi.addColumnImdcKey("NOSH-OPT", "SPL_NOSH-SVM-TAG-OPTICS")
 
-    # sgdgi.addColumnSAR_ASVV("AS VV")
-    # sgdgi.addColumnSAR_DEVV("DE VV")
-    # sgdgi.addColumnSAR_ASVH("AS VH")
-    # sgdgi.addColumnSAR_DEVH("DE VH")
+    sgdgi.addColumnSAR_ASVV("AS VV")
+    sgdgi.addColumnSAR_DEVV("DE VV")
+    sgdgi.addColumnSAR_ASVH("AS VH")
+    sgdgi.addColumnSAR_DEVH("DE VH")
 
     # sgdgi.addColumnSAR_ASC11("AS C11")
     # sgdgi.addColumnSAR_DEC11("DE C11")
     # sgdgi.addColumnSAR_ASC22("AS C22")
-    # sgdgi.addColumnSAR_DEC22("DE C22").
+    # sgdgi.addColumnSAR_DEC22("DE C22")
 
-    sgdgi.addRow("IS", 116.445817, 39.936849)
-    sgdgi.addRow("IS", 116.4860893, 39.8936288)
-    sgdgi.addRow("IS", 120.339454, 36.052821)
-    sgdgi.addRow("VEG", 116.559579, 39.946365)
-    sgdgi.addRow("VEG", 116.34989, 39.79670)
-    sgdgi.addRow("VEG", 104.07385, 30.65005)
-    sgdgi.addRow("SOIL", 116.350292, 39.798293)
-    sgdgi.addRow("WAT", 116.310359, 39.915394)
+    sgdgi.addRow("IS", 116.320535, 39.864142)
+    sgdgi.addRow("IS", 116.426488, 39.937361)
+    sgdgi.addRow("VEG", 116.332767, 39.870094)
+    sgdgi.addRow("VEG", 120.339779, 36.102030)
+    sgdgi.addRow("VEG", 120.4062654, 36.0823765)
+    sgdgi.addRow("VEG", 120.4066823, 36.0818587)
+    sgdgi.addRow("IS", 104.013075, 30.602504)
+    sgdgi.addRow("WAT", 104.083731, 30.618372)
+
+    # sgdgi.addRow("IS", 116.4860893, 39.8936288)
+    # sgdgi.addRow("IS", 120.339454, 36.052821)
+    # sgdgi.addRow("VEG", 116.559579, 39.946365)
+    # sgdgi.addRow("VEG", 116.34989, 39.79670)
+    # sgdgi.addRow("VEG", 104.07385, 30.65005)
+    # sgdgi.addRow("SOIL", 116.350292, 39.798293)
+    # sgdgi.addRow("WAT", 116.310359, 39.915394)
 
     # sgdgi.addRow("IS", 116.305999, 39.965146)
     # sgdgi.addRow("IS", 116.302365, 39.962880)
