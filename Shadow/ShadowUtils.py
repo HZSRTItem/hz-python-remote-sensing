@@ -29,7 +29,6 @@ SH_C_DICT = {0: 'NOT_KNOW', 'NOT_KNOW': 0, 11: 'IS', 'IS': 11, 12: 'IS_SH', 'IS_
 pd.set_option('expand_frame_repr', False)
 
 
-
 def updateShadowSamplesCategory(chang_csv_fn, o_csv_fn, to_csv_fn=None, srt_field_name="SRT", cname_field_name="CNAME",
                                 category_field_name="CATEGORY", change_category_field_name="CATEGORY_CODE",
                                 is_change_fields=False):
@@ -434,29 +433,43 @@ class ShadowTiaoTestAcc:
 
     def samplingImdc(self, x_field_name="X", y_field_name="Y", is_jdt=True):
         x_list, y_list = self.spl_df[x_field_name].tolist(), self.spl_df[y_field_name].tolist()
+        imdc_name = "ShadowTiaoTestAcc samplingImdc"
+        imdc_dict = self.sampling(imdc_name, is_jdt, x_field_name, x_list, y_field_name, y_list)
+        return pd.DataFrame(imdc_dict)
+
+    def sampling(self, imdc_name, is_jdt, x_field_name, x_list, y_field_name, y_list, spl_df=None, is_ret_spl_df=False):
+        if spl_df is None:
+            spl_df = self.spl_df
         imdc_dict = {k: [] for k in self.imdc_fns}
-        jdt = Jdt(len(self.spl_df), "ShadowTiaoTestAcc samplingImdc")
+        jdt = Jdt(len(spl_df), imdc_name)
         if is_jdt:
             jdt.start()
-        for i in range(len(self.spl_df)):
+        for i in range(len(spl_df)):
             x, y = x_list[i], y_list[i]
-            for k, gr in self.imdc_grs.items():
-                gr: GDALRaster
-                category = gr.readAsArray(x, y, 1, 1, is_geo=True)
-                if category is not None:
-                    category = category.ravel()
-                    imdc_dict[k].append(int(category[0]))
-                else:
-                    imdc_dict[k].append(0)
+            self.samplingOne(imdc_dict, x, y)
             if is_jdt:
                 jdt.add()
         if is_jdt:
             jdt.end()
         for k in imdc_dict:
-            self.spl_df[k] = imdc_dict[k]
+            spl_df[k] = imdc_dict[k]
         imdc_dict[x_field_name] = x_list
         imdc_dict[y_field_name] = y_list
-        return pd.DataFrame(imdc_dict)
+        if is_ret_spl_df:
+            return spl_df
+        return imdc_dict
+
+    def samplingOne(self, imdc_dict, x, y, is_one=False):
+        for k, gr in self.imdc_grs.items():
+            gr: GDALRaster
+            category = gr.readAsArray(x, y, 1, 1, is_geo=True)
+            if category is not None:
+                category = category.ravel()
+                imdc_dict[k].append(int(category[0]))
+            else:
+                imdc_dict[k].append(0)
+        if is_one:
+            return {k: imdc_dict[k][-1] for k in imdc_dict}
 
     def getCategoryList(self):
         cname_list = self.spl_df[self.c_field_name].to_list()
@@ -541,6 +554,8 @@ class ShadowTiaoTestAcc:
             for i in range(5, len(line)):
                 df_dict[fields[i - 5]][-1] = line[i]
 
+        df_dict = self.samplingNew(df_dict, csv_fn)
+
         c_list = [self.category_map[cname] for cname in df_dict["__CNAME"]]
 
         df_acc = []
@@ -586,6 +601,31 @@ class ShadowTiaoTestAcc:
 
         return
 
+    def samplingNew(self, df_dict, csv_fn):
+        srt = df_dict["SRT"]
+        to_dict = {k: [] for k in df_dict}
+        x_list, y_list = [], []
+        is_sampling = False
+        for i in range(len(srt)):
+            if srt[i] == "":
+                for k in to_dict:
+                    to_dict[k].append(df_dict[k][i])
+                x_list.append(float(df_dict["__X"][i]))
+                y_list.append(float(df_dict["__Y"][i]))
+                is_sampling = True
+        if is_sampling:
+            to_dict = pd.DataFrame(to_dict)
+            self.sampling("ShadowTiaoTestAcc::samplingNew", True, "__X", x_list, "__Y", y_list, to_dict, True)
+            df_csv = pd.read_csv(csv_fn)
+            find_keys = []
+            for k in to_dict:
+                if k in df_csv:
+                    find_keys.append(k)
+            to_dict_csv = to_dict[find_keys]
+            df_csv = pd.merge()
+
+        return df_dict
+
 
 def main():
     # 'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'Blue', 'Green', 'Red', 'NIR', 'NDVI', 'NDWI', 'OPT_asm',
@@ -613,21 +653,39 @@ def main():
     # 'TF_SPL_SH-RF-TAG-OPTICS', 'TF_SPL_SH-SVM-TAG-AS-DE', 'TF_SPL_SH-SVM-TAG-AS', 'TF_SPL_SH-SVM-TAG-DE',
     # 'TF_SPL_SH-SVM-TAG-OPTICS-AS-DE', 'TF_SPL_SH-SVM-TAG-OPTICS-AS', 'TF_SPL_SH-SVM-TAG-OPTICS-DE',
     # 'TF_SPL_SH-SVM-TAG-OPTICS', 'SUM1'
+    def bj():
+        stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\10\bj")
+        # stta.buildNew(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303")
+        stta.load()
+        # stta.categoryMap(NOT_KNOW=0, IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=1, VEG_SH=2, SOIL_SH=3, WAT_SH=4)
+        # stta.cm_names = ["IS", "VEG", "SOIL", "WAT"]
+        # stta.updateTrueFalseColumn(True)
+        # stta.sumColumns("SUM1", "TF_", "OPTICS")
+        # stta.sortColumn(["SUM1", "CATEGORY"], ascending=True)
+        # stta.addQJY("2", field_names=[
+        #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
+        # ], TEST=0)
+        stta.accQJY("2", is_save=True)
+        stta.saveDFToCSV()
+        stta.save()
 
-    stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\10\bj")
-    # stta.buildNew(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303")
-    stta.load()
-    # stta.categoryMap(NOT_KNOW=0, IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=1, VEG_SH=2, SOIL_SH=3, WAT_SH=4)
-    # stta.cm_names = ["IS", "VEG", "SOIL", "WAT"]
-    # stta.updateTrueFalseColumn(True)
-    # stta.sumColumns("SUM1", "TF_", "OPTICS")
-    # stta.sortColumn(["SUM1", "CATEGORY"], ascending=True)
-    # stta.addQJY("2", field_names=[
-    #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
-    # ], TEST=0)
-    stta.accQJY("2", is_save=False)
-    stta.saveDFToCSV()
-    stta.save()
+    def qd():
+        stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\10\qd")
+        # stta.buildNew(r"F:\ProjectSet\Shadow\QingDao\Mods\20231226H093225")
+        stta.load()
+        # stta.categoryMap(NOT_KNOW=0, IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=1, VEG_SH=2, SOIL_SH=3, WAT_SH=4)
+        # stta.cm_names = ["IS", "VEG", "SOIL", "WAT"]
+        # stta.updateTrueFalseColumn(True)
+        # stta.sumColumns("SUM1", "TF_", "OPTICS")
+        # stta.sortColumn(["SUM1", "CATEGORY"], ascending=True)
+        # stta.addQJY("1", field_names=[
+        #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
+        # ], TEST=0)
+        stta.accQJY("1", is_save=True)
+        stta.saveDFToCSV()
+        stta.save()
+
+    qd()
 
     pass
 
