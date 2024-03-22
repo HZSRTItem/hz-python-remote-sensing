@@ -14,7 +14,15 @@ import os
 import random
 import shutil
 import time
+import warnings
 from datetime import datetime
+from typing import Iterable
+
+import numpy as np
+
+
+def stoprun(fn, n_line):
+    input("{0} {1}>".format(fn, n_line))
 
 
 def getRandom(x0, x1):
@@ -24,6 +32,19 @@ def getRandom(x0, x1):
 def changext(fn, ext=""):
     fn1, ext1 = os.path.splitext(fn)
     return fn1 + ext
+
+
+def filterStringAnd(string_list, *filters):
+    out_list = []
+    for str_ in string_list:
+        is_in = True
+        for f in filters:
+            if f not in str_:
+                is_in = False
+                break
+        if is_in:
+            out_list.append(str_)
+    return out_list
 
 
 def findfile(dirname, filename):
@@ -73,9 +94,26 @@ def getfilenamewithoutext(fn):
     return os.path.split(fn)[1]
 
 
+def getfilenme(fn):
+    to_fn = os.path.split(fn)[1]
+    return to_fn
+
+
 def changefiledirname(filename, dirname):
     filename = os.path.split(filename)[1]
     return os.path.join(dirname, filename)
+
+
+def numberfilename(init_fn, sep="", start_number=1):
+    dirname = os.path.dirname(init_fn)
+    if not os.path.isdir(dirname):
+        raise Exception("Can not find dirname: {0}".format(dirname))
+    fn, ext = os.path.splitext(init_fn)
+    while True:
+        to_fn = "{0}{1}{2}{3}".format(fn, sep, start_number, ext)
+        if not os.path.isfile(to_fn):
+            return to_fn
+        start_number += 1
 
 
 def readJson(json_fn):
@@ -199,6 +237,13 @@ class DirFileName:
         return os.path.join(self._data_dir, filename)
 
 
+def mkdir(dirname):
+    dirname = os.path.abspath(dirname)
+    if not os.path.isdir(dirname):
+        os.mkdir(dirname)
+    return dirname
+
+
 ofn = DirFileName()
 
 
@@ -225,17 +270,22 @@ class Jdt:
         self.n_print = 0
         self.is_run = False
 
-    def start(self):
+    def start(self, is_jdt=True):
         """ 开始进度条 """
+        if not is_jdt:
+            return self
         self.is_run = True
         self._print()
+        return self
 
-    def add(self, n=1):
+    def add(self, n=1, is_jdt=True):
         """ 添加n个进度
 
         :param n: 进度的个数
         :return:
         """
+        if not is_jdt:
+            return
         if self.is_run:
             self.n_current += n
             if self.n_current > self.n_print * self.n_split:
@@ -254,7 +304,9 @@ class Jdt:
         des_info += "| {0}/{1}".format(self.n_current, self.total)
         print(des_info, end="")
 
-    def end(self):
+    def end(self, is_jdt=True):
+        if not is_jdt:
+            return
         """ 结束进度条 """
         self.n_split = float(self.total) / float(self.n_split)
         self.n_current = 0
@@ -370,6 +422,10 @@ def printLines(lines, front_str="", is_line_number=False, line_end="\n"):
             print(fmt_line_number.format(i), end="")
         print(front_str, end="")
         print(line, end=line_end)
+
+
+def catIterToStr(_iterable: Iterable[str], sep=" ", ) -> str:
+    return sep.join(str(data) for data in _iterable)
 
 
 def printDict(front_str, d):
@@ -573,6 +629,341 @@ def timeDirName(dirname=None, is_mk=False):
     return save_dirname
 
 
+def timeFileName(fmt="{}", dirname=None):
+    current_time = datetime.now()
+    time_name = current_time.strftime("%Y%m%dH%H%M%S")
+    to_fn = fmt.format(time_name)
+    if dirname is not None:
+        to_fn = os.path.join(dirname, to_fn)
+    return to_fn
+
+
+def isStringInt(_str: str):
+    if _str.isdigit():
+        return True
+    if len(_str) == 0:
+        return False
+    try:
+        int(_str)
+        return True
+    except ValueError:
+        return False
+
+
+def isStringFloat(_str: str):
+    if "." not in _str:
+        return False
+    if len(_str) <= 1:
+        return False
+    try:
+        float(_str)
+        return True
+    except ValueError:
+        return False
+
+
+class SRTDataFrame:
+
+    def __init__(self):
+        self._data = {}
+        self._n_length = 0
+        self._n_iter = 0
+        self._index_name = None
+        self._keys = []
+        self._index = {}
+
+        self._to_str_width = 100
+
+    def read_csv(self, csv_fn, index_column_name=None, is_auto_type=False):
+        self._index_name = index_column_name
+        self._data = {}
+        self._index = {}
+        with open(csv_fn, "r", encoding="utf-8-sig") as fr:
+            self._n_length = 0
+            cr = csv.reader(fr)
+            ks = next(cr)
+            for k in ks:
+                self._data[self._initColumnName(k)] = []
+            ks = list(self._data.keys())
+            i = 0
+            for line in cr:
+                self._n_length += 1
+                for i, k in enumerate(line):
+                    self._data[ks[i]].append(k)
+                self._index[i] = i
+                i += 1
+        if is_auto_type:
+            for k in self._data:
+                self.autoColumnType(k)
+        for name in list(self._data.keys()):
+            if not self._data[name]:
+                self._data.pop(name)
+        return self
+
+    def indexColumnName(self, column_name):
+        self._index_name = column_name
+        self.buildIndex(d for d in self._data[column_name])
+
+    def buildIndex(self, _index_iter):
+        self._index = {}
+        for i in range(self._n_length):
+            _index = next(_index_iter)
+            self._index[_index] = i
+
+    def _initColumnName(self, name):
+        if name == "":
+            name = "_UName"
+        if name not in self._data:
+            return name
+        new_name = "{0}_1".format(name)
+        while True:
+            if new_name not in self._data:
+                break
+        return new_name
+
+    def autoColumnType(self, column_name):
+        d_type = "int"
+        for data in self._data[column_name]:
+            if not isinstance(data, str):
+                d_type = "none"
+                break
+            if data == "":
+                d_type = "string"
+                break
+            if isStringFloat(data):
+                if d_type == "float":
+                    continue
+                d_type = "float"
+            elif isStringInt(data):
+                d_type = "int"
+            else:
+                d_type = "string"
+                break
+        if d_type == "int":
+            self.asColumnType(column_name, int)
+        elif d_type == "float":
+            self.asColumnType(column_name, float)
+
+    def asColumnType(self, column_name, _type):
+        def func(_str):
+            if _str == "":
+                return None
+            else:
+                return _type(_str)
+
+        self._data[column_name] = list(map(func, self._data[column_name]))
+
+    def keys(self):
+        return self._data.keys()
+
+    def data(self):
+        return self._data
+
+    def __getitem__(self, item):
+        return self._data[item]
+
+    def __len__(self):
+        return self._n_length
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._n_iter == 0:
+            self._keys = list(self._data.keys())
+        if self._n_iter == len(self._keys):
+            self._n_iter = 0
+            raise StopIteration()
+        self._n_iter += 1
+        return self._keys[self._n_iter - 1]
+
+    def __contains__(self, item):
+        return item in self._data
+
+    def loc(self, _index, _column_name):
+        _index = self._index[_index]
+        return self._data[_column_name][_index]
+
+    def toCSV(self, csv_fn):
+        savecsv(csv_fn, self._data)
+
+    def rowToDict(self, row):
+        return {k: self._data[k][row] for k in self.data()}
+
+    def __setitem__(self, key, value):
+        if isinstance(value, np.ndarray):
+            value = value.tolist()
+        if self._n_length != len(value):
+            warnings.warn("SRTDataFrame add field length of data [{0}] not equal this of [{1}]".format(
+                len(value), self._n_length))
+            if len(value) > self._n_length:
+                for i in range(self._n_length, len(value)):
+                    for k in self._data:
+                        self._data[k].append(None)
+            else:
+                for i in range(len(value), self._n_length):
+                    value.append(None)
+        self._data[key] = value
+
+    def addFields(self, *fields):
+        for field in fields:
+            self._data[field] = [None for _ in range(self._n_length)]
+
+
+def sdf_read_csv(csv_fn):
+    return SRTDataFrame().read_csv(csv_fn)
+
+
+class SRTFilter:
+
+    def __init__(self):
+        self.compare_func = lambda _x, _data: True
+        self.compare_name = None
+        self.compare_data = None
+
+    def initCompare(self, name, data, func):
+        self.compare_func = func
+        self.compare_name = name
+        self.compare_data = data
+
+    def compare(self, x):
+        return self.compare_func(x, self.compare_data)
+
+    @staticmethod
+    def eq(name, data):
+        f = SRTFilter()
+
+        def func(_x, _data):
+            return _x == _data
+
+        f.initCompare(name=name, data=data, func=func)
+        return f
+
+    @staticmethod
+    def lt(name, data):
+        f = SRTFilter()
+
+        def func(_x, _data):
+            return _x < _data
+
+        f.initCompare(name=name, data=data, func=func)
+        return f
+
+    @staticmethod
+    def gt(name, data):
+        f = SRTFilter()
+
+        def func(_x, _data):
+            return _x > _data
+
+        f.initCompare(name=name, data=data, func=func)
+        return f
+
+    @staticmethod
+    def lte(name, data):
+        f = SRTFilter()
+
+        def func(_x, _data):
+            return _x <= _data
+
+        f.initCompare(name=name, data=data, func=func)
+        return f
+
+    @staticmethod
+    def gte(name, data):
+        f = SRTFilter()
+
+        def func(_x, _data):
+            return _x >= _data
+
+        f.initCompare(name=name, data=data, func=func)
+        return f
+
+    @staticmethod
+    def neq(name, data):
+        f = SRTFilter()
+
+        def func(_x, _data):
+            return _x != _data
+
+        f.initCompare(name=name, data=data, func=func)
+        return f
+
+
+class NONE_CLASS:
+
+    def __init__(self):
+        super(NONE_CLASS, self).__init__()
+
+
+class SRTWriteText:
+
+    def __init__(self, text_fn, mode="w"):
+        self.text_fn = text_fn
+        if mode == "w":
+            with open(self.text_fn, "w", encoding="utf-8") as f:
+                f.write("")
+
+    def write(self, *text, sep=" ", end="\n"):
+        with open(self.text_fn, "a", encoding="utf-8") as f:
+            print(*text, sep=sep, end=end, file=f)
+
+
+class SRTDFColumnCal(SRTDataFrame):
+
+    def __init__(self):
+        super(SRTDFColumnCal, self).__init__()
+
+    def fit(self, field_name, fit_func, *args, **kwargs):
+        to_list = []
+        jdt = Jdt(self._n_length, "SRTDFColumnCal:fit({0})".format(field_name)).start()
+        for i in range(self._n_length):
+            line = {k: self._data[k][i] for k in self.data()}
+            to_list.append(fit_func(line, *args, **kwargs))
+            jdt.add()
+        jdt.end()
+        self._data[field_name] = to_list
+        return to_list
+
+
+class FileName:
+
+    def __init__(self, filename=""):
+        self._filename = filename
+
+    def fn(self):
+        return self._filename
+
+    def changext(self, ext):
+        return changext(self._filename, ext)
+
+    def changedirname(self, dirname):
+        return changefiledirname(self._filename, dirname)
+
+    def basename(self):
+        return os.path.basename(self._filename)
+
+    def dirname(self):
+        return os.path.dirname(self._filename)
+
+    def exists(self):
+        return os.path.exists(self._filename)
+
+    def getatime(self):
+        return os.path.getatime(self._filename)
+
+    def isfile(self):
+        return os.path.isfile(self._filename)
+
+    def realpath(self):
+        return os.path.realpath(self._filename)
+
+    def getfilext(self):
+        return getfilext(self._filename)
+
+    def getfilenamewithoutext(self):
+        return getfilenamewithoutext(self._filename)
+
 
 def main():
     # dir_QDS2RGBN_gee_2_deal = DirFileName(r"G:\ImageData\QingDao\20211023\qd20211023\QDS2RGBN_gee_2_deal")
@@ -580,8 +971,51 @@ def main():
     #
     # df = pd.read_csv(r"F:\Week\20231112\Temp\tmp1.csv")
     # printListTable(df.values.tolist(), precision=2, rcl=">")
+
+    # sdf = SRTDataFrame().read_csv(r"F:\ProjectSet\Shadow\Analysis\11\qd\QJY_1\qd_qjy_1-back.csv", is_auto_type=True)
+
+    fn = numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Images\temp\tmp.txt")
+    with open(fn, "w", encoding="utf-8") as f:
+        f.write(fn)
+
     pass
 
 
 if __name__ == "__main__":
     main()
+
+
+class CheckLoc:
+
+    def __init__(self, n_row=None, n_column=None, not_rows=None, not_columns=None, ):
+        self.n_row = n_row
+        self.n_column = n_column
+        self.not_rows = not_rows
+        self.not_columns = not_columns
+
+    def initLoc(self, n_row=None, n_column=None, not_rows=None, not_columns=None, ):
+        self.n_row = n_row
+        self.n_column = n_column
+        self.not_rows = not_rows
+        self.not_columns = not_columns
+
+    def isLoc(self, i_row, i_column):
+        def check_is(n_d, i_d, is_none=True):
+            if n_d is not None:
+                if isinstance(n_d, int):
+                    if i_d == n_d:
+                        return True
+                    else:
+                        return False
+                elif isinstance(n_d, list):
+                    if i_d in n_d:
+                        return True
+                    else:
+                        return False
+            else:
+                return is_none
+
+        is_row = check_is(self.n_row, i_row) and (not check_is(self.not_rows, i_row, is_none=False))
+        is_column = check_is(self.n_column, i_column) and (not check_is(self.not_columns, i_column, is_none=False))
+
+        return is_row and is_column

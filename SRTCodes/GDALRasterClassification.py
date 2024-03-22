@@ -13,10 +13,10 @@ import warnings
 
 import pandas as pd
 
-from SRTCodes.GDALRasterIO import GDALRaster
-from SRTCodes.ModelTraining import ConfusionMatrix
+from SRTCodes.GDALRasterIO import GDALRaster, saveGTIFFImdc
+from SRTCodes.ModelTraining import ConfusionMatrix, ModelDataCategory, dataModelPredict
 from SRTCodes.RasterClassification import RasterPrediction
-from SRTCodes.Utils import readcsv
+from SRTCodes.Utils import readcsv, changext
 
 
 class GDALRasterPrediction(GDALRaster, RasterPrediction):
@@ -46,7 +46,11 @@ class GDALRasterPrediction(GDALRaster, RasterPrediction):
             save_geo_raster_fn=imdc_fn,
             fmt="GTIFF",
             dtype=GDALRaster.NpType2GDALType[np_type],
-            # options=["COMPRESS=JPEG", "PHOTOMETRIC=YCBCR"]
+            options=[
+                # "COMPRESS=JPEG", "PHOTOMETRIC=YCBCR",
+                # "COMPRESS=DEFLATE", "PREDICTOR=2", "ZLEVEL=9",
+                "COMPRESS=PACKBITS"
+            ]
         )
 
     def run(self, imdc_fn, np_type, mod=None, spl_size=None, row_start=0, row_end=-1, column_start=0, column_end=-1,
@@ -105,7 +109,8 @@ class GDALRasterClassificationAccuracy:
         self.x.append(x)
         self.y.append(y)
         if category not in self.category_code:
-            raise Exception("Can not find category:\"{0}\" in this category_code:{1}.".format(category, self.category_code))
+            raise Exception(
+                "Can not find category:\"{0}\" in this category_code:{1}.".format(category, self.category_code))
         self.category.append(self.category_code[category])
 
     def addSampleExcel(self, excel_fn, x_column_name="X", y_column_name="Y", c_column_name="CATEGORY",
@@ -238,6 +243,35 @@ class GDALRasterClassificationAccuracy:
 
     def printSaveCSVLine(self):
         print("{0} OA:{1:.3f}".format(self.save_line["NAME"], self.save_line["OA"]))
+
+
+class GDALModelDataCategory(ModelDataCategory):
+
+    def __init__(self, *raster_fns):
+        super(GDALModelDataCategory, self).__init__()
+        self.gr = GDALRaster()
+        self.addRasters(*raster_fns)
+
+    def addRasters(self, *raster_fns):
+        for raster_fn in raster_fns:
+            raster_fn = os.path.abspath(raster_fn)
+            gr = GDALRaster(raster_fn)
+            if self.gr is None:
+                self.gr = gr
+            self.addData(gr.readAsArray())
+
+    def fit(self, to_imdc_fns, model, data_deal=None, is_jdt=False, color_table=None, description="Category",
+            *args, **kwargs):
+        if color_table is None:
+            color_table = {}
+        if isinstance(to_imdc_fns, str):
+            if not to_imdc_fns.endswith(".tif"):
+                to_imdc_fns = to_imdc_fns + ".tif"
+            to_imdc_fns = [changext(to_imdc_fns, "_{0}.tif".format(i + 1)) for i in range(len(self.data_list))]
+        for i, data in enumerate(self.data_list):
+            imdc = dataModelPredict(data, data_deal, is_jdt, model)
+            saveGTIFFImdc(self.gr, imdc, to_imdc_fns[i], color_table=color_table, description=description)
+        return to_imdc_fns
 
 
 def main():

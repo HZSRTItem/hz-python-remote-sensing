@@ -1,5 +1,8 @@
 import sys
 
+import torch
+from torch import nn
+
 sys.path.append(r"F:\PyCodes")
 # _*_ coding:utf-8 _*_
 r"""----------------------------------------------------------------------------
@@ -18,14 +21,34 @@ from SRTCodes.GDALRasterIO import readGEORaster, saveGEORaster
 from Shadow.ShadowGeoDraw import _10log10
 
 
-class SRTFilter:
+class TNet(nn.Module):
 
-    @staticmethod
-    def lee(cls):
-        return None
+    def __init__(self):
+        super(TNet, self).__init__()
+
+        self.conv1 = nn.Conv2d(3, 64, 3, 1, padding=1)
+        self.bn = nn.BatchNorm2d(64)
+        self.act = nn.ReLU()
+
+        self.conv2 = nn.Conv2d(64, 2, 3, 1, padding=1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn(x)
+        x = self.act(x)
+        x = self.conv2(x)
+        return x
 
 
 def main():
+    x = torch.randn((1, 3, 128, 128))
+    mod = TNet()
+    out_x = mod(x)
+
+    pass
+
+
+def method_name1():
     # Define
     def lee_filter(image, window_size):
         """ Lee filter function """
@@ -49,21 +72,14 @@ def main():
     # Replace 'your_image_array' with your SAR image array
     # Example:
     # your_image_array = np.array([[...]])
-
     your_image_array = readGEORaster(r"F:\ProjectSet\Shadow\BeiJing\Image\3\BJ_SH3_envi.dat", band_list=["AS_C11"])
     print(your_image_array.shape)
-
     # Set the window size for the filter (you can adjust this parameter)
     window_size = 7
-
     # Apply the Lee filter to the SAR image
     filtered_sar_image = lee_filter(your_image_array, window_size)
-
     print(filtered_sar_image.shape)
-
     saveGEORaster(_10log10(filtered_sar_image), r"F:\ProjectSet\Shadow\BeiJing\Image\Temp\tmp35")
-
-    pass
 
 
 if __name__ == "__main__":

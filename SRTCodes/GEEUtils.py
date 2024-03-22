@@ -8,11 +8,14 @@ r"""----------------------------------------------------------------------------
 @Desc    : PyCodes of GEEUtils
 -----------------------------------------------------------------------------"""
 import csv
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from mpl_toolkits.axisartist import AxesZero
+
+from SRTCodes.Utils import readJson
 
 plt.rc('font', family='Times New Roman')
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
@@ -196,6 +199,220 @@ def hSetXticks(n_split=6):
     plt.xticks(x_ticks)
 
 
+class SRTGEEProperties:
+
+    def __init__(self):
+        self.datas = {}
+        self._n_iter = 0
+        self._keys = []
+
+    def keys(self):
+        return list(self.datas.keys())
+
+    def __len__(self):
+        return len(self.datas)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._n_iter == 0:
+            self._keys = list(self.keys())
+        if self._n_iter == len(self._keys):
+            self._n_iter = 0
+            raise StopIteration()
+        self._n_iter += 1
+        return self._keys[self._n_iter - 1]
+
+    def __contains__(self, item):
+        return item in self.datas
+
+    def __getitem__(self, item):
+        return self.datas[item]
+
+    def __setitem__(self, key, value):
+        self.datas[key] = value
+
+    def initDict(self, _data: dict):
+        self.datas = {}
+        self._n_iter = 0
+        self._keys = []
+        self.addDict(_data)
+        return self
+
+    def addDict(self, _data: dict):
+        for k in _data:
+            self.add(k, _data[k])
+
+    def add(self, key, data):
+        if key == "system:time_start":
+            data = time.localtime(data / 1000)
+        elif key == "system:time_end":
+            data = time.localtime(data / 1000)
+        self.datas[key] = data
+
+
+class SRTGEEGeometry:
+
+    def __init__(self):
+        self.type = ""
+        self.coordinates = []
+
+    def initDict(self, _data: dict):
+        self.type = _data["type"]
+        self.coordinates = _data["coordinates"]
+        return self
+
+
+class SRTGEEFeature:
+
+    def __init__(self):
+        self.id = ""
+        self.type = ""
+        self.geometry = SRTGEEGeometry()
+        self.properties = SRTGEEProperties()
+
+    def initDict(self, _data: dict):
+        self.id = _data["id"]
+        self.type = _data["type"]
+        self.geometry = SRTGEEGeometry().initDict(_data["geometry"])
+        self.properties = SRTGEEProperties().initDict(_data["properties"])
+        return self
+
+    def keys(self):
+        return self.properties.keys()
+
+    def __len__(self):
+        return len(self.properties)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.properties.__next__()
+
+    def __contains__(self, item):
+        return item in self.properties
+
+    def __getitem__(self, item):
+        return self.properties[item]
+
+    def __setitem__(self, key, value):
+        self.properties[key] = value
+
+
+class SRTGEEFeatures:
+
+    def __init__(self):
+        self.datas = []
+        self._n_iter = 0
+        self.fields = []
+
+    def addFeatureDict(self, _data: dict):
+        self.addFeature(SRTGEEFeature().initDict(_data))
+
+    def addFeature(self, feat: SRTGEEFeature):
+        for k in feat:
+            if k not in self.fields:
+                self.fields.append(k)
+        self.datas.append(feat)
+
+    def initDict(self, _data: dict):
+        for feat_data in _data:
+            self.addFeatureDict(feat_data)
+        return self
+
+    def keys(self):
+        return self.fields
+
+    def ids(self):
+        return [x.id for x in self.datas]
+
+    def idsIter(self):
+        return iter(x.id for x in self.datas)
+
+    def __len__(self):
+        return len(self.datas)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._n_iter == len(self.datas):
+            self._n_iter = 0
+            raise StopIteration()
+        self._n_iter += 1
+        return self.datas[self._n_iter - 1]
+
+    def __contains__(self, item):
+        return item in self.datas
+
+    def __getitem__(self, item) -> SRTGEEFeature:
+        if isinstance(item, str):
+            data = next(filter(lambda x: x.id == item, self.datas))
+        elif isinstance(item, int):
+            data = self.datas[item]
+        else:
+            data = None
+        return data
+
+    def propertiesIter(self, field_name=None):
+        if field_name is None:
+            return iter(feat.properties for feat in self.datas)
+        else:
+            return iter(feat[field_name] for feat in self.datas)
+
+    def properties(self, field_name=None):
+        return list(self.propertiesIter(field_name))
+
+
+class SRTGEECollection:
+
+    def __init__(self):
+        self.type = ""
+        self.features = SRTGEEFeatures()
+
+    def keys(self):
+        return self.features.keys()
+
+    def initJson(self, json_fn):
+        json_data = readJson(json_fn)
+        self.initDict(json_data)
+        return self
+
+    def initDict(self, _data):
+        self.type = _data["type"]
+        self.features = SRTGEEFeatures().initDict(_data["features"])
+        return self
+
+    def ids(self):
+        return self.features.ids()
+
+    def idsIter(self):
+        return self.features.idsIter()
+
+    def propertiesIter(self, field_name=None):
+        return self.features.propertiesIter(field_name)
+
+    def properties(self, field_name=None):
+        return self.features.properties(field_name)
+
+    def __len__(self):
+        return len(self.features)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> SRTGEEFeature:
+        return self.features.__next__()
+
+    def __contains__(self, item):
+        return item in self.features
+
+    def __getitem__(self, item) -> SRTGEEFeature:
+        return self.features[item]
+
+
 def main():
     # df_im_coll = GEEImageProperty(r"D:\RemoteShadow\Analysis\ImageCollection\gz_s2_improps_1.csv") \
     #     .extractTime() \
@@ -230,6 +447,8 @@ def main():
     # plotShadowMax(r"D:\RemoteShadow\Analysis\ImageCollection\qd_s2_improps_1.csv", "Qing Dao")
     # plotShadowMax(r"D:\RemoteShadow\Analysis\ImageCollection\sh_s2_improps_1.csv", "Shang Hai")
     # plotShadowMax(r"D:\RemoteShadow\Analysis\ImageCollection\gz_s2_improps_1.csv", "Guang Zhou")
+
+    se_coll = SRTGEECollection().initJson(r"M:\ProjectSet\Shadow\Hierarchical\Images\Find\cd_s2_coll.geojson")
 
     pass
 

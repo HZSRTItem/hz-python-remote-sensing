@@ -21,7 +21,7 @@ from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.PandasUtils import filterDF
 from SRTCodes.SRTReadWrite import SRTInfoFileRW
 from SRTCodes.Utils import listUnique, filterFileContain, Jdt, saveJson, readJson, timeDirName, changefiledirname, \
-    changext
+    changext, filterStringAnd, DirFileName, timeFileName, catIterToStr
 
 SH_C_DICT = {0: 'NOT_KNOW', 'NOT_KNOW': 0, 11: 'IS', 'IS': 11, 12: 'IS_SH', 'IS_SH': 12, 21: 'VEG', 'VEG': 21,
              22: 'VEG_SH', 'VEG_SH': 22, 31: 'SOIL', 'SOIL': 31, 32: 'SOIL_SH',
@@ -601,30 +601,260 @@ class ShadowTiaoTestAcc:
 
         return
 
+    def accSHQJY(self, name, is_save=False):
+        to_dirname = os.path.join(self.init_dirname, "QJY_{0}".format(name))
+        csv_fn = os.path.join(to_dirname, "{0}_qjy_{1}.csv".format(self.init_name, name))
+        txt_fn = os.path.join(to_dirname, "{0}_qjy_{1}.txt".format(self.init_name, name))
+        srt_fr = SRTInfoFileRW(txt_fn)
+        d = srt_fr.readAsDict()
+        df_dict = {"__X": [], "__Y": [], "__CNAME": [], "__IS_TAG": []}
+        for k in d["FIELDS"]:
+            df_dict[k] = []
+
+        fields = d["FIELDS"].copy()
+        cr = csv.reader(d["DATA"])
+        for line in cr:
+            for k in df_dict:
+                df_dict[k].append(None)
+
+            x = float(line[3])
+            y = float(line[4])
+            c_name = line[1].strip()
+            is_tag = eval(line[2])
+            df_dict["__X"][-1] = x
+            df_dict["__Y"][-1] = y
+            df_dict["__CNAME"][-1] = c_name
+            df_dict["__IS_TAG"][-1] = is_tag
+
+            for i in range(5, len(line)):
+                df_dict[fields[i - 5]][-1] = line[i]
+
+        df_dict = self.samplingNew(df_dict, csv_fn)
+
+        df_sh_dict = {k: [] for k in df_dict}
+        for i in range(len(df_dict["__CNAME"])):
+            cname = df_dict["__CNAME"][i]
+            if "_SH" in cname:
+                for k in df_dict:
+                    df_sh_dict[k].append(df_dict[k][i])
+
+        c_list = [self.category_map[cname] for cname in df_sh_dict["__CNAME"]]
+
+        df_acc = []
+        cm_dict = {}
+        for k in self.imdc_fns:
+            print(k)
+            imdc_list = _listToInt(df_sh_dict[k])
+            cm = ConfusionMatrix(4, self.cm_names)
+            cm.addData(c_list, imdc_list)
+            print(cm.fmtCM())
+            cm_dict[k] = cm.fmtCM()
+            to_dict = {"NAME": k, "OA": cm.OA(), "Kappa": cm.getKappa(), }
+            for cm_name in cm:
+                to_dict[cm_name + " UATest"] = cm.UA(cm_name)
+                to_dict[cm_name + " PATest"] = cm.PA(cm_name)
+            df_acc.append(to_dict)
+
+        df_acc = pd.DataFrame(df_acc)
+        df_acc = df_acc.sort_values("OA", ascending=False)
+        pd.options.display.precision = 2
+        print(df_acc)
+        pd.options.display.precision = 6
+
+        if is_save:
+            to_dirname_save = timeDirName(to_dirname, True)
+            time_name = os.path.split(to_dirname_save)[1]
+
+            to_csv_fn = changefiledirname(csv_fn, to_dirname_save)
+            to_csv_fn = changext(to_csv_fn, "_{0}.csv".format(time_name))
+            shutil.copyfile(csv_fn, to_csv_fn)
+
+            to_txt_fn = changefiledirname(txt_fn, to_dirname_save)
+            to_txt_fn = changext(to_txt_fn, "_{0}.txt".format(time_name))
+            shutil.copyfile(csv_fn, to_txt_fn)
+
+            df_acc.to_csv(os.path.join(to_dirname_save, "{0}_shacc.csv".format(time_name)))
+            to_cm_fn = os.path.join(to_dirname_save, "{0}_shcm.txt".format(time_name))
+            with open(to_cm_fn, "w", encoding="utf-8") as fw:
+                for k, cm in cm_dict.items():
+                    print(">", k, file=fw)
+                    print(cm, file=fw)
+                    print(file=fw)
+
+        return
+
     def samplingNew(self, df_dict, csv_fn):
         srt = df_dict["SRT"]
         to_dict = {k: [] for k in df_dict}
         x_list, y_list = [], []
         is_sampling = False
+        index_sampling = []
         for i in range(len(srt)):
             if srt[i] == "":
+                df_dict["SRT"][i] = "-1"
                 for k in to_dict:
                     to_dict[k].append(df_dict[k][i])
                 x_list.append(float(df_dict["__X"][i]))
                 y_list.append(float(df_dict["__Y"][i]))
+                index_sampling.append(i)
                 is_sampling = True
         if is_sampling:
             to_dict = pd.DataFrame(to_dict)
             self.sampling("ShadowTiaoTestAcc::samplingNew", True, "__X", x_list, "__Y", y_list, to_dict, True)
-            df_csv = pd.read_csv(csv_fn)
-            find_keys = []
-            for k in to_dict:
-                if k in df_csv:
-                    find_keys.append(k)
-            to_dict_csv = to_dict[find_keys]
-            df_csv = pd.merge()
+            i_to_dict = 0
+            for i in index_sampling:
+                for k in to_dict:
+                    if k.startswith("__"):
+                        continue
+                    if k in df_dict:
+                        df_dict[k][i] = str(to_dict[k][i_to_dict])
+                i_to_dict += 1
+            pd.DataFrame(df_dict).to_csv(changext(csv_fn, "-back.csv"))
+            # df_csv = pd.read_csv(csv_fn)
+            # find_keys = []
+            # for k in to_dict:
+            #     if k in df_csv:
+            #         find_keys.append(k)
+            # to_dict_csv = to_dict[find_keys]
+            # to_dict_csv_list = []
+            # for j in range(len(df_csv)):
+            #     to_dict_csv_list.append(df_csv.loc[j].to_dict())
+            # for j in range(len(to_dict_csv)):
+            #     to_dict_csv_list.append(to_dict_csv.loc[j].to_dict())
+            # df_csv_to = pd.DataFrame(to_dict_csv_list)
+            # df_csv_to.to_csv(csv_fn)
 
         return df_dict
+
+
+class ShadowAccTable:
+
+    def __init__(self):
+        self.citys_csv_fns = {}
+        self.row_filters = []
+        self.row_names = []
+        self.column_names = []
+
+    def addCity(self, name, csv_fn):
+        self.citys_csv_fns[name] = csv_fn
+
+    def addRowNameFilter(self, *filters):
+        self.row_filters += list(filters)
+
+    def addColumnNames(self, *names):
+        self.column_names += list(names)
+
+    def addRowNames(self, *names):
+        self.row_names += list(names)
+
+    def fit(self, row_field_name):
+        dfs = {k: pd.read_csv(csv_fn, index_col=row_field_name) for k, csv_fn in self.citys_csv_fns.items()}
+        if len(self.row_names) == 0:
+            df_row_names = []
+            for df in dfs.values():
+                df_row_names.extend(df.index.to_list())
+            df_row_names = list(set(df_row_names))
+            self.row_names = filterStringAnd(df_row_names, *self.row_filters)
+
+        to_dict = {}
+        for row_name in self.row_names:
+            to_dict[row_name] = {}
+            for k in dfs:
+                df = dfs[k]
+                for column_name in self.column_names:
+                    to_dict[row_name]["{0} {1}".format(k, column_name)] = df[column_name][row_name]
+        print(pd.DataFrame(to_dict))
+
+        return to_dict
+
+    def main(self, city_acc_type, row_names_type):
+        print("-" * 112)
+        print("city_acc_type :", city_acc_type)
+        print("row_names_type:", row_names_type)
+
+        init_dfn = DirFileName(r"F:\ProjectSet\Shadow\Analysis\11")
+
+        def city_acc(test_spl_type):
+            # "F:\ProjectSet\Shadow\Analysis\11\"
+            test_spl_type = test_spl_type.lower()
+            if test_spl_type == "sh":
+                self.addCity("QingDao", init_dfn.fn(r"qd\QJY_1\20240221H134819\20240221H134819_acc.csv"))
+                self.addCity("BeiJing", init_dfn.fn(r"bj\QJY_2\20240221H115949\20240221H115949_acc.csv"))
+                self.addCity("ChengDu", init_dfn.fn(r"cd\QJY_3\20240224H152910\20240224H152910_acc.csv"))
+            elif test_spl_type == "nosh":
+                self.addCity("QingDao", init_dfn.fn(r"qd\QJY_1\20240224H153128\20240224H153128_shacc.csv"))
+                self.addCity("BeiJing", init_dfn.fn(r"bj\QJY_2\20240224H153112\20240224H153112_shacc.csv"))
+                self.addCity("ChengDu", init_dfn.fn(r"cd\QJY_3\20240224H153141\20240224H153141_shacc.csv"))
+
+        def row_names(spl_type, classify_type):
+            spl_type, classify_type = spl_type.lower(), classify_type.lower()
+            if spl_type == "sh":
+                if classify_type == "rf":
+                    self.addRowNames(
+                        'SPL_SH-RF-TAG-OPTICS-AS-DE',
+                        'SPL_SH-RF-TAG-OPTICS-AS',
+                        'SPL_SH-RF-TAG-OPTICS-DE',
+                        'SPL_SH-RF-TAG-OPTICS', )
+                if classify_type == "svm":
+                    self.addRowNames(
+                        'SPL_SH-SVM-TAG-OPTICS-AS-DE',
+                        'SPL_SH-SVM-TAG-OPTICS-AS',
+                        'SPL_SH-SVM-TAG-OPTICS-DE',
+                        'SPL_SH-SVM-TAG-OPTICS', )
+            if spl_type == "nosh":
+                if classify_type == "rf":
+                    self.addRowNames(
+                        'SPL_NOSH-RF-TAG-OPTICS-AS-DE',
+                        'SPL_NOSH-RF-TAG-OPTICS-AS',
+                        'SPL_NOSH-RF-TAG-OPTICS-DE',
+                        'SPL_NOSH-RF-TAG-OPTICS', )
+                if classify_type == "svm":
+                    self.addRowNames(
+                        'SPL_NOSH-SVM-TAG-OPTICS-AS-DE',
+                        'SPL_NOSH-SVM-TAG-OPTICS-AS',
+                        'SPL_NOSH-SVM-TAG-OPTICS-DE',
+                        'SPL_NOSH-SVM-TAG-OPTICS', )
+
+        city_acc(city_acc_type)  # 一个是使用全部样本，一个是使用阴影下样本进行测试
+        row_names(row_names_type, "svm")  # 一个是加入阴影下样本的结果，另一个是不加入阴影下样本的结果
+        self.addColumnNames("OA", "Kappa")
+        to_dict = self.fit("NAME")
+
+        return to_dict
+
+    def main1(self):
+        self.addCity("QingDao", r"F:\ProjectSet\Shadow\Analysis\11\qd\QJY_1\20240221H134819\20240221H134819_acc.csv")
+        self.addCity("BeiJing", r"F:\ProjectSet\Shadow\Analysis\11\bj\QJY_2\20240221H115949\20240221H115949_acc.csv")
+        self.addCity("ChengDu", r"F:\ProjectSet\Shadow\Analysis\11\cd\QJY_3\20240224H143912\20240224H143912_acc.csv")
+
+        self.addRowNameFilter("SPL_SH", "RF", "OPTICS")
+        self.addRowNames(
+            'SPL_SH-RF-TAG-OPTICS-AS-DE',
+            'SPL_SH-RF-TAG-OPTICS-AS',
+            'SPL_SH-RF-TAG-OPTICS-DE',
+            'SPL_SH-RF-TAG-OPTICS',
+        )
+
+        self.addColumnNames("OA", "Kappa")
+
+        self.fit("NAME")
+
+    def main2(self):
+        self.addCity("QingDao", r"F:\ProjectSet\Shadow\Analysis\11\qd\QJY_1\20240221H134819\20240221H134819_acc.csv")
+        self.addCity("BeiJing", r"F:\ProjectSet\Shadow\Analysis\11\bj\QJY_2\20240221H115949\20240221H115949_acc.csv")
+        self.addCity("ChengDu", r"F:\ProjectSet\Shadow\Analysis\11\cd\QJY_3\20240224H143912\20240224H143912_acc.csv")
+
+        self.addRowNameFilter("SPL_NOSH", "SVM", "OPTICS")
+        self.addRowNames(
+            'SPL_NOSH-RF-TAG-OPTICS-AS-DE',
+            'SPL_NOSH-RF-TAG-OPTICS-AS',
+            'SPL_NOSH-RF-TAG-OPTICS-DE',
+            'SPL_NOSH-RF-TAG-OPTICS',
+        )
+
+        self.addColumnNames("OA", "Kappa")
+
+        self.fit("NAME")
 
 
 def main():
@@ -654,7 +884,7 @@ def main():
     # 'TF_SPL_SH-SVM-TAG-OPTICS-AS-DE', 'TF_SPL_SH-SVM-TAG-OPTICS-AS', 'TF_SPL_SH-SVM-TAG-OPTICS-DE',
     # 'TF_SPL_SH-SVM-TAG-OPTICS', 'SUM1'
     def bj():
-        stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\10\bj")
+        stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\11\bj")
         # stta.buildNew(r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303")
         stta.load()
         # stta.categoryMap(NOT_KNOW=0, IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=1, VEG_SH=2, SOIL_SH=3, WAT_SH=4)
@@ -665,12 +895,13 @@ def main():
         # stta.addQJY("2", field_names=[
         #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
         # ], TEST=0)
-        stta.accQJY("2", is_save=True)
+        # stta.accQJY("2", is_save=True)
+        stta.accSHQJY("2", is_save=True)
         stta.saveDFToCSV()
         stta.save()
 
     def qd():
-        stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\10\qd")
+        stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\11\qd")
         # stta.buildNew(r"F:\ProjectSet\Shadow\QingDao\Mods\20231226H093225")
         stta.load()
         # stta.categoryMap(NOT_KNOW=0, IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=1, VEG_SH=2, SOIL_SH=3, WAT_SH=4)
@@ -681,11 +912,68 @@ def main():
         # stta.addQJY("1", field_names=[
         #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
         # ], TEST=0)
-        stta.accQJY("1", is_save=True)
+        # stta.accQJY("1", is_save=True)
+        stta.accSHQJY("1", is_save=True)
         stta.saveDFToCSV()
         stta.save()
 
-    qd()
+    def cd():
+        stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\11\cd")
+        # stta.buildNew(r"F:\ProjectSet\Shadow\ChengDu\Mods\20231226H093253")
+        # stta.buildNew(r"F:\ProjectSet\Shadow\ChengDu\Mods\20240222H170152")
+        stta.load()
+        # stta.categoryMap(NOT_KNOW=0, IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=1, VEG_SH=2, SOIL_SH=3, WAT_SH=4)
+        # stta.cm_names = ["IS", "VEG", "SOIL", "WAT"]
+        # stta.updateTrueFalseColumn(True)
+        # stta.sumColumns("SUM1", "TF_", "OPTICS")
+        # stta.sortColumn(["SUM1", "CATEGORY"], ascending=True)
+        # stta.addQJY("3", field_names=[
+        #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
+        # ], TEST=0)
+        stta.accQJY("3", is_save=True)
+        # stta.accSHQJY("3", is_save=True)
+        stta.saveDFToCSV()
+        stta.save()
+
+    def func1():
+        to_dicts = {
+            "sh_sh": ShadowAccTable().main("sh", "sh"),
+            "nosh_sh": ShadowAccTable().main("nosh", "sh"),
+            "sh_nosh": ShadowAccTable().main("sh", "nosh"),
+            "nosh_nosh": ShadowAccTable().main("nosh", "nosh"), }
+
+        to_fn = timeFileName("sh_42_acc_{}.csv", r"F:\ProjectSet\Shadow\Analysis\11\acc")
+
+        print()
+        with open(to_fn, "w", encoding="utf-8") as f:
+            print(catIterToStr(to_dicts.keys()), file=f)
+            for k, to_dict in to_dicts.items():
+                print("City,standard", end=",", file=f)
+                for name in to_dict:
+                    print(name, end=",", file=f)
+                print(file=f)
+                df = pd.DataFrame(to_dict)
+                for i in range(len(df)):
+                    row_name = str(df.index[i])
+                    print(row_name.replace(" ", ","), end=",", file=f)
+                    line = df.loc[row_name]
+                    for data in line:
+                        if "OA" in row_name:
+                            print("{:.2f}%".format(data), end=",", file=f)
+                        elif "Kappa" in row_name:
+                            print("{:.4f}".format(data), end=",", file=f)
+                        else:
+                            print("{}".format(data), end=",", file=f)
+                    print(file=f)
+        with open(to_fn, "r", encoding="utf-8") as f:
+            text = f.read()
+            text = text.replace("SPL_SH-SVM-TAG-OPTICS", "Opt")
+        with open(to_fn, "w", encoding="utf-8") as f:
+            f.write(text)
+
+        return
+
+    cd()
 
     pass
 

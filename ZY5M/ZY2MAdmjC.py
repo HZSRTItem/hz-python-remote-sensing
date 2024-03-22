@@ -24,7 +24,7 @@ from SRTCodes.GDALRasterClassification import GDALRasterPrediction
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.PytorchModelTraining import PytorchCategoryTraining
 from SRTCodes.SRTData import SRTDataset
-from SRTCodes.Utils import DirFileName, writeTexts
+from SRTCodes.Utils import DirFileName, writeTexts, mkdir
 from ZY5M.JPZ5MMain import conv_bn_act
 from ZY5M.ZY5MWarp import ZY5MGDALRasterWarp
 
@@ -357,8 +357,8 @@ class ZY2MAdmj_GDALRasterPrediction(GDALRasterPrediction):
 class ZY2MAdmj_Main:
 
     def __init__(self):
-        self.this_dirname = self.mkdir(r"H:\JPZ\ZY2MAdmj")
-        self.model_dir = self.mkdir(os.path.join(self.this_dirname, "Mods"))
+        self.this_dirname = mkdir(r"H:\JPZ\ZY2MAdmj")
+        self.model_dir = mkdir(os.path.join(self.this_dirname, "Mods"))
         self.n_category = 2
         self.category_names = ["NOIS", "IS"]
         self.epochs = 100
@@ -377,12 +377,6 @@ class ZY2MAdmj_Main:
         print("geo_raster", self.geo_raster)
 
         ...
-
-    def mkdir(self, dirname):
-        dirname = os.path.abspath(dirname)
-        if not os.path.isdir(dirname):
-            os.mkdir(dirname)
-        return dirname
 
     def train(self):
 
@@ -540,7 +534,6 @@ def sampleNPY():
 
 
 def train():
-
     zy2m_admj = ZY2MAdmj_Main()
     zy2m_admj.train()
 

@@ -348,5 +348,78 @@ def conv2dDim1(data, kernel):
     return out_data
 
 
+class NumpyDataCenter:
+
+    def __init__(self, dim=2, win_size=None, spl_size=None):
+        self.dim = dim
+        self.spl_size = spl_size
+        self.win_size = win_size
+        self.win_spl = [0, 0, 0, 0]
+        self.row = 0
+        self.column = 0
+        self.range = [0, 0, 0, 0]
+
+        self.initWinSize(win_size)
+        self.initSampleSize(spl_size)
+        self.initRange()
+
+    def copy(self):
+        return NumpyDataCenter(self.dim, self.win_size, self.spl_size)
+
+    def initWinSize(self, win_size=None):
+        self.win_size = win_size
+        if self.win_size is None:
+            return
+        row_size, column_size = win_size[0], win_size[1]
+        self.win_spl[0] = 0 - int(row_size / 2)
+        self.win_spl[1] = 0 + round(row_size / 2 + 0.1)
+        self.win_spl[2] = 0 - int(column_size / 2)
+        self.win_spl[3] = 0 + round(column_size / 2 + 0.1)
+
+    def initSampleSize(self, spl_size=None):
+        self.spl_size = spl_size
+        if self.spl_size is None:
+            return
+        self.row = int(self.spl_size[0] / 2.0)
+        self.column = int(self.spl_size[1] / 2.0)
+
+    def initRange(self):
+
+        self.range[0] = self.row + self.win_spl[0]
+        self.range[1] = self.row + self.win_spl[1]
+        self.range[2] = self.column + self.win_spl[2]
+        self.range[3] = self.column + self.win_spl[3]
+
+    def fit(self, x):
+        if self.win_size is None:
+            return x
+        if self.spl_size is None:
+            if self.dim == 2:
+                self.spl_size = x.shape
+            elif self.dim == 3:
+                self.spl_size = x.shape[1:]
+            self.initSampleSize(self.spl_size)
+            self.initRange()
+
+        if self.dim == 2:
+            out_x = x[self.range[0]:self.range[1], self.range[2]:self.range[3]]
+        elif self.dim == 3:
+            out_x = x[:, self.range[0]:self.range[1], self.range[2]:self.range[3]]
+        else:
+            return x
+
+        return out_x
+
+
+def dataCenter(data):
+    if len(data.shape) == 2:
+        # 0 1 2 3 4 5 6
+        return data[int(data.shape[0] / 2.0), int(data.shape[1] / 2.0)]
+    elif len(data.shape) == 3:
+        return data[:, int(data.shape[1] / 2.0), int(data.shape[2] / 2.0)]
+    else:
+        return None
+
+
 if __name__ == "__main__":
     main()

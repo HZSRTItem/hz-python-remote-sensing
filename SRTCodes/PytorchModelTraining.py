@@ -32,6 +32,7 @@ class PytorchTraining(Training):
         self.optimizer = None
         self.criterion = None
         self.loss = None
+        self.scheduler = None
 
         self._log.addField("Epoch", "int")
         self._log.addField("Batch", "int")
@@ -54,9 +55,14 @@ class PytorchTraining(Training):
     def addCriterion(self, criterion):
         self.criterion = criterion
 
-    def addOptimizer(self, optim_func="adam", lr=0.001, eps=0.00001):
+    def addOptimizer(self, optim_func="adam", lr=0.001, eps=0.00001, optimizer=None, ):
         if optim_func == "adam":
             self.optimizer = optim.Adam(self.model.parameters(), lr=lr, eps=eps)
+        else:
+            self.optimizer = optimizer
+
+    def addScheduler(self, scheduler):
+        self.scheduler = scheduler
 
     def _initTrain(self):
         if self.model is None:
@@ -101,38 +107,77 @@ class PytorchTraining(Training):
         self._printModel()
         self._log.saveHeader()
 
+        # for epoch in range(self.epochs):
+        #     self.model.train()
+        #     for batchix, (x, y) in enumerate(self.train_loader):
+        #         x, y = x.to(self.device), y.to(self.device)
+        #         x, y = x.float(), y.float()
+        #         logts = self.model(x)  # 模型训练
+        #         self.loss = self.criterion(logts, y)  # 损失函数
+        #         self.loss = self.lossDeal(self.loss)  # loss处理
+        #         self.optimizer.zero_grad()  # 梯度清零
+        #         self.loss.backward()  # 反向传播
+        #         self.optimizer.step()  # 优化迭代
+        #
+        #         # 测试 ------------------------------------------------------------------
+        #         if self.test_loader is not None:
+        #             if batchix % self.n_test == 0:
+        #                 self.testAccuracy()
+        #                 modname = self.log(batchix, epoch)
+        #                 if batch_save:
+        #                     self.saveModel(modname)
+        #
+        #     print("-" * 73)
+        #     self.testAccuracy()
+        #     modname = self.log(-1, epoch)
+        #     modname = self.model_name + "_epoch_{0}.pth".format(epoch)
+        #     print("*" * 73)
+        #
+        #     if epoch_save:
+        #         self.saveModel(modname)
+
         for epoch in range(self.epochs):
-            self.model.train()
+
             for batchix, (x, y) in enumerate(self.train_loader):
                 x, y = x.to(self.device), y.to(self.device)
-                x, y = x.float(), y.float()
-                logts = self.model(x)  # 模型训练
-                self.loss = self.criterion(logts, y)  # 损失函数
-                self.loss = self.lossDeal(self.loss)  # loss处理
-                self.optimizer.zero_grad()  # 梯度清零
-                self.loss.backward()  # 反向传播
-                self.optimizer.step()  # 优化迭代
+                x, y = x.float(), y.long()
 
-                # 测试 ------------------------------------------------------------------
-                if self.test_loader is not None:
-                    if batchix % self.n_test == 0:
-                        self.testAccuracy()
-                        modname = self.log(batchix, epoch)
-                        if batch_save:
-                            self.saveModel(modname)
+                self.model.train()
 
-            print("-" * 73)
-            self.testAccuracy()
-            modname = self.log(-1, epoch)
-            modname = self.model_name + "_epoch_{0}.pth".format(epoch)
-            print("*" * 73)
+                logts = self.model(x)
+                self.loss = self.criterion(logts, y)
+                self.loss.backward()
+                self.optimizer.zero_grad()
+                self.optimizer.step()
 
-            if epoch_save:
-                self.saveModel(modname)
+                self.batchTAcc(batch_save, batchix, epoch)
+
+            self.epochTAcc(epoch, epoch_save)
+
+            if self.scheduler is not None:
+                self.scheduler.step()
 
     def log(self, batch, epoch):
         model_name = self.logBefore(batch, epoch)
         return model_name
+
+    def batchTAcc(self, batch_save, batchix, epoch):
+        if self.test_loader is not None:
+            if batchix % self.n_test == 0:
+                self.testAccuracy()
+                modname = self.log(batchix, epoch)
+                if batch_save:
+                    self.saveModel(modname)
+
+    def epochTAcc(self, epoch, epoch_save):
+        print("-" * 80)
+        self.testAccuracy()
+        self.log(-1, epoch)
+        modname = self.model_name + "_epoch_{0}.pth".format(epoch)
+        if epoch_save:
+            mod_fn = self.saveModel(modname)
+            print("MODEL:", mod_fn)
+        print("*" * 80)
 
 
 class PytorchCategoryTraining(CategoryTraining, PytorchTraining):
@@ -158,17 +203,20 @@ class PytorchCategoryTraining(CategoryTraining, PytorchTraining):
     def logisticToCategory(self, logts):
         return logts
 
-    def testAccuracy(self):
+    def testAccuracy(self, deal_y_func=None):
         self.test_cm.clear()
         self.model.eval()
         with torch.no_grad():
             for i, (x, y) in enumerate(self.test_loader):
                 x = x.to(self.device)
                 x = x.float()
+                if deal_y_func is not None:
+                    y = deal_y_func(y)
                 y = y.numpy()
                 logts = self.model(x)
                 y1 = self.logisticToCategory(logts)
                 self.test_cm.addData(y, y1)
+        self.model.train()
         return self.test_cm.OA()
 
     def log(self, batch, epoch):

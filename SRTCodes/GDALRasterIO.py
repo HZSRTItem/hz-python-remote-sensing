@@ -368,7 +368,7 @@ class GDALRasterIO(GEORaster):
         if self.raster_ds is None:
             return None
         x0, y0 = self.coorRaster2Geo(0, 0)
-        x1, y1 = self.coorRaster2Geo(self.n_rows + 1, self.n_columns + 1)
+        x1, y1 = self.coorRaster2Geo(self.n_rows, self.n_columns)
         if x0 > x1:
             x1, x0 = x0, x1
         if y0 > y1:
@@ -530,6 +530,10 @@ class GDALRaster(GDALRasterIO, SRTCollection):
                 x_row_center, y_column_center, _ = self.coor_trans.TransformPoint(x_row_center, y_column_center)
             x_row_center, y_column_center = self.coorGeo2Raster(x_row_center, y_column_center)
         x_row_center, y_column_center = int(x_row_center), int(y_column_center)
+        if (win_row_size == 1) and (win_column_size == 1):
+            return gdal_array.DatasetReadAsArray(self.raster_ds, y_column_center, x_row_center,
+                                                 win_xsize=win_column_size,
+                                                 win_ysize=win_row_size, interleave=interleave)
 
         row_off0 = x_row_center - int(win_row_size / 2)
         column_off0 = y_column_center - int(win_column_size / 2)
@@ -966,6 +970,7 @@ class GDALRasterChannel:
     def __init__(self):
         self.data = {}
         self._n_iter = 0
+        self.shape = ()
 
     def addGDALData(self, raster_fn, field_name, channel=None):
         gr = self.addGR(raster_fn)
@@ -974,6 +979,8 @@ class GDALRasterChannel:
         self.data[field_name] = gr.readGDALBand(channel)
         if self.data[field_name] is None:
             print("Warning: can not read data from {0}:{1}".format(field_name, channel))
+        if self.shape == ():
+            self.shape = self.data[field_name].shape
         return field_name
 
     def addGR(self, raster_fn):
@@ -1006,6 +1013,9 @@ class GDALRasterChannel:
         d = np.array(d)
         gr.save(d=d, save_geo_raster_fn=raster_fn, **kwargs)
 
+    def __setitem__(self, key, value):
+        self.data[key] = value
+
     def __getitem__(self, item):
         return self.data[item]
 
@@ -1029,6 +1039,12 @@ class GDALRasterChannel:
     def getRasterNames(self, raster_fn):
         gr = self.addGR(raster_fn)
         return gr.names
+
+    def fieldNamesToData(self, *field_names):
+        data = np.zeros((len(field_names), self.shape[0], self.shape[1]))
+        for i, field_name in enumerate(field_names):
+            data[i] = self.data[field_name]
+        return data
 
 
 def samplingGDALRastersToCSV(raster_fns: list, csv_fn, to_csv_fn):
@@ -1070,6 +1086,15 @@ class GDALMBTiles(GDALRaster):
                                    is_geo=True, interleave="pixel")
         return d
 
+
+def saveGTIFFImdc(gr: GDALRaster, data, to_fn, color_table=None, description="Category"):
+    if color_table is None:
+        color_table = {}
+    gr.save(data.astype("int8"), to_fn, fmt="GTiff", dtype=gdal.GDT_Byte, descriptions=[description],
+            options=["COMPRESS=PACKBITS"])
+    tiffAddColorTable(to_fn, code_colors=color_table)
+
+
 def main():
     # gr = GDALRaster(r"F:\ProjectSet\ASDEShadow_T1\ImageDeal\qd_rgbn_si_asdeC_raw.dat")
     # gr.readAsArray()
@@ -1092,3 +1117,20 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def tiffAddColorTable(gtif_fn, band_count=1, code_colors=None):
+    if code_colors is None:
+        code_colors = {}
+    if len(code_colors) == 0:
+        return
+
+    color_table = gdal.ColorTable()
+    for c_code, color in code_colors.items():
+        color_table.SetColorEntry(c_code, color)
+
+    input_ds = gdal.Open(gtif_fn, gdal.GA_Update)
+    band: gdal.Band = input_ds.GetRasterBand(band_count)
+    band.SetColorTable(color_table)
+
+    del input_ds

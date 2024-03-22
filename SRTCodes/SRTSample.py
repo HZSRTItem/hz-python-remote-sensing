@@ -7,13 +7,15 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : BaseCodes of SRTSample
 -----------------------------------------------------------------------------"""
+import csv
+import json
 import random
 
 import numpy as np
 import pandas as pd
 
 from SRTCodes.SRTFeature import SRTFeatureCallBackCollection, SRTFeatureExtractionCollection
-from SRTCodes.Utils import printList
+from SRTCodes.Utils import printList, SRTDataFrame, readJson, Jdt, SRTFilter
 
 
 def filter_1(c_names, cate, select):
@@ -367,12 +369,414 @@ class SRTSampleSelect:
         print()
 
 
+class SRTSample:
+
+    def __init__(self, *field_datas, data=None, **field_kws):
+        self.fields = {}
+        self.data = data
+        self._n_iter = 0
+        self._keys = []
+
+        self.name = None
+        self.code = None
+        self.x = None
+        self.y = None
+        self.srt = None
+
+        self.init(field_datas, field_kws)
+
+    def init(self, field_datas, field_kws):
+        for field_data in field_datas:
+            self.fields[field_data[0]] = field_data[1]
+        for k in field_kws:
+            self.fields[k] = field_kws[k]
+
+    def keys(self):
+        return list(self.fields.keys())
+
+    def __len__(self):
+        return len(self.fields)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._n_iter == 0:
+            self._keys = list(self.keys())
+        if self._n_iter == len(self._keys):
+            self._n_iter = 0
+            raise StopIteration()
+        self._n_iter += 1
+        return self._keys[self._n_iter - 1]
+
+    def __contains__(self, item):
+        return item in self.fields
+
+    def __getitem__(self, item):
+        if isinstance(item, list):
+            return [self.fields[i] for i in item]
+        return self.fields[item]
+
+    def __setitem__(self, key, value):
+        self.fields[key] = value
+
+
+class SRTSampleCollection:
+
+    def __init__(self):
+        self.samples = []
+        self._n_iter = 0
+        self.field_names = []
+
+    def read_csv(self, csv_fn, field_datas=None, *args, **kwargs):
+        if field_datas is None:
+            field_datas = {}
+        sdf = SRTDataFrame()
+        sdf.read_csv(csv_fn, is_auto_type=True)
+        for i in range(len(sdf)):
+            spl = SRTSample()
+            for k in sdf:
+                spl[k] = sdf[k][i]
+            for k in field_datas:
+                spl[k] = field_datas[k]
+            self.addSample(spl)
+
+    def addSample(self, spl: SRTSample):
+        for name in spl:
+            self.addFieldName(name)
+        self.samples.append(spl)
+
+    def addFieldName(self, name):
+        if name not in self.field_names:
+            self.field_names.append(name)
+        return name
+
+    def keys(self):
+        return self.field_names
+
+    def getFields(self, *field_names):
+        if len(field_names) == 0:
+            to_field_names = self.keys()
+        else:
+            to_field_names = []
+            for field_name in field_names:
+                if isinstance(field_name, list) or isinstance(field_name, tuple):
+                    to_field_names.extend(field_name)
+                else:
+                    to_field_names.append(field_name)
+            if len(to_field_names) == 1:
+                to_field_names = to_field_names[0]
+        return [spl[to_field_names] for spl in self.samples]
+
+    def setField(self, n_spl, field_name, data):
+        self.addFieldName(field_name)
+        self.samples[n_spl][field_name] = data
+        return self.samples[n_spl]
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> SRTSample:
+        if self._n_iter == len(self.samples):
+            self._n_iter = 0
+            raise StopIteration()
+        self._n_iter += 1
+        return self.samples[self._n_iter - 1]
+
+    def __contains__(self, item):
+        return item in self.samples
+
+    def __getitem__(self, item) -> SRTSample:
+        return self.samples[item]
+
+    def __setitem__(self, key, value):
+        self.samples[key] = value
+
+    def copyNoSamples(self):
+        ssc = SRTSampleCollection()
+        return ssc
+
+    def filter(self, _filter: SRTFilter, _scc=None):
+        if _scc is None:
+            _scc = self.copyNoSamples()
+        for spl in self.samples:
+            if _filter.compare(spl[_filter.compare_name]):
+                _scc.addSample(spl)
+        return _scc
+
+    def filterFunc(self, _func, _scc=None):
+        if _scc is None:
+            _scc = self.copyNoSamples()
+        for spl in self.samples:
+            if _func(spl):
+                _scc.addSample(spl)
+        return _scc
+
+    def filterCompare(self, _compare, _field_name, _compare_data, _scc=None):
+        if _compare == "eq":
+            return self.filter(_filter=SRTFilter.eq(_field_name, _compare_data), _scc=_scc)
+        elif _compare == "lt":
+            return self.filter(_filter=SRTFilter.lt(_field_name, _compare_data), _scc=_scc)
+        elif _compare == "lte":
+            return self.filter(_filter=SRTFilter.lte(_field_name, _compare_data), _scc=_scc)
+        elif _compare == "gt":
+            return self.filter(_filter=SRTFilter.gt(_field_name, _compare_data), _scc=_scc)
+        elif _compare == "gte":
+            return self.filter(_filter=SRTFilter.gte(_field_name, _compare_data), _scc=_scc)
+        else:
+            return _scc
+
+    def map(self, func, is_ret_iter=False, *args, **kwargs):
+        def _func(x):
+            return func(x, *args, **kwargs)
+
+        map_iter = map(_func, self.samples)
+        if is_ret_iter:
+            return map_iter
+        for _ in map_iter:
+            continue
+
+
+class _Category:
+
+    def __init__(self, name="NOT_KNOW", code=0, color=(0, 0, 0)):
+        self.name = name
+        self.code = code
+        self.color = color
+
+    def toDict(self):
+        return {"NAME": self.name, "CODE": self.code, "COLOR": self.color}
+
+    def loadJson(self, _dict):
+        self.name = _dict["NAME"]
+        self.code = _dict["CODE"]
+        self.color = tuple(_dict["COLOR"])
+        return self
+
+    def copy(self):
+        return _Category(name=self.name, code=self.code, color=self.color)
+
+    def __str__(self):
+        return "_Category(name={0}, code={1}, color={2})".format(self.name, self.code, self.color)
+
+
+class _CategoryCollection:
+
+    def __init__(self):
+        self.coll = {}
+        self._n_iter = 0
+        self._keys = []
+
+    def add(self, shh_category: _Category):
+        if shh_category.name in self.coll:
+            raise Exception("_Category of \"{0}\" have in collection.".format(shh_category.name))
+        self.coll[shh_category.name] = shh_category
+
+    def addDict(self, _dict):
+        for name in _dict:
+            self.add(_Category().loadJson(_dict[name]))
+
+    def map(self, name):
+        return self.coll[name].code
+
+    def keys(self):
+        return list(self.coll.keys())
+
+    def __len__(self):
+        return len(self.coll)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> str:
+        if self._n_iter == 0:
+            self._keys = self.keys()
+        if self._n_iter == len(self.coll):
+            self._n_iter = 0
+            raise StopIteration()
+        self._n_iter += 1
+        return self._keys[self._n_iter - 1]
+
+    def __contains__(self, item):
+        return item in self.coll
+
+    def __getitem__(self, item) -> _Category:
+        return self.coll[item]
+
+    def toDict(self):
+        return {k: self.coll[k].toDict() for k in self.coll}
+
+    def copy(self):
+        category_coll = _CategoryCollection()
+        for k in self.coll:
+            category_coll.add(self.coll[k].copy())
+        return category_coll
+
+    def __str__(self):
+        to_str = "_CategoryCollection(\n"
+        for k in self.coll:
+            to_str += "    {0}={1},\n".format(k, self.coll[k])
+        to_str += ")"
+        return to_str
+
+    def toCodeColor(self):
+        return {cate.code: cate.color for cate in self.coll.values()}
+
+
+def _sampleToDict(spl: SRTSample, is_save_data=False):
+    if is_save_data:
+        data = spl.data
+        if isinstance(data, np.ndarray):
+            data = data.tolist()
+    else:
+        data = None
+    return {"NAME": spl.name, "CODE": spl.code, "X": spl.x, "Y": spl.y, "SRT": spl.srt, "FIELDS": spl.fields,
+            "DATA": data}
+
+
+class SRTCategorySampleCollection(SRTSampleCollection):
+
+    def __init__(self):
+        super(SRTCategorySampleCollection, self).__init__()
+        self.category_coll = _CategoryCollection()
+
+        self.FN_CNAME = "CNAME"
+        self.FN_X = "X"
+        self.FN_Y = "Y"
+        self.FN_SRT = "SRT"
+
+    def addCategory(self, name="NOT_KNOW", code=0, color=(0, 0, 0)):
+        shh_category = _Category(name=name, code=code, color=color)
+        self.category_coll.add(shh_category)
+
+    def addSample(self, spl: SRTSample):
+        for name in spl:
+            self.addFieldName(name)
+        if self.FN_CNAME in spl:
+            spl.name = spl[self.FN_CNAME]
+            spl.code = self.category_coll.map(spl.name)
+        if self.FN_X in spl:
+            spl.x = float(spl[self.FN_X])
+        if self.FN_Y in spl:
+            spl.y = float(spl[self.FN_Y])
+        if self.FN_SRT in spl:
+            spl.srt = int(spl[self.FN_SRT])
+        self.samples.append(spl)
+
+    def toJson(self, json_fn, is_save_data=False, is_jdt=False):
+        with open(json_fn, "w", encoding="utf-8") as f:
+            f.write("{")
+            f.write("\"FN_CNAME\":\"{0}\",".format(self.FN_CNAME))
+            f.write("\"FN_X\":\"{0}\",".format(self.FN_X))
+            f.write("\"FN_Y\":\"{0}\",".format(self.FN_Y))
+            f.write("\"FN_SRT\":\"{0}\",".format(self.FN_SRT))
+            f.write("\"CATEGORY_COLL\":")
+            json.dump(self.category_coll.toDict(), f)
+            f.write(",")
+            f.write("\"SAMPLES\":[")
+            jdt = Jdt(len(self.samples), "ShadowHierarchicalSampleCollection::toJson")
+            if is_jdt:
+                jdt.start()
+            for i, spl in enumerate(self.samples):
+                json.dump(_sampleToDict(spl, is_save_data), f)
+                if i != (len(self.samples) - 1):
+                    f.write(",")
+                if is_jdt:
+                    jdt.add()
+            if is_jdt:
+                jdt.end()
+            f.write("]")
+            f.write("}")
+
+    def readJson(self, json_fn):
+        json_dict = readJson(json_fn)
+        self.FN_CNAME = json_dict["FN_CNAME"]
+        self.FN_X = json_dict["FN_X"]
+        self.FN_Y = json_dict["FN_Y"]
+        self.FN_SRT = json_dict["FN_SRT"]
+        self.category_coll.addDict(json_dict["CATEGORY_COLL"])
+        for spl_dict in json_dict["SAMPLES"]:
+            if spl_dict["DATA"] is not None:
+                spl_dict["DATA"] = np.array(spl_dict["DATA"])
+            spl = SRTSample(data=spl_dict["DATA"])
+            spl.name = spl_dict["NAME"]
+            spl.code = spl_dict["CODE"]
+            spl.x = spl_dict["X"]
+            spl.y = spl_dict["Y"]
+            spl.srt = spl_dict["SRT"]
+            spl.fields = spl_dict["FIELDS"]
+            self.addSample(spl)
+
+    def toCSV(self, csv_fn):
+        with open(csv_fn, "w", encoding="utf-8", newline="") as f:
+            cw = csv.writer(f)
+            names = self.field_names.copy()
+            if self.FN_CNAME in names:
+                if "__CODE__" not in names:
+                    names.append("__CODE__")
+            cw.writerow(names)
+            for i in range(len(self.samples)):
+                spl: SRTSample = self.samples[i]
+                fields = spl.fields.copy()
+                if self.FN_CNAME in spl:
+                    fields[self.FN_CNAME] = spl.name
+                    fields["__CODE__"] = spl.code
+                if self.FN_X in spl:
+                    fields[self.FN_X] = spl.x
+                if self.FN_Y in spl:
+                    fields[self.FN_Y] = spl.y
+                if self.FN_SRT in spl:
+                    fields[self.FN_SRT] = spl.srt
+                cw.writerow(list(fields.values()))
+
+    def copyNoSamples(self):
+        scsc = SRTCategorySampleCollection()
+        self.copySCSC(scsc)
+        return scsc
+
+    def copySCSC(self, scsc):
+        scsc.category_coll = self.category_coll.copy()
+        scsc.FN_CNAME = self.FN_CNAME
+        scsc.FN_X = self.FN_X
+        scsc.FN_Y = self.FN_Y
+        scsc.FN_SRT = self.FN_SRT
+
+    def saveDataToNPY(self, npy_fn, dtype=None):
+        # spl_data = np.zeros(
+        #     (len(self.samples), self.samples[0].data.shape[0],
+        #      self.samples[0].data.shape[1], self.samples[0].data.shape[2],))
+        spl_data = []
+        for i, spl in enumerate(self.samples):
+            # spl_data[i, :, :] = spl.data
+            spl_data.append(np.array([spl.data]))
+        spl_data = np.concatenate(spl_data)
+        if dtype is not None:
+            spl_data = spl_data.astype(dtype)
+        np.save(npy_fn, spl_data)
+
+    def loadDataFromNPY(self, npy_fn, dtype=None):
+        spl_data = np.load(npy_fn)
+        if dtype is not None:
+            spl_data = spl_data.astype(dtype)
+        for i, spl in enumerate(self.samples):
+            spl.data = spl_data[i]
+
+
+class SRTCSplColl(SRTCategorySampleCollection):
+
+    def __init__(self):
+        super(SRTCSplColl, self).__init__()
+
+
 def main():
-    csv_spl = CSVSamples(r"F:\ProjectSet\Shadow\QingDao\Sample\qd_shadow_spl3_s1.csv")
-    csv_spl.fieldNameCategory("CNAME")
-    csv_spl.fieldNameTag("TAG")
-    csv_spl.addCategoryNames(["NOT_KNOW", "IS", "IS_SH", "VEG", "VEG_SH", "SOIL", "SOIL_SH", "WAT", "WAT_SH"])
-    csv_spl.readData()
+    # csv_spl = CSVSamples(r"F:\ProjectSet\Shadow\QingDao\Sample\qd_shadow_spl3_s1.csv")
+    # csv_spl.fieldNameCategory("CNAME")
+    # csv_spl.fieldNameTag("TAG")
+    # csv_spl.addCategoryNames(["NOT_KNOW", "IS", "IS_SH", "VEG", "VEG_SH", "SOIL", "SOIL_SH", "WAT", "WAT_SH"])
+    # csv_spl.readData()
 
     # csv_spl.is_get_return_cname = True
     # csv_spl.is_get_return_code_t = True
@@ -394,7 +798,13 @@ def main():
     # for i, (x, y, d) in enumerate(csv_spl):
     #     print(i, x.shape, y.shape, d)
 
-    csv_spl.print()
+    # csv_spl.print()
+
+    ssc = SRTSampleCollection()
+    ssc.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\20231209\20240105H205307\20240105H205307_train_spl.csv")
+    d = ssc.getFields()
+
+    pass
 
 
 if __name__ == "__main__":

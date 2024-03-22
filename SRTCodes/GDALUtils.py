@@ -16,6 +16,7 @@ from osgeo import osr, gdal, gdal_array
 
 from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel, GDALRasterRange
 from SRTCodes.SRTFeature import SRTFeatureCallBack
+from SRTCodes.SRTSample import SRTCategorySampleCollection, SRTSample
 from SRTCodes.Utils import readcsv, Jdt, savecsv, changext, getfilenamewithoutext
 
 RESOLUTION_ANGLE = 0.0000089831529294
@@ -116,7 +117,6 @@ def samplingSingle(x, y, coor_srs, gr, data_dict=None, is_jdt=True):
     if is_jdt:
         jdt.end()
     return data_dict
-
 
 
 def vrtAddDescriptions(filename, to_filename=None, descriptions=None):
@@ -531,6 +531,9 @@ class GDALRasterCenterDatas:
         self.grccs = {}
         self.category_colors = {}
 
+    def keys(self):
+        return list(self.grccs.keys())
+
     def changeDataList(self, n_row, n_column):
         if n_row >= len(self.data):
             for i in range(n_row - len(self.data) + 1):
@@ -603,10 +606,15 @@ class GDALRasterCenterDatas:
         self.category_colors[name] = c_dict
         return name
 
-    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, *args, **kwargs):
+    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, *args, **kwargs):
         n_row, n_column = self.changeDataList(n_row, n_column)
         grcc: GDALRasterCenterCollection = self.grccs[grcc_name]
-        d = grcc.getPatch(x, y)
+        min_list, max_list = None, None
+        if "min_list" in kwargs:
+            min_list = kwargs["min_list"]
+        if "max_list" in kwargs:
+            max_list = kwargs["max_list"]
+        d = grcc.getPatch(x, y, win_size=win_size, min_list=min_list, max_list=max_list)
         self.setData(n_row, n_column, d)
         return d
 
@@ -628,6 +636,191 @@ class GDALRasterCenterDatas:
                 return len(self.data)
             elif dim == 1:
                 return len(self.data[0])
+
+
+class SRTGDALCategorySampleCollection(SRTCategorySampleCollection):
+
+    def gdalSampling(self, gdal_raster_fn, spl_size=(1, 1), is_to_field=False, no_data=0, is_jdt=False,
+                     is_sampling=None, **kwargs):
+        gr = GDALRaster(gdal_raster_fn)
+
+        if is_to_field:
+            spl_size = (1, 1)
+        is_sampling_isin = False
+        if is_sampling is not None:
+            is_sampling_isin = is_sampling in self.field_names
+            self.addFieldName(is_sampling)
+
+        def is_sampling_func(_spl, is_find):
+            if is_sampling is not None:
+                if is_sampling_isin:
+                    if _spl[is_sampling] == 0:
+                        _spl[is_sampling] = is_find
+                else:
+                    _spl[is_sampling] = is_find
+
+        def is_sampling_func2(_spl):
+            if is_sampling is not None:
+                if is_sampling_isin:
+                    return _spl[is_sampling] == 1
+            return False
+
+        jdt = Jdt(len(self.samples), "ShadowHierarchicalSampleCollection::gdalSampling")
+
+        if spl_size == (1, 1):
+            if is_jdt:
+                jdt.start()
+            for spl in self.samples:
+                if is_jdt:
+                    jdt.add()
+
+                if is_sampling_func2(spl):
+                    continue
+
+                x, y = spl.x, spl.y
+
+                if gr.isGeoIn(x, y):
+                    d = gr.readAsArray(x, y, win_row_size=1, win_column_size=1, is_geo=True).ravel()
+                    is_sampling_func(spl, 1)
+                else:
+                    d = np.ones(gr.n_channels) * no_data
+                    is_sampling_func(spl, 0)
+
+                if is_to_field:
+                    for i, name in enumerate(gr.names):
+                        self.addFieldName(name)
+                        spl[name] = float(d[i])
+                else:
+                    spl.data = d
+
+            if is_jdt:
+                jdt.end()
+        else:
+            if is_jdt:
+                jdt.start()
+            for spl in self.samples:
+                if is_jdt:
+                    jdt.add()
+
+                if is_sampling_func2(spl):
+                    continue
+
+                x, y = spl.x, spl.y
+
+                if gr.isGeoIn(x, y):
+                    d = gr.readAsArrayCenter(x, y, win_row_size=spl_size[0], win_column_size=spl_size[1], is_geo=True)
+                else:
+                    d = np.ones((gr.n_channels, spl_size[0], spl_size[1])) * no_data
+                    is_sampling_func(spl, 0)
+                if d is None:
+                    d = np.ones((gr.n_channels, spl_size[0], spl_size[1])) * no_data
+                    is_sampling_func(spl, 0)
+                    print(spl.srt, spl.x, spl.y, )
+                else:
+                    is_sampling_func(spl, 1)
+                spl.data = d
+
+            if is_jdt:
+                jdt.end()
+
+        return
+
+    def gdalSamplingRasters(self, gdal_raster_fns, spl_size=(1, 1), is_to_field=False, no_data=None,
+                            is_jdt=True, field_names=None, ):
+        grs = [GDALRaster(fn) for fn in gdal_raster_fns]
+
+        gr = grs[0]
+        if field_names is None:
+            field_names = gr.names.copy()
+
+        jdt = Jdt(len(self.samples), "SRTGDALCategorySampleCollection::gdalSamplingRasters")
+
+        if is_jdt:
+            jdt.start()
+        for i in range(len(self.samples)):
+            if is_jdt:
+                jdt.add()
+
+            spl: SRTSample = self.samples[i]
+            x, y = spl.x, spl.y
+
+            if not gr.isGeoIn(x, y):
+                for gr in grs:
+                    if gr.isGeoIn(x, y):
+                        break
+
+            d = gr.readAsArrayCenter(x, y, spl_size[0], spl_size[1], is_geo=True)
+            if d is None:
+                if no_data is not None:
+                    d = np.ones((gr.n_channels, spl_size[0], spl_size[1])) * no_data
+
+            if is_to_field:
+                if (d is not None) and (spl_size == (1, 1)):
+                    data = d.ravel().tolist()
+                    for j in range(len(data)):
+                        spl[field_names[j]] = float(data[j])
+                        self.addFieldName(field_names[j])
+
+            spl.data = d
+
+        if is_jdt:
+            jdt.end()
+
+    def copyNoSamples(self):
+        scsc = SRTGDALCategorySampleCollection()
+        self.copySCSC(scsc)
+        return scsc
+
+
+class GDALRastersSampling:
+
+    def __init__(self, *raster_fns):
+        self.rasters = {}
+        self._gr = GDALRaster()
+        self.add(*raster_fns)
+
+    def getNames(self):
+        return self._gr.names.copy()
+
+    def add(self, *raster_fns):
+        for raster_fn in raster_fns:
+            if raster_fn not in self.rasters:
+                self.rasters[raster_fn] = GDALRaster(raster_fn)
+                if self._gr.raster_ds is None:
+                    self._gr = self.rasters[raster_fn]
+
+    def sampling(self, x, y, win_row_size=1, win_column_size=1, interleave='band', band_list=None, no_data=0.0,
+                 is_none=True):
+        d = None
+        if self._gr.isGeoIn(x, y):
+            d = self._gr.readAsArrayCenter(
+                x_row_center=x, y_column_center=y, win_row_size=win_row_size, win_column_size=win_column_size,
+                interleave=interleave, band_list=band_list, no_data=no_data, is_geo=True,
+            )
+        else:
+            for self._gr in self.rasters.values():
+                if self._gr.isGeoIn(x, y):
+                    d = self._gr.readAsArrayCenter(
+                        x_row_center=x, y_column_center=y, win_row_size=win_row_size, win_column_size=win_column_size,
+                        interleave=interleave, band_list=band_list, no_data=no_data, is_geo=True,
+                    )
+                    break
+        if d is None:
+            if not is_none:
+                return np.ones([win_row_size, win_column_size, self._gr.n_channels]) * no_data
+        return d
+
+    def samplingIter(self, x_iter, y_iter, win_row_size=1, win_column_size=1, interleave='band',
+                     band_list=None, no_data=0):
+        d_list = []
+        while True:
+            try:
+                x, y = next(x_iter), next(y_iter)
+                d = self.sampling(x, y, win_row_size=win_row_size, win_column_size=win_column_size,
+                                  interleave=interleave, band_list=band_list, no_data=no_data)
+                d_list.append(d)
+            except StopIteration:
+                break
 
 
 def main():

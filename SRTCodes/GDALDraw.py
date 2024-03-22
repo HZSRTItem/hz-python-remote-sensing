@@ -11,23 +11,27 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from SRTCodes.GDALUtils import GDALRasterCenterDatas
+from SRTCodes.SRTDraw import MplPatchesEllipseColl
 
 
 class GDALDrawImages(GDALRasterCenterDatas):
 
-    def __init__(self, win_size=None, is_min_max=True, is_01=True):
+    def __init__(self, win_size=None, is_min_max=True, is_01=True, fontdict=None):
         super().__init__(win_size, is_min_max, is_01)
+
+        if fontdict is None:
+            fontdict = {'family': 'Times New Roman', 'size': 16}
 
         self.column_names = None
         self.row_names = None
 
+        self.ell_coll = MplPatchesEllipseColl()
+
+        self.fontdict = fontdict
+
     def draw(self, n_columns_ex=1.0, n_rows_ex=1.0, row_names=None, column_names=None, fontdict=None):
-        if None is None:
-            fontdict = {'family': 'Times New Roman', 'size': 16}
-        n_rows, n_columns = self.shape()
-        fig = plt.figure(figsize=(n_columns * n_columns_ex, n_rows * n_rows_ex), )
-        axes = fig.subplots(n_rows, n_columns)
-        fig.subplots_adjust(top=0.96, bottom=0.04, left=0.04, right=0.96, hspace=0.04, wspace=0.03)
+        axes, fontdict, n_columns, n_rows = self.initFig(fontdict, n_columns_ex, n_rows_ex)
+
         for i in range(n_rows):
             for j in range(n_columns):
                 if n_rows == 1:
@@ -36,13 +40,14 @@ class GDALDrawImages(GDALRasterCenterDatas):
                     ax = axes[i, j]
                 if j == 0:
                     if row_names is not None:
-                        ax.set_ylabel(row_names[i], fontdict=fontdict)
+                        ax.set_ylabel(row_names[i], rotation=0, fontdict=fontdict)
                 if i == 0:
                     if column_names is not None:
                         ax.set_title(column_names[j], fontdict=fontdict)
                 d = self.getData(i, j)
                 if d is not None:
                     ax.imshow(d)
+                    self.ell_coll.fit(ax, i, j)
                 else:
                     ax.spines['right'].set_visible(False)
                     ax.spines['top'].set_visible(False)
@@ -50,6 +55,17 @@ class GDALDrawImages(GDALRasterCenterDatas):
                     ax.spines['bottom'].set_visible(False)
                 ax.set_xticks([])
                 ax.set_yticks([])
+
+    def initFig(self, fontdict, n_columns_ex, n_rows_ex, *args, **kwargs):
+        if fontdict is None:
+            fontdict = self.fontdict
+        n_rows, n_columns = self.shape()
+        fig = plt.figure(figsize=(n_columns * n_columns_ex, n_rows * n_rows_ex), )
+        axes = fig.subplots(n_rows, n_columns)
+        # fig.subplots_adjust(top=0.96, bottom=0.04, left=0.04, right=0.96, hspace=0.04, wspace=0.03)
+        fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.04, wspace=0.03)
+
+        return axes, fontdict, n_columns, n_rows
 
     def toCategory(self, n_row, n_column, color_name):
         d = np.array(self.getData(n_row, n_column))
@@ -62,8 +78,9 @@ class GDALDrawImages(GDALRasterCenterDatas):
         c_d = c_d / 255
         self.setData(n_row, n_column, c_d)
 
-    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, color_name=None, *args, **kwargs):
-        d = super(GDALDrawImages, self).addAxisDataXY(n_row=n_row, n_column=n_column, grcc_name=grcc_name, x=x, y=y)
+    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, color_name=None, *args, **kwargs):
+        d = super(GDALDrawImages, self).addAxisDataXY(n_row=n_row, n_column=n_column, grcc_name=grcc_name, x=x, y=y,
+                                                      win_size=win_size, *args, **kwargs)
         if d.shape[2] == 1:
             to_d = np.zeros((d.shape[0], d.shape[1], 3))
             for i in range(3):
@@ -72,6 +89,12 @@ class GDALDrawImages(GDALRasterCenterDatas):
         self.setData(n_row, n_column, data=d)
         if color_name is not None:
             self.toCategory(n_row, n_column, color_name)
+
+    def addEllipse(self, xy, width, height, n_row=None, n_column=None, angle=0, is_ratio=False, select_columns=None,
+                   not_rows=None, not_columns=None, **kwargs):
+        ell = self.ell_coll.add2(xy, width, height, n_row=n_row, n_column=n_column, angle=angle, is_ratio=is_ratio,
+                                 select_columns=select_columns, not_rows=not_rows, not_columns=not_columns, **kwargs)
+        return ell
 
 
 def main():

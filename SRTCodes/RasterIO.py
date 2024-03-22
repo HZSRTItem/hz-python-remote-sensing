@@ -8,7 +8,10 @@ r"""----------------------------------------------------------------------------
 @Desc    : PytorchModel of ZY5MImage
 -----------------------------------------------------------------------------"""
 
+from io import BytesIO
+
 import numpy as np
+from PIL import Image
 
 eps = 0.000001
 np.set_printoptions(suppress=True, precision=3)

@@ -28,13 +28,13 @@ from SRTCodes.GDALRasterClassification import GDALRasterClassificationAccuracy
 from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterCollection, readGEORaster, saveGEORaster
 from SRTCodes.GDALRasterIO import GDALRasterFeatures
 from SRTCodes.GDALUtils import gdalStratifiedRandomSampling, samplingToCSV, RasterToVRTS
-from SRTCodes.GEEUtils import GEEImageProperty, geeCSVSelectPropertys
+from SRTCodes.GEEUtils import GEEImageProperty, geeCSVSelectPropertys, SRTGEECollection
 from SRTCodes.GeoRasterRW import GeoRasterWrite
 from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.NumpyUtils import neighborhood, calPCA
 from SRTCodes.OGRUtils import SRTESRIShapeFileRead, sampleSpaceUniform
 from SRTCodes.SRTDraw import SRTDrawHist
-from SRTCodes.Utils import savecsv, readcsv, DirFileName, Jdt
+from SRTCodes.Utils import savecsv, readcsv, DirFileName, Jdt, readJson
 from Shadow.ShadowDraw import ShadowDrawDirectLength, cal_10log10
 from Shadow.ShadowGeoDraw import _10log10, DrawShadowImage_0
 from Shadow.ShadowMainQingDao import ShadowMainQD
@@ -47,17 +47,33 @@ scienceplots.init()
 
 
 def main():
+    se_coll = SRTGEECollection().initJson(r"M:\ProjectSet\Shadow\Hierarchical\Images\Find\cd_s2_coll (1).geojson")
+    "COPERNICUS/S2_SR_HARMONIZED/20211001T025551_20211001T025549_T50TMK"
+    ims = {}
+    for id_str in se_coll.idsIter():
+        id_str = "COPERNICUS/S2_SR_HARMONIZED/" + id_str
+        id_str1 = id_str[:60]
+        if id_str1 not in ims:
+            ims[id_str1] = []
+        ims[id_str1].append(id_str)
+
+    for k, id_str_list in ims.items():
+        for id_str_show in id_str_list:
+            print("showS2Image(\"{0}\", null);".format(id_str_show))
+        print()
+
+    haha = 0
+
+
+def method_name57():
     # df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\20231209\20231214H093733\20231214H093733_train_spl.csv")
     # print(df.keys())
     # as_c11 = df["AS_C11"]
     # as_c12_imag = df["AS_C12_imag"]
     # as_c12_real = df["AS_C12_real"]
     # as_c22 = df["AS_C22"]
-
     sh_csv_sc = ShadowCSVSampleCollection(True, True, True)
-    samplingCenter(sh_csv_sc.qd_raster_fn, r"G:\FM\Samples\1\spl1", [13, 13], channel_list=[0,1,2,3])
-
-    haha = 0
+    # samplingCenter(sh_csv_sc.qd_raster_fn, r"G:\FM\Samples\1\spl1", [13, 13], channel_list=[0,1,2,3])
 
 
 def method_name56():

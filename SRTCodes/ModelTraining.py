@@ -14,6 +14,7 @@ import time
 import numpy as np
 
 from SRTCodes.SRTCollection import SRTCollection
+from SRTCodes.Utils import Jdt
 
 eps = 0.000001
 
@@ -165,7 +166,7 @@ class TrainLog(SRTCollection):
 
 class ConfusionMatrix:
 
-    def __init__(self, n_class, class_names=None):
+    def __init__(self, n_class=0, class_names=None):
         """
                 预测
             |  0  |  1  |
@@ -178,6 +179,11 @@ class ConfusionMatrix:
         :param n_class: number of category
         :param class_names: names of category
         """
+        if n_class == 0:
+            if class_names is not None:
+                n_class = len(class_names)
+            else:
+                return
         self._cm = np.zeros((n_class, n_class))
         self._cm_accuracy = self.calCM()
         self._n_class = n_class
@@ -457,6 +463,38 @@ class RegressionTraining(Training):
 
     def testAccuracy(self):
         return self.test_mse.MSE()
+
+
+def dataModelPredict(data, data_deal, is_jdt, model):
+    if data_deal is None:
+        data_deal = lambda _data: _data
+    data_c = np.zeros((data.shape[1], data.shape[2]))
+    jdt = Jdt(data.shape[1], "dataModelPredict").start(is_jdt=is_jdt)
+    for i in range(data.shape[1]):
+        jdt.add(is_jdt=is_jdt)
+        x = data_deal(data[:, i, :].T)
+        y = model.predict(x)
+        data_c[i, :] = y
+    jdt.end(is_jdt=is_jdt)
+    return data_c
+
+
+class ModelDataCategory:
+
+    def __init__(self, *datas):
+        self.data_list = []
+        self.addDatas(*datas)
+        self.data = None
+
+    def addData(self, data):
+        self.data_list.append(data)
+
+    def addDatas(self, *datas):
+        self.data_list.extend(datas)
+
+    def dataPredict(self, model, data_deal=None, is_jdt=False, *args, **kwargs):
+        for data in self.data_list:
+            dataModelPredict(data, data_deal, is_jdt, model)
 
 
 def main():

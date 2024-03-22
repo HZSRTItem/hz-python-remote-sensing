@@ -8,6 +8,11 @@ r"""----------------------------------------------------------------------------
 @Desc    : PyCodes of PandasUtils
 -----------------------------------------------------------------------------"""
 
+import matplotlib.pyplot as plt
+from matplotlib.image import imread, imsave
+
+
+
 
 def filterDF(df, *filters, **filter_maps):
     filter_dict = {}
@@ -21,6 +26,14 @@ def filterDF(df, *filters, **filter_maps):
 
 
 def main():
+    im = imread(r"F:\ProjectSet\Shadow\MkTu\Imdc\ShadowMkTuImdc3.jpg")
+    print(type(im))  # ---><class 'numpy.ndarray'>
+    print(im.shape)  # --->(720, 1280, 3)
+    print(im.size)  # --->2764800
+    im = im[0:1025, 0:3650, :]
+    imsave(r"F:\ProjectSet\Shadow\MkTu\Imdc\ShadowMkTuImdc4.jpg", im, dpi=300)
+    plt.imshow(im)
+    plt.show()
     pass
 
 

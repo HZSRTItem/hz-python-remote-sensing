@@ -133,6 +133,7 @@ class ShadowMainCD(ShadowMain):
         # spl_fn = self.sample_csv_spl_fn
         # spl_fn = r"F:\ProjectSet\Shadow\Analysis\5\sh_cd_sample_spl2.csv"
         spl_fn = r"F:\ProjectSet\Shadow\Analysis\8\chengdu\sh_cd_sample_spl_2.csv"
+        spl_fn = r"F:\ProjectSet\Shadow\ChengDu\Samples\3\train_data_cd.csv"
         raster_fn = self.raster_fn
         model_dir = self.model_dfn.fn()
         model_name = self.model_name
@@ -202,9 +203,9 @@ def main():
     sm_cd = ShadowMainCD()
     # sm_cd.sampleToCsv()
     # sm_cd.sampling()
-    # sm_cd.shadowTraining()
+    sm_cd.shadowTraining()
     # sm_cd.testImdc()
-    sm_cd.trainSampleNumber()
+    # sm_cd.trainSampleNumber()
     pass
 
 
