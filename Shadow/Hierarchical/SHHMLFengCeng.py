@@ -15,22 +15,20 @@ import numpy as np
 import pandas as pd
 from osgeo import gdal
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
 
+from SRTCodes.GDALRasterClassification import GDALImdcAcc
 from SRTCodes.GDALRasterIO import GDALRasterChannel, GDALRaster, tiffAddColorTable
 from SRTCodes.GDALUtils import GDALRastersSampling
 from SRTCodes.ModelTraining import ConfusionMatrix
+from SRTCodes.NumpyUtils import reHist
+from SRTCodes.OGRUtils import sampleSpaceUniform
 from SRTCodes.Utils import timeDirName, DirFileName, SRTWriteText, saveJson, readJson, Jdt, filterFileExt, \
-    SRTDFColumnCal, getfilenamewithoutext
+    SRTDFColumnCal, getfilenamewithoutext, printList, datasCaiFen, changefiledirname, changext, readLines, \
+    changefilename, readLinesList, numberfilename
 from Shadow.Hierarchical import SHHConfig
 from Shadow.Hierarchical.SHHConfig import SHH_COLOR8, categoryMap
-
-
-def main():
-    pass
-
-
-if __name__ == "__main__":
-    main()
+from Shadow.Hierarchical.ShadowHSample import samplingSHH21OptSarGLCM
 
 
 def feat_norm(d1, d2):
@@ -42,12 +40,17 @@ def feat_norm(d1, d2):
 
 def ext_feat(data, *feat_names):
     for feat_name in feat_names:
+        feat_name = feat_name.lower()
         if feat_name == "ndvi":
             data[feat_name] = feat_norm(data["B8"], data["B4"])
         elif feat_name == "ndwi":
             data[feat_name] = feat_norm(data["B3"], data["B8"])
         elif feat_name == "mndwi":
             data[feat_name] = feat_norm(data["B3"], data["B12"])
+        elif feat_name == "as_vhdvv":
+            data["AS_VHDVV"] = data["AS_VH"] - data["AS_VV"]
+        elif feat_name == "de_vhdvv":
+            data["DE_VHDVV"] = data["DE_VH"] - data["DE_VV"]
 
 
 def df_get_data(df, x_keys, test_n, fengcheng=-1, cate_name=None):
@@ -74,12 +77,14 @@ def df_get_data(df, x_keys, test_n, fengcheng=-1, cate_name=None):
     return x, y
 
 
-def read_geo_raster(geo_fn, imdc_keys, glcm_fn=None):
+def read_geo_raster(geo_fn, imdc_keys, glcm_fn=None, range_dict=None):
     grc = GDALRasterChannel()
-    grc.addGDALDatas(geo_fn)
+    grc.addGDALDatas(geo_fn, imdc_keys)
     if glcm_fn is not None:
         grc.addGDALDatas(glcm_fn)
     ext_feat(grc, *imdc_keys)
+    if range_dict is not None:
+        grc = dfTo01(grc, range_dict)
     data = grc.fieldNamesToData(*imdc_keys)
     return data
 
@@ -93,6 +98,565 @@ def feature_importance(mod: RandomForestClassifier, show_keys):
     show_data = dict(show_data)
     plt.barh(list(show_data.keys()), list(show_data.values()))
     plt.show()
+
+
+def dfTo01(df, range_dict=None, range_dict_fn=None):
+    range_dict = getRangeDict(range_dict, range_dict_fn)
+    for k in range_dict:
+        if k in df:
+            x_min, x_max = tuple(range_dict[k])
+            data = df[k]
+            data = np.clip(data, a_min=x_min, a_max=x_max)
+            df[k] = data
+    return df, range_dict
+
+
+def getRangeDict(range_dict, range_dict_fn):
+    if range_dict is None:
+        range_dict = {}
+    if range_dict_fn is not None:
+        lines = readLinesList(range_dict_fn, " ")
+        for line in lines:
+            name, x_min, x_max = line[0], float(line[1]), float(line[2])
+            range_dict[name] = (x_min, x_max)
+    return range_dict
+
+
+class FenCeng:
+
+    def __init__(self, log_wt, init_dfn):
+        self.ws_keys = None
+        self.wat_sh_clf = None
+        self.is_keys = None
+        self.is_soil_clf = None
+        self.vhl_keys = None
+        self.veg_high_low_clf = None
+        self.log_wt = log_wt
+        self.init_dfn = init_dfn
+        self.imdc_keys = []
+        self.vhl_index_list = []
+        self.is_index_list = []
+        self.ws_index_list = []
+
+    def initVHL(self, clf, x_keys):
+        self.veg_high_low_clf = clf
+        self.vhl_keys = x_keys
+        self.logWT("VEG_HIGH_LOW_CLF:", self.veg_high_low_clf)
+        self.logWT("VHL_KEYS:", self.vhl_keys)
+
+    def initIS(self, clf, x_keys):
+        self.is_soil_clf = clf
+        self.is_keys = x_keys
+        self.logWT("IS_SOIL_CLF:", self.is_soil_clf)
+        self.logWT("IS_KEYS:", self.is_keys)
+
+    def initWS(self, clf, x_keys):
+        self.wat_sh_clf = clf
+        self.ws_keys = x_keys
+        self.logWT("WAT_SH_CLF:", self.wat_sh_clf)
+        self.logWT("WS_KEYS:", self.ws_keys)
+
+    def get_keys(self):
+        to_keys = []
+
+        def _get_keys(_list):
+            for k in _list:
+                if k not in to_keys:
+                    to_keys.append(k)
+
+        _get_keys(self.vhl_keys)
+        _get_keys(self.is_keys)
+        _get_keys(self.ws_keys)
+        return to_keys
+
+    def init_imdc_keys(self, imdc_keys: list):
+        self.imdc_keys = imdc_keys
+        self.vhl_index_list = [self.imdc_keys.index(k) for k in self.vhl_keys]
+        self.is_index_list = [self.imdc_keys.index(k) for k in self.is_keys]
+        self.ws_index_list = [self.imdc_keys.index(k) for k in self.ws_keys]
+
+    def fit(self, df, cate_name=None, test_cate_name=None):
+        def get_data(x_keys, test_n, fengcheng=-1):
+            return df_get_data(df, x_keys, test_n, fengcheng, cate_name=cate_name)
+
+        def _train(n, _clf, fit_keys, name):
+            _x_train, _y_train = get_data(fit_keys, 1, n)
+            _x_test, _y_test = get_data(fit_keys, 0, n)
+            _clf.fit(_x_train, _y_train)
+            print(name, "train acc:", _clf.score(_x_train, _y_train))
+            self.log_wt.write(name, "train acc:", _clf.score(_x_train, _y_train))
+            print(name, "test acc:", _clf.score(_x_test, _y_test))
+            self.log_wt.write(name, "test acc:", _clf.score(_x_test, _y_test))
+
+        _train(1, self.veg_high_low_clf, self.vhl_keys, "veg_high_low")
+        _train(2, self.is_soil_clf, self.is_keys, "is_soil")
+        _train(3, self.wat_sh_clf, self.ws_keys, "wat_sh")
+
+        if test_cate_name is not None:
+            _x_keys = self.get_keys()
+            self.init_imdc_keys(_x_keys)
+            x_test, y_test = df_get_data(df, _x_keys, 0, cate_name=test_cate_name)
+            y_pred = self.predict(x_test)
+            cm = ConfusionMatrix(8, SHHConfig.SHH_CNAMES8)
+            cm.addData(y_test, y_pred)
+            self.logWT(cm.fmtCM())
+
+    def predict(self, x):
+        y1_d = self.veg_high_low_clf.predict(x[:, self.vhl_index_list])
+        y2_d = self.is_soil_clf.predict(x[:, self.is_index_list])
+        y3_d = self.wat_sh_clf.predict(x[:, self.ws_index_list])
+        y = []
+        for i in range(len(x)):
+            y1, y2, y3 = y1_d[i], y2_d[i], y3_d[i]
+            if y1 == 1:
+                y.append(2)
+            elif y1 == 2:
+                if y2 == 1:
+                    y.append(1)
+                elif y2 == 2:
+                    y.append(3)
+                else:
+                    y.append(0)
+            elif y1 == 3:
+                if y3 == 5:
+                    y.append(4)
+                else:
+                    y.append(y3 + 4)
+            else:
+                y.append(0)
+        return np.array(y)
+
+    def save(self, to_fn=None):
+        if to_fn is None:
+            to_fn = self.init_dfn.fn("fc")
+        json_fn = to_fn + ".mod.json"
+        vhl_fn = to_fn + "_vhl.mod"
+        joblib.dump(self.veg_high_low_clf, vhl_fn)
+        is_fn = to_fn + "_is.mod"
+        joblib.dump(self.is_soil_clf, is_fn)
+        ws_fn = to_fn + "_ws.mod"
+        joblib.dump(self.wat_sh_clf, ws_fn)
+        to_dict = {"VHL_FN": vhl_fn, "IS_FN": is_fn, "WS_FN": ws_fn}
+        saveJson(to_dict, json_fn)
+        return {to_fn: to_dict}
+
+    def load(self, json_fn):
+        json_dict = readJson(json_fn)
+        self.veg_high_low_clf = joblib.load(json_dict["VHL_FN"])
+        self.is_soil_clf = joblib.load(json_dict["IS_FN"])
+        self.wat_sh_clf = joblib.load(json_dict["WS_FN"])
+
+    def logWT(self, *text, sep=" ", end="\n", is_print=True):
+        self.log_wt.write(*text, sep=sep, end=end)
+        if is_print:
+            print(*text, sep=sep, end=end)
+
+
+class NoFenCeng:
+
+    def __init__(self, log_wt, init_dfn):
+        self.log_wt = log_wt
+        self.init_dfn = init_dfn
+        self.nofc_x_keys = []
+        self.clf = None
+
+    def initXKeys(self, *x_keys):
+        x_keys = datasCaiFen(x_keys)
+        self.nofc_x_keys = x_keys
+        self.log_wt.write("NOFC_X_KEYS:", x_keys)
+
+    def fit(self, df, cate_name=None):
+        def get_data(x_keys, test_n, fengcheng=-1):
+            return df_get_data(df, x_keys, test_n, fengcheng, cate_name=cate_name)
+
+        _clf = self.clf
+        printList("NOFC_X_KEYS", self.nofc_x_keys)
+        x_train, y_train = get_data(self.nofc_x_keys, 1)
+        x_test, y_test = get_data(self.nofc_x_keys, 0)
+        _clf.fit(x_train, y_train)
+        print("train acc:", _clf.score(x_train, y_train))
+        self.log_wt.write("train acc:", _clf.score(x_train, y_train))
+        print("test acc:", _clf.score(x_test, y_test))
+        self.log_wt.write("test acc:", _clf.score(x_test, y_test))
+        self.log_wt.write("CLF", _clf)
+        print()
+        return _clf
+
+    def predict(self, x):
+        return self.clf.predict(x)
+
+
+def imdcFit(clf, imdc_keys, geo_fn, to_geo_fn, code_colors, glcm_fn=None, range_dict=None):
+    d = read_geo_raster(geo_fn, imdc_keys, glcm_fn, range_dict=range_dict)
+    d[np.isnan(d)] = 0.0
+    print(d.shape)
+    imdc = np.zeros(d.shape[1:])
+    jdt = Jdt(imdc.shape[0], "Imdc")
+    jdt.start()
+    for i in range(imdc.shape[0]):
+        d_tmp = d[:, i, :].T
+        y_tmp = clf.predict(d_tmp)
+        imdc[i, :] = y_tmp
+        jdt.add()
+    jdt.end()
+    to_fn = to_geo_fn
+    gr = GDALRaster(geo_fn)
+    gr.save(d=imdc, save_geo_raster_fn=to_fn, fmt="GTiff", dtype=gdal.GDT_Byte, options=["COMPRESS=PACKBITS"])
+    tiffAddColorTable(to_fn, code_colors=code_colors)
+    return to_fn
+
+
+class MLFCModel:
+
+    def __init__(self, clf_name=None, clf=None, x_keys=None, range_dict=None, city_name=None):
+        self.clf_name = clf_name
+        self.clf = clf
+        self.x_keys = x_keys
+        self.range_dict = range_dict
+        self.city_name = city_name
+
+    def getRangeDict(self, range_dict=None, range_dict_fn=None, city_name=None):
+        if city_name is not None:
+            if city_name == "bj":
+                range_dict_fn = r"G:\ImageData\SHH2BeiJingImages\range.txt"
+            if city_name == "cd":
+                range_dict_fn = r"G:\ImageData\SHH2ChengDuImages\range.txt"
+            if city_name == "qd":
+                range_dict_fn = r"G:\ImageData\SHH2QingDaoImages\range.txt"
+        self.range_dict = getRangeDict(range_dict, range_dict_fn)
+        return range_dict
+
+    def xRange(self, x):
+        def func_x_range():
+            if self.range_dict is None:
+                return x
+            for k in self.range_dict:
+                if k in self.x_keys:
+                    i_data = self.x_keys.index(k)
+                    x_min, x_max = tuple(self.range_dict[k])
+                    data = x[:, i_data]
+                    data = np.clip(data, a_min=x_min, a_max=x_max)
+                    data = (data - x_min) / (x_max - x_min)
+                    x[:, i_data] = data
+
+        if self.clf_name == "svm":
+            func_x_range()
+
+        return x
+
+    def fit(self, X, y, sample_weight=None):
+        X = self.xRange(X)
+        return self.clf.fit(X, y, sample_weight=sample_weight)
+
+    def predict(self, X):
+        X = self.xRange(X)
+        return self.clf.predict(X)
+
+    def score(self, X, y, sample_weight=None):
+        X = self.xRange(X)
+        return self.clf.score(X, y, sample_weight=sample_weight)
+
+    def toDict(self):
+        return {
+            "clf_name": self.clf_name,
+            "clf": self.clf,
+            "x_keys": self.x_keys,
+            "range_dict": self.range_dict,
+            "city_name": self.city_name,
+        }
+
+    def log(self, log_wt: SRTWriteText, name, *text):
+        log_wt.write("> MLFCModel[{0}]".format(name))
+        to_dict = self.toDict()
+        if len(text) != 0:
+            log_wt.write("# ", *text)
+        for k in to_dict:
+            log_wt.write("  + {0}: {1}".format(k.upper(), to_dict[k]))
+
+
+class SHHMLFC:
+
+    def __init__(self, is_fenceng="fc"):
+        self.is_fenceng = is_fenceng
+        self.init_dirname = timeDirName(r"F:\ProjectSet\Shadow\Hierarchical\MLMods", is_mk=False)
+        self.init_dirname += self.is_fenceng
+        if not os.path.isdir(self.init_dirname):
+            os.mkdir(self.init_dirname)
+        self.init_dfn = DirFileName(self.init_dirname)
+        self.log_wt = SRTWriteText(self.init_dfn.fn("log.txt"))
+        self.logWT("IS_FENCENG:", self.is_fenceng)
+        self.logWT("INIT_DIRNAME:", self.init_dirname)
+        self.saveCodeFile(__file__)
+
+        self.df = None
+        self.range_dict = None
+        self.fc = FenCeng(self.log_wt, self.init_dfn)
+        self.no_fc = NoFenCeng(self.log_wt, self.init_dfn)
+
+    def loadDF(self, df=None, csv_fn=None, excel_fn=None, sheet_name=None):
+        if df is not None:
+            self.df = df
+        elif excel_fn is not None:
+            self.df = pd.read_excel(excel_fn, sheet_name=sheet_name)
+            self.log_wt.write("EXCEL_FN:", excel_fn)
+            self.log_wt.write("SHEET_NAME:", sheet_name)
+        elif csv_fn is not None:
+            self.df = pd.read_csv(csv_fn)
+            self.log_wt.write("CSV_FN:", excel_fn)
+        return df
+
+    def loadDFCity(self, city, df=None, csv_fn=None, excel_fn=None, sheet_name=None):
+        self.logWT("CITY:", city)
+        self.loadDF(df=df, csv_fn=csv_fn, excel_fn=excel_fn, sheet_name=sheet_name)
+        self.df = self.df[self.df["CITY"] == city]
+        self.logWT("DF Length:", len(self.df))
+
+    def dfTo01(self, range_dict=None, range_dict_fn=None):
+        if (range_dict is None) and (range_dict_fn is None):
+            return
+        self.df, self.range_dict = dfTo01(self.df, range_dict=range_dict, range_dict_fn=range_dict_fn)
+        self.logWT("RANGE_DICT", self.range_dict)
+
+    def saveCodeFile(self, code_filename):
+        code_fn = os.path.split(code_filename)[1]
+        self.log_wt.write("CODE_FN", code_filename)
+        self.log_wt.write("CODE_TO_FN", code_fn)
+        with open(self.init_dfn.fn(code_fn), "w", encoding="utf-8") as fw:
+            with open(code_filename, "r", encoding="utf-8") as fr:
+                fw.write(fr.read())
+
+    def logWT(self, *text, sep=" ", end="\n", is_print=True):
+        self.log_wt.write(*text, sep=sep, end=end)
+        if is_print:
+            print(*text, sep=sep, end=end)
+
+    def dealDF(self):
+        ext_feat(self.df, "ndvi", "ndwi", "mndwi", )
+        self.logWT("DF.KEYS", self.df.keys())
+        self.df.to_csv(self.init_dfn.fn("train_data.csv"), index=False)
+
+    def fitFC(self, test_cate_name=None):
+        self.dealDF()
+        self.fc.fit(self.df, test_cate_name=test_cate_name)
+        to_dict = self.fc.save()
+        self.log_wt.write("MODEL_SAVE", to_dict)
+
+    def fitNoFC(self):
+        self.dealDF()
+        clf = self.no_fc.fit(self.df)
+        joblib.dump(clf, self.init_dfn.fn("nofc.mod"))
+        self.log_wt.write("MODEL_SAVE", self.init_dfn.fn("nofc.mod"))
+
+    def fit(self):
+        if self.is_fenceng == "fc":
+            return self.fitFC(test_cate_name="CODE")
+        elif self.is_fenceng == "nofc":
+            return self.fitNoFC()
+
+    def imdcFun(self, geo_fn, to_geo_fn=None, glcm_fn=None):
+        if to_geo_fn is None:
+            to_geo_fn = changefiledirname(geo_fn, self.init_dirname)
+            to_geo_fn = changext(to_geo_fn, "_{0}_imdc.tif".format(self.is_fenceng))
+        print("geo_fn   :", geo_fn)
+        print("to_geo_fn:", to_geo_fn)
+        print("glcm_fn  :", glcm_fn)
+        self.log_wt.write("GEO_FN:", geo_fn)
+        self.log_wt.write("TO_GEO_FN:", to_geo_fn)
+        self.log_wt.write("GLCM_FN:", glcm_fn)
+
+        if self.is_fenceng == "nofc":
+            imdc_keys = self.no_fc.nofc_x_keys
+            clf = self.no_fc
+        elif self.is_fenceng == "fc":
+            imdc_keys = self.fc.get_keys()
+            self.fc.init_imdc_keys(imdc_keys)
+            clf = self.fc
+        else:
+            print("imdc_fun is_fenceng == \"{}\"".format(self.is_fenceng))
+            return
+
+        self.log_wt.write("IMDC_KEYS:", imdc_keys)
+        code_colors = SHH_COLOR8
+        to_fn = imdcFit(clf, imdc_keys, geo_fn, to_geo_fn, code_colors, range_dict=self.range_dict)
+        self.log_wt.write("CODE_COLORS:", code_colors)
+
+        return {"GEO_FN": geo_fn, "TO_FN": to_fn}
+
+    def imdcTiles(self, tiles_dirname, to_fn=None):
+        tiles_fns = filterFileExt(tiles_dirname, ".tif")
+        if to_fn is None:
+            to_fn = os.path.split(tiles_dirname)[-1]
+            to_fn = os.path.join(self.init_dirname, to_fn + "_{0}_imdc.tif".format(self.is_fenceng))
+        to_tiles_dirname = os.path.splitext(to_fn)[0] + "_imdctiles"
+        self.logWT("TILES_DIRNAME", tiles_dirname)
+        self.logWT("TO_TILES_DIRNAME", to_tiles_dirname)
+        if not os.path.isdir(to_tiles_dirname):
+            os.mkdir(to_tiles_dirname)
+        to_fn_tmps = []
+        for fn in tiles_fns:
+            to_fn_tmp = changext(fn, "_{0}_imdc.tif".format(self.is_fenceng))
+            to_fn_tmp = changefiledirname(to_fn_tmp, to_tiles_dirname)
+            to_fn_tmps.append(to_fn_tmp)
+            print("Image:", fn)
+            print("Imdc :", to_fn_tmp)
+            if os.path.isfile(to_fn_tmp):
+                print("Imdc 100%")
+                continue
+            self.imdcFun(fn, to_fn_tmp)
+        print("Merge:", to_fn)
+
+        from osgeo_utils.gdal_merge import main as gdal_merge_main
+
+        gdal_merge_main(["gdal_merge_main",
+                         "-of", "GTiff",
+                         "-n", "0",
+                         "-ot", "Byte",
+                         "-co", "COMPRESS=PACKBITS",
+                         "-o", to_fn,
+                         *to_fn_tmps, ])
+        tiffAddColorTable(to_fn, code_colors=SHH_COLOR8)
+
+
+class MLFCFeatures:
+
+    def __init__(self):
+        self.opt_f = [
+            "B2", "B3", "B4", "B8", "B11", "B12",
+            'ndvi', 'ndwi', 'mndwi',
+            "OPT_asm", "OPT_con", "OPT_cor", "OPT_dis", "OPT_ent", "OPT_hom", "OPT_mean", "OPT_var",
+        ]
+        self.as_f = [
+            "AS_VV", "AS_VH",
+            "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+            "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
+        ]
+        self.de_f = [
+            "DE_VV", "DE_VH",
+            "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+            "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
+        ]
+
+    def to_opt(self):
+        return self.opt_f
+
+    def to_opt_as(self):
+        return self.opt_f + self.as_f
+
+    def to_opt_de(self):
+        return self.opt_f + self.de_f
+
+    def to_opt_as_de(self):
+        return self.opt_f + self.as_f + self.de_f
+
+
+def SHHMLFC_main(city_name="qd", is_fenceng="nofc"):
+    mlfc = SHHMLFC(is_fenceng)
+    mlfc.logWT("CITY_NAME:", city_name)
+    mlfc_feats = MLFCFeatures()
+    mlfc.loadDFCity(city_name, csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc2.csv")
+
+    # RandomForestClassifier(n_estimators=100, max_depth=10, min_samples_leaf=1, min_samples_split=2)
+
+    # log_wt = SRTWriteText(numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Temp\tmp.txt"))
+
+    mlfc.log_wt.write("``` models")
+    if is_fenceng == "nofc":
+        nofc_mod = MLFCModel("svm", city_name=city_name)
+        nofc_mod.clf = SVC()
+        nofc_mod.x_keys = mlfc_feats.to_opt_as_de()
+        nofc_mod.getRangeDict(city_name=city_name)
+        nofc_mod.log(mlfc.log_wt, "NOFC")
+
+        mlfc.no_fc.clf = nofc_mod
+        mlfc.no_fc.initXKeys(nofc_mod.x_keys)
+    else:
+        fc_vhl_mod = MLFCModel("svm", city_name=city_name)
+        fc_vhl_mod.clf = SVC()
+        fc_vhl_mod.x_keys = mlfc_feats.to_opt()
+        fc_vhl_mod.getRangeDict(city_name=city_name)
+        fc_vhl_mod.log(mlfc.log_wt, "FC_VHL_MOD")
+
+        fc_is_mod = MLFCModel("svm", city_name=city_name)
+        fc_is_mod.clf = SVC()
+        fc_is_mod.x_keys = mlfc_feats.to_opt_as_de()
+        fc_is_mod.getRangeDict(city_name=city_name)
+        fc_is_mod.log(mlfc.log_wt, "FC_IS_MOD")
+
+        fc_ws_mod = MLFCModel("svm", city_name=city_name)
+        fc_ws_mod.clf = SVC()
+        fc_ws_mod.x_keys = mlfc_feats.to_opt_as_de()
+        fc_ws_mod.getRangeDict(city_name=city_name)
+        fc_is_mod.log(mlfc.log_wt, "FC_IS_MOD")
+
+        mlfc.fc.initVHL(clf=fc_vhl_mod, x_keys=fc_vhl_mod.x_keys)
+        mlfc.fc.initIS(clf=fc_is_mod, x_keys=fc_is_mod.x_keys)
+        mlfc.fc.initWS(clf=fc_ws_mod, x_keys=fc_ws_mod.x_keys)
+
+    mlfc.log_wt.write("```")
+
+    mlfc.fit()
+
+    if city_name == "qd":
+        mlfc.imdcTiles(r"G:\ImageData\SHH2QingDaoImages\qd_sh2_1_opt_sar_glcm")
+    elif city_name == "bj":
+        mlfc.imdcTiles(r"G:\ImageData\SHH2BeiJingImages\bj_sh2_1_opt_sar_glcm")
+    elif city_name == "cd":
+        mlfc.imdcTiles(r"G:\ImageData\SHH2ChengDuImages\cd_sh2_1_opt_sar_glcm")
+
+    r"""
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHMLFengCeng import SHHMLFC_main; SHHMLFC_main('qd')"
+    """
+
+
+def imageRange():
+    def x_range(data):
+        data = np.expand_dims(data, axis=0)
+        print(data.shape)
+        x = reHist(data, ratio=0.005)
+        x_min, x_max = float(x[0][0]), float(x[0][1])
+        return x_min, x_max
+
+    def func1(_geo_fn):
+        gr = GDALRaster(_geo_fn)
+        data = gr.readAsArray()
+        return x_range(data)
+
+    fns = [
+        r"G:\ImageData\SHH2BeiJingImages\filelist.txt",
+        r"G:\ImageData\SHH2ChengDuImages\filelist.txt",
+        r"G:\ImageData\SHH2QingDaoImages\filelist.txt",
+    ]
+
+    for fn in fns:
+        geo_fns = readLines(fn)
+        swt = SRTWriteText(changefilename(fn, "range2.txt"))
+        # print(swt.text_fn)
+        to_dict = {}
+        for geo_fn in geo_fns:
+            name = getfilenamewithoutext(geo_fn)
+            to_dict[name] = geo_fn
+            # x_min, x_max = func1(geo_fn)
+            # swt.write(name, x_min, x_max)
+            # print(geo_fn)
+        print(fn)
+
+        def load_data(name):
+            return GDALRaster(to_dict[name]).readAsArray()
+
+        red = load_data("B4")
+        green = load_data("B3")
+        nir = load_data("B8")
+        swir2 = load_data("B12")
+
+        data_dict = {
+            "ndvi": feat_norm(nir, red),
+            "ndwi": feat_norm(green, nir),
+            "mndwi": feat_norm(green, swir2),
+        }
+
+        for name in data_dict:
+            x_min, x_max = x_range(data_dict[name])
+            print(name, x_min, x_max)
 
 
 def trainMLFC():
@@ -114,6 +678,7 @@ def trainMLFC():
     if not os.path.isdir(init_dirname):
         os.mkdir(init_dirname)
     init_dfn = DirFileName(init_dirname)
+
     log_wt = SRTWriteText(init_dfn.fn("log.txt"))
     code_fn = os.path.split(__file__)[1]
     log_wt.write("CODE_FN", __file__)
@@ -121,6 +686,7 @@ def trainMLFC():
     with open(init_dfn.fn(code_fn), "w", encoding="utf-8") as fw:
         with open(__file__, "r", encoding="utf-8") as fr:
             fw.write(fr.read())
+
     df_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\5\FenCengSamples_glcm.xlsx"
     df = pd.read_excel(df_fn, sheet_name="GLCM")
     log_wt.write("DF_FN:", df_fn)
@@ -476,7 +1042,237 @@ def showFeatImp():
     plt.show()
 
 
+def tAccMLFC2():
+    def split_df(df, field_name, *datas):
+        datas = datasCaiFen(datas)
+        if len(datas) == 0:
+            return pd.DataFrame(), df
+
+        data_unique = pd.unique(df[field_name]).tolist()
+        df_list1, df_list2 = [], []
+        for k in data_unique:
+            if k in datas:
+                df_list1.append(df[df[field_name] == k])
+            else:
+                df_list2.append(df[df[field_name] == k])
+        df1, df2 = pd.concat(df_list1), pd.concat(df_list2)
+
+        return df1, df2
+
+    def func1():
+        df = pd.read_excel(r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\分层有效性实验测试样本.xlsx",
+                           sheet_name="青岛")
+        print(df)
+        df_sh, df_nosh = split_df(df, "CNAME", "IS_SH", "VEG_SH", "SOIL_SH", "WAT_SH", "SOIL", "WAT")
+        print(df_sh, df_nosh)
+        df_no_sh_random, df_nosh = split_df(df_nosh, "TAG", "RANDOM1000")
+        coors = [[float(df_nosh["X"][i]), float(df_nosh["Y"][i])] for i in df_nosh.index]
+        coors2, out_index_list = sampleSpaceUniform(coors, x_len=400, y_len=400, is_trans_jiaodu=True, ret_index=True)
+        df_index = df_nosh.index[out_index_list]
+        df_out = df_nosh.loc[df_index]
+        print(df_out)
+        df_out = pd.concat([df_no_sh_random, df_out])
+        print(df_out)
+        to_fn = numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc_qd.csv")
+        print(to_fn)
+        df_out.to_csv(to_fn, index=False)
+
+        os.system("srt_csv2shp \"{0}\"".format(to_fn))
+
+    def func2():
+
+        def func21(tif_fn, df):
+            gica = GDALImdcAcc(tif_fn)
+            # df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc_qd.csv")
+            gica.addDataFrame(df)
+            gica.map_category = SHHConfig.CATE_MAP_SH881
+            gica.calCM(SHHConfig.SHH_CNAMES8)
+            print(gica.cm.fmtCM())
+            for name in gica.cm.CNAMES():
+                print(name)
+                print(gica.cm.accuracyCategory(name).fmtCM())
+            return gica.cm
+
+        def func22():
+            gica = GDALImdcAcc(
+                r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240419H234523nofc\qd_sh2_1_opt_sar_glcm_imdc.tif")
+            df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc_qd.csv")
+            gica.addDataFrame(df)
+            gica.map_category = {11: 1, 21: 2, 31: 2, 41: 2, 12: 1, 22: 2, 32: 2, 42: 2}
+            gica.to_map_category = {1: 1, 2: 2, 3: 2, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2}
+            gica.calCM(["IS", "NOIS"])
+            print(gica.cm.fmtCM())
+
+        # func22()
+        def tif_names():
+            dirname_list = [
+                r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240419H222504fc",
+                r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240419H234523nofc",
+                r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240420H115335fc",
+                r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240420H145813nofc",
+            ]
+            for dirname in dirname_list:
+                print("r\"{0}\",".format(filterFileExt(dirname, ".tif")[0]))
+
+        init_list = [
+            {"CITY": "qd", "CLF": "RF", "MODEL": "fc", },
+            {"CITY": "qd", "CLF": "RF", "MODEL": "nofc", },
+            {"CITY": "qd", "CLF": "SVM", "MODEL": "fc", },
+            {"CITY": "qd", "CLF": "SVM", "MODEL": "nofc", },
+        ]
+
+        ml_dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\MLMods")
+        swt = SRTWriteText(r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\fc_acc_cm.txt")
+
+        def swt_w1(line):
+            for k in line:
+                swt.write("{0}: {1}".format(k, line[k]))
+
+        def qd():
+
+            to_list = [
+                {"CITY": "qd", "CLF": "RF", "MODEL": "fc",
+                 "TIF_FN": ml_dfn.fn(r"20240419H222504fc\qd_sh2_1_opt_sar_glcm_imdc.tif"), },
+                {"CITY": "qd", "CLF": "RF", "MODEL": "nofc",
+                 "TIF_FN": ml_dfn.fn(r"20240419H234523nofc\qd_sh2_1_opt_sar_glcm_imdc.tif"), },
+                {"CITY": "qd", "CLF": "SVM", "MODEL": "fc",
+                 "TIF_FN": ml_dfn.fn(r"20240420H115335fc\qd_sh2_1_opt_sar_glcm_fc_imdc.tif"), },
+                {"CITY": "qd", "CLF": "SVM", "MODEL": "nofc",
+                 "TIF_FN": ml_dfn.fn(r"20240420H145813nofc\qd_sh2_1_opt_sar_glcm_nofc_imdc.tif"), },
+            ]
+            df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc_qd.csv")
+
+            for i, line in enumerate(to_list):
+                tif_fn = line["TIF_FN"]
+                cm = func21(tif_fn, df)
+                swt_w1(line)
+                swt.write(cm.fmtCM())
+                gica = GDALImdcAcc(tif_fn)
+                gica.addDataFrame(df)
+                gica.map_category = {11: 1, 21: 2, 31: 2, 41: 2, 12: 1, 22: 2, 32: 2, 42: 2}
+                gica.to_map_category = {1: 1, 2: 2, 3: 2, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2}
+                gica.calCM(["IS", "NOIS"])
+                print(gica.cm.fmtCM())
+                to_list[i]["OA"] = gica.cm.OA()
+                to_list[i]["Kappa"] = gica.cm.getKappa()
+
+            print(to_list[0].keys())
+            print(pd.DataFrame(to_list)[['CITY', 'CLF', 'MODEL', 'OA', 'Kappa', ]])
+            return pd.DataFrame(to_list)[['CITY', 'CLF', 'MODEL', 'OA', 'Kappa', "TIF_FN"]]
+
+        def bj():
+
+            to_list = [
+                {"CITY": "bj", "CLF": "RF", "MODEL": "fc",
+                 "TIF_FN": ml_dfn.fn(r"20240419H223557fc\bj_sh2_1_opt_sar_glcm_imdc.tif"), },
+                {"CITY": "bj", "CLF": "RF", "MODEL": "nofc",
+                 "TIF_FN": ml_dfn.fn(r"20240419H235038nofc\bj_sh2_1_opt_sar_glcm_imdc.tif"), },
+                {"CITY": "bj", "CLF": "SVM", "MODEL": "fc",
+                 "TIF_FN": ml_dfn.fn(r"20240420H123300fc\bj_sh2_1_opt_sar_glcm_fc_imdc.tif"), },
+                {"CITY": "bj", "CLF": "SVM", "MODEL": "nofc",
+                 "TIF_FN": ml_dfn.fn(r"20240420H160934nofc\bj_sh2_1_opt_sar_glcm_nofc_imdc.tif"), },
+            ]
+            df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240419H223557fc\train_data.csv")
+            df = df[df["TEST"] == 0]
+
+            for i, line in enumerate(to_list):
+                tif_fn = line["TIF_FN"]
+                print(tif_fn)
+                cm = func21(tif_fn, df)
+                swt_w1(line)
+                swt.write(cm.fmtCM())
+                gica = GDALImdcAcc(tif_fn)
+                gica.addDataFrame(df)
+                gica.map_category = {11: 1, 21: 2, 31: 2, 41: 2, 12: 1, 22: 2, 32: 2, 42: 2}
+                gica.to_map_category = {1: 1, 2: 2, 3: 2, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2}
+                gica.calCM(["IS", "NOIS"])
+                print(gica.cm.fmtCM())
+                to_list[i]["OA"] = gica.cm.OA()
+                to_list[i]["Kappa"] = gica.cm.getKappa()
+
+            print(to_list[0].keys())
+            print(pd.DataFrame(to_list)[['CITY', 'CLF', 'MODEL', 'OA', 'Kappa', ]])
+            return pd.DataFrame(to_list)[['CITY', 'CLF', 'MODEL', 'OA', 'Kappa', "TIF_FN"]]
+
+        def cd():
+
+            to_list = [
+                {"CITY": "cd", "CLF": "RF", "MODEL": "fc",
+                 "TIF_FN": ml_dfn.fn(r"20240419H230332fc\cd_sh2_1_opt_sar_glcm_imdc.tif"), },
+                {"CITY": "cd", "CLF": "RF", "MODEL": "nofc",
+                 "TIF_FN": ml_dfn.fn(r"20240420H000421nofc\cd_sh2_1_opt_sar_glcm_imdc.tif"), },
+                {"CITY": "cd", "CLF": "SVM", "MODEL": "fc",
+                 "TIF_FN": ml_dfn.fn(r"20240420H140735fc\cd_sh2_1_opt_sar_glcm_fc_imdc.tif"), },
+                {"CITY": "cd", "CLF": "SVM", "MODEL": "nofc",
+                 "TIF_FN": ml_dfn.fn(r"20240420H184703nofc\cd_sh2_1_opt_sar_glcm_nofc_imdc.tif"), },
+            ]
+            df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240419H230332fc\train_data.csv")
+            df = df[df["TEST"] == 0]
+
+            for i, line in enumerate(to_list):
+                tif_fn = line["TIF_FN"]
+                print(tif_fn)
+                cm = func21(tif_fn, df)
+                swt_w1(line)
+                swt.write(cm.fmtCM())
+                gica = GDALImdcAcc(tif_fn)
+                gica.addDataFrame(df)
+                gica.map_category = {11: 1, 21: 2, 31: 2, 41: 2, 12: 1, 22: 2, 32: 2, 42: 2}
+                gica.to_map_category = {1: 1, 2: 2, 3: 2, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2}
+                gica.calCM(["IS", "NOIS"])
+                print(gica.cm.fmtCM())
+                to_list[i]["OA"] = gica.cm.OA()
+                to_list[i]["Kappa"] = gica.cm.getKappa()
+
+            print(to_list[0].keys())
+            print(pd.DataFrame(to_list)[['CITY', 'CLF', 'MODEL', 'OA', 'Kappa', ]])
+            return pd.DataFrame(to_list)[['CITY', 'CLF', 'MODEL', 'OA', 'Kappa', "TIF_FN"]]
+
+        df_is_oa = pd.concat([qd(), bj(), cd()])
+        print(df_is_oa[['CITY', 'CLF', 'MODEL', 'OA', 'Kappa', ]])
+        to_csv_fn = numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\fc_acc.csv")
+        print(to_csv_fn)
+        df_is_oa.to_csv(to_csv_fn, index=False)
+
+    func2()
+
+
 def main():
+    def sampling():
+        samplingSHH21OptSarGLCM(
+            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc1.csv",
+            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc2.csv",
+        )
+
+    def func1():
+        city_name = "qd"
+        mlfc_feats = MLFCFeatures()
+
+        log_wt = SRTWriteText(r"F:\ProjectSet\Shadow\Hierarchical\Temp\tmp1.txt", "a")
+        nofc_mod = MLFCModel("svm", city_name=city_name)
+        nofc_mod.clf = SVC()
+        nofc_mod.x_keys = mlfc_feats.to_opt_as_de()
+        nofc_mod.getRangeDict(city_name=city_name)
+        nofc_mod.log(log_wt, "NOFC", "the extraction of UIS")
+
+    def func2():
+        gica = GDALImdcAcc(r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240419H222504fc\qd_sh2_1_opt_sar_glcm_imdc.tif")
+        df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240419H222504fc\train_data.csv")
+        df = df[df["TEST"] == 0]
+        df = df[df["CITY"] == "qd"]
+        gica.addDataFrame(df)
+        gica.map_category = SHHConfig.CATE_MAP_SH881
+        gica.calCM(SHHConfig.SHH_CNAMES8)
+        print(gica.cm.fmtCM())
+        for name in gica.cm.CNAMES():
+            print(name)
+            print(gica.cm.accuracyCategory(name).fmtCM())
+
+    # SHHMLFC_main(is_fenceng="fc")
+    func2()
+
+
+def method_name2():
     clf = joblib.load(r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240308H215552fc\fc_ws.mod")
     feature_importance(clf, ['B2', 'B3', 'B4', 'B8', 'B11', 'B12', 'ndvi', 'ndwi', 'mndwi', 'AS_VV', 'AS_VH', 'DE_VV',
                              'DE_VH', 'OPT_mean', 'OPT_var', 'OPT_hom', 'OPT_con', 'OPT_dis', 'OPT_ent', 'OPT_asm'])
@@ -502,4 +1298,4 @@ def method_name1():
 
 
 if __name__ == "__main__":
-    showFeatImp()
+    tAccMLFC2()

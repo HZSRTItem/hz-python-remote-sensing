@@ -15,9 +15,8 @@ from SRTCodes.GDALUtils import GDALRastersSampling
 from SRTCodes.SRTSample import SRTSample
 from SRTCodes.Utils import getRandom, Jdt, DirFileName, SRTDataFrame
 from Shadow.Hierarchical import SHHConfig
-from Shadow.Hierarchical.SHHFuncs import initSHHGRS
 from Shadow.Hierarchical.SHHMLFengCeng import read_geo_raster
-from Shadow.Hierarchical.ShadowHSample import ShadowHierarchicalSampleCollection
+from Shadow.Hierarchical.ShadowHSample import ShadowHierarchicalSampleCollection, initSHHGRS
 
 
 def _coorsToSHHSC(coors):
@@ -171,3 +170,4 @@ class SHHModelImdc(GDALModelDataCategory):
         to_fns = [os.path.join(to_dirname, "{0}_{1}_imdc.tif".format(city_name, name)) for city_name in self.city_names]
         self.fit(to_fns, model, data_deal=data_deal, is_jdt=True, color_table=color_table, description=description)
         return to_fns
+

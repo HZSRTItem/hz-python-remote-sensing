@@ -15,17 +15,22 @@ import pandas as pd
 from osgeo import gdal
 from sklearn import tree
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
-import SHHConfig
-from SRTCodes.GDALRasterIO import GDALRaster
-from SRTCodes.GDALUtils import GDALRastersSampling
+
+from SRTCodes.GDALRasterClassification import GDALModelDataCategory
+from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel
+from SRTCodes.GDALUtils import GDALRastersSampling, GDALSamplingFast
 from SRTCodes.NumpyUtils import dataCenter
 from SRTCodes.SRTSample import SRTSample
 from SRTCodes.Utils import Jdt, DirFileName, changext, SRTDFColumnCal, \
-    numberfilename, SRTDataFrame, saveJson
+    numberfilename, SRTDataFrame, saveJson, copyFile, readJson, printList, filterFileExt, readLines
+from Shadow.Hierarchical import SHHConfig
 from Shadow.Hierarchical.SHHClasses import SHHT_RandomCoor, SHHT_GDALRandomCoor, SHHModelImdc, SHHGDALSampling
 from Shadow.Hierarchical.SHHMLFengCeng import trainMLFC, ext_feat, df_get_data
-from Shadow.Hierarchical.ShadowHSample import ShadowHierarchicalSampleCollection
+from Shadow.Hierarchical.SHHRunMain import SHHModImSklearn
+from Shadow.Hierarchical.SHHTransformer import shh2VITTrain
+from Shadow.Hierarchical.ShadowHSample import ShadowHierarchicalSampleCollection, SHH2_SPL
 from Shadow.ShadowRaster import ShadowRasterGLCM
 
 
@@ -54,12 +59,289 @@ def randomSamples(x, y=None):
         y = y[random_list]
     return x, y
 
+# python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHTemp import main; main()"
 
 def main():
-    # print(method_name17())
-    # method_name10()
-    # method_name16()
+    # vrtAddDescriptions(
+    #     filename=r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\vrts\filelist.vrt",
+    #     descriptions=["AS_VV", "AS_VH", "AS_angle", "DE_VV", "DE_VH", "DE_angle", "B2", "B3", "B4", "B8", "B11", "B12",
+    #                   "OPT_mean", "OPT_var", "OPT_hom", "OPT_con", "OPT_dis", "OPT_ent", "OPT_asm", "OPT_cor"]
+    # )
+    descriptions = ["AS_VV", "AS_VH", "AS_angle", "DE_VV", "DE_VH", "DE_angle", "B2", "B3", "B4", "B8", "B11", "B12",
+                    "OPT_mean", "OPT_var", "OPT_hom", "OPT_con", "OPT_dis", "OPT_ent", "OPT_asm", "OPT_cor"]
+    descriptions = readLines(r"G:\ImageData\SHH2BeiJingImages\filelist_names.txt")
+    tif_fns = filterFileExt(r"G:\ImageData\SHH2QingDaoImages\qd_sh2_1_opt_sar_glcm", ".tif")
+    tif_fns = filterFileExt(r"G:\ImageData\SHH2BeiJingImages\bj_sh2_1_opt_sar_glcm", ".tif")
+    tif_fns = filterFileExt(r"G:\ImageData\SHH2ChengDuImages\cd_sh2_1_opt_sar_glcm", ".tif")
+    # tif_fns = [r"G:\ImageData\SHH2QingDaoImages\qd_sh2_1_opt_sar_glcm\shh2_qd1_2_1_1.tif"]
 
+    for fn in tif_fns:
+        ds = gdal.Open(fn, gdal.GA_Update)
+        ds: gdal.Dataset
+        for i in range(ds.RasterCount):
+            band: gdal.Band = ds.GetRasterBand(i + 1)
+            band.SetDescription(descriptions[i])
+        print(fn)
+    return
+
+
+def method_name26():
+    csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\12\sh2_spl12_cd12.csv"
+    shh_mis = SHHModImSklearn()
+    shh_mis.init82ColorTable()
+    shh_mis.initPandas(pd.read_csv(csv_fn))
+    print(shh_mis.df.keys())
+    # 'X', 'Y', 'id', 'AS_VV', 'AS_VH', 'AS_angle', 'DE_VV', 'DE_VH',
+    #        'DE_angle', 'B2', 'B3', 'B4', 'B8', 'B11', 'B12', 'OPT_mean', 'OPT_var',
+    #        'OPT_hom', 'OPT_con', 'OPT_dis', 'OPT_ent', 'OPT_asm', 'OPT_cor', 'Map',
+    #        'NDVI', 'NDWI', 'MNDWI', 'CATEGORY', 'ESA_F', 'NDVI_F', 'NDWI_F',
+    #        'F1_SUM', 'NDVI_GT', 'NDVI_WD', 'F2', 'SH_QD_GEOFN', 'BLUE_D'
+    shh_mis.initCategoryField()
+    fit_keys = [
+        'B2', 'B3', 'B4', 'B8', 'B11', 'B12',
+        'AS_VV', 'AS_VH', 'DE_VV', 'DE_VH',
+        "NDVI", "NDWI", "MNDWI",
+        'OPT_mean', 'OPT_var', 'OPT_hom', 'OPT_con', 'OPT_dis', 'OPT_ent',
+    ]
+    printList("fit_keys", fit_keys)
+    shh_mis.initXKeys(fit_keys)
+    shh_mis.addNDVIFeatExt()
+    shh_mis.addNDWIFeatExt()
+    shh_mis.addMNDWIFeatExt()
+    shh_mis.randomSplitTrainTest(0.2)
+    shh_mis.initCLF(RandomForestClassifier(60))
+    shh_mis.train()
+    shh_mis.scoreTrainCM()
+    print(shh_mis.train_cm.fmtCM())
+    shh_mis.scoreTestCM()
+    print(shh_mis.test_cm.fmtCM())
+    # shh_mis.imdc(
+    #     numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Images\temp\tmp.tif"),
+    #     geo_fns=SHHConfig.SHH2_CD1_FNS
+    # )
+
+
+def method_name25():
+    # 过滤分类图像的四联通区域
+    geo_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\shadowimdc\cd_shadowimdc1.tif"
+    gr = GDALRaster(geo_fn)
+    data = gr.readAsArray() - 1
+    # print(np.unique(data, return_counts=True))
+    # out_d, coll = connectedComponent(data, is_jdt=True, is_ret_xys=True)
+    # print(numberfilename(changext(geo_fn, "_coll.json")))
+    # saveJson(coll, numberfilename(changext(geo_fn, "_coll.json")))
+    coll = readJson(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\shadowimdc\cd_shadowimdc1_coll1.json")
+    for k, d in coll.items():
+        if len(d) <= 4:
+            for i, j in d:
+                data[i, j] = 0
+    to_fn = numberfilename(geo_fn)
+    print(to_fn)
+    data += 1
+    gr.save(data.astype("int8"), to_fn, fmt="GTiff", dtype=gdal.GDT_Byte)
+
+
+def method_name24():
+    shh2VITTrain()
+
+
+def method_name23():
+    # 提取夏天 tmp5.tif
+    geo_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\s2_im_xia2_qd.tif"
+    print("geo_fn:", geo_fn)
+    dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Samples\11")
+    csv_fn = dfn.fn(r"sh2_spl11_1.csv")
+    # gsf = GDALSamplingFast(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\s2_im_xia2_qd.tif")
+    # gsf.csvfile(csv_fn, numberfilename(csv_fn))
+    df = pd.read_csv(dfn.fn("sh2_spl11_11.csv"))
+    print("csv_fn:", dfn.fn("sh2_spl11_11.csv"))
+    df["NDVI"] = (df["B8"] - df["B4"]) / (df["B8"] + df["B4"])
+    df["NDWI"] = (df["B3"] - df["B8"]) / (df["B3"] + df["B8"])
+    df.to_csv(dfn.fn("sh2_spl11_11.csv"), index=False)
+    print(df.keys())
+    fit_keys = ['B2', 'B3', 'B4', 'B8', "NDVI", "NDWI"]
+    x_train, x_test = df[df["TEST"] == 1][fit_keys].values, df[df["TEST"] == 0][fit_keys].values
+    y_train, y_test = df[df["TEST"] == 1]["CATEGORY_CODE"].values, df[df["TEST"] == 0]["CATEGORY_CODE"].values - 1
+    print("len train:", len(x_train))
+    print("len test:", len(x_test))
+    clf = RandomForestClassifier(150)
+    clf.fit(x_train, y_train)
+    print("test accuracy:", clf.score(x_test, y_test))
+
+    grc = GDALRasterChannel()
+    grc.addGDALDatas(geo_fn)
+    grc.data["NDVI"] = (grc["B8"] - grc["B4"]) / (grc["B8"] + grc["B4"])
+    grc.data["NDWI"] = (grc["B3"] - grc["B8"]) / (grc["B3"] + grc["B8"])
+    gmdc = GDALModelDataCategory()
+    gmdc.gr = GDALRaster(geo_fn)
+    gmdc.addData(grc.fieldNamesToData(*fit_keys))
+    to_geo_fn = numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\Temp\tmp.tif")
+    print("to_geo_fn:", to_geo_fn)
+    gmdc.fit(to_imdc_fns=[to_geo_fn], model=clf, is_jdt=True, )
+
+
+def method_name22():
+    # 分类
+    # 'SRT', 'OSRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'CODE',
+    #        'CITY', 'AS_VV', 'AS_VH', 'AS_angle', 'DE_VV', 'DE_VH', 'DE_angle',
+    #        'B2', 'B3', 'B4', 'B8', 'B11', 'B12', '__CODE__', 'FEN_CENG', 'FC',
+    #        'OPT_mean', 'OPT_var', 'OPT_hom', 'OPT_con', 'OPT_dis', 'OPT_ent',
+    #        'OPT_asm', 'OPT_cor', 'Map', '__FN_FIELD__'
+    df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\10\sh2_spl10_qd_15.csv")
+    df = df[df["F2"] == 1]
+    print(df.keys())
+    fit_keys = [
+        'B2', 'B3', 'B4', 'B8', 'B11', 'B12',
+        'AS_VV', 'AS_VH', 'DE_VV', 'DE_VH',
+        "NDVI", "NDWI", "MNDWI",
+        'OPT_mean', 'OPT_var', 'OPT_hom', 'OPT_con', 'OPT_dis', 'OPT_ent',
+    ]
+
+    x, y = df[fit_keys].values, df["CATEGORY"].values
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
+    print("len train:", len(x_train))
+    print("len test:", len(x_test))
+    clf = RandomForestClassifier(150)
+    clf.fit(x_train, y_train)
+    print("test accuracy:", clf.score(x_test, y_test))
+
+    fns = SHHConfig.SHH2_QD1_FNS
+    grc = GDALRasterChannel()
+    grc.addGDALDatas(fns[0])
+    grc.addGDALDatas(fns[1])
+    grc.data["NDVI"] = (grc["B8"] - grc["B4"]) / (grc["B8"] + grc["B4"])
+    grc.data["NDWI"] = (grc["B3"] - grc["B8"]) / (grc["B3"] + grc["B8"])
+    grc.data["MNDWI"] = (grc["B3"] - grc["B12"]) / (grc["B3"] + grc["B12"])
+
+    print(fns)
+    gmdc = GDALModelDataCategory()
+    gmdc.gr = GDALRaster(fns[0])
+    gmdc.addData(grc.fieldNamesToData(*fit_keys))
+    to_geo_fn = numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\Temp\tmp.tif")
+    print("to_geo_fn:", to_geo_fn)
+    gmdc.fit(to_imdc_fns=[to_geo_fn], model=clf, is_jdt=True, )
+
+
+def method_name21():
+    # 使用现有的样本，提取一遍阴影
+    # 'SRT', 'OSRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'CODE',
+    #        'CITY', 'AS_VV', 'AS_VH', 'AS_angle', 'DE_VV', 'DE_VH', 'DE_angle',
+    #        'B2', 'B3', 'B4', 'B8', 'B11', 'B12', '__CODE__', 'FEN_CENG', 'FC',
+    #        'OPT_mean', 'OPT_var', 'OPT_hom', 'OPT_con', 'OPT_dis', 'OPT_ent',
+    #        'OPT_asm', 'OPT_cor', 'Map', '__FN_FIELD__'
+    df = SHH2_SPL.shh1("df")
+    df = df[df["CITY"] == "cd"]
+    print(df.keys())
+    fit_keys = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12', ]
+    d_train, d_test = df[df["TEST"] == 1], df[df["TEST"] == 0]
+    x_train, x_test = d_train[fit_keys], d_test[fit_keys]
+    x_train, x_test = x_train.values, x_test.values
+
+    def map_to_shnosh(y):
+        map_dict = {11: 1, 21: 1, 31: 1, 41: 2, 12: 2, 22: 2, 32: 2, 42: 2}
+        return SHHConfig.categoryMap(y, map_dict)
+
+    y_train, y_test = d_train["CATEGORY"].values, d_test["CATEGORY"].values
+    y_train, y_test = map_to_shnosh(y_train), map_to_shnosh(y_test)
+    clf = RandomForestClassifier(60)
+    clf.fit(x_train, y_train)
+    print("test accuracy:", clf.score(x_test, y_test))
+
+    def data_deal(x):
+        return x[:, 6:]
+
+    geo_fn = SHHConfig.SHH2_IMAGE1_FNS[2]
+    print(geo_fn)
+    gmdc = GDALModelDataCategory(geo_fn)
+    gmdc.fit(
+        # to_imdc_fns=[r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\shadowimdc\qd_shadowimdc2.tif"],
+        # to_imdc_fns=[r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\shadowimdc\bj_shadowimdc1.tif"],
+        to_imdc_fns=[r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\shadowimdc\cd_shadowimdc1.tif"],
+        model=clf, data_deal=data_deal, is_jdt=True,
+    )
+
+
+def method_name20():
+    df = SHH2_SPL.qd_random_1000_1("df")
+    df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\10\qd_random_1000_1.csv")
+    esa_1 = SHHConfig.categoryMap(df["CATEGORY"].values, SHHConfig.ESA_MAP_1)
+    esa_1 = SHHConfig.categoryMap(esa_1, SHHConfig.CATE_MAP_SH881)
+    df["CNAME_CATEGORY"] = SHHConfig.categoryMap(esa_1, SHHConfig.SHH_CNAMES)
+    df.to_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\10\qd_random_1000_12.csv", index=False)
+
+
+def method_name19():
+    # 样本预处理
+    coor_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\10\sh2_spl6_1_2_spl1_1.csv"
+    coor_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\10\sh2_spl10_qd_1.csv"
+    coor_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\12\sh2_spl12_cd1.csv"
+    coor_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\13\sh2_spl13_1.csv"
+    shadow_geo_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\shadowimdc\qd_shadowimdc2.tif"
+    geo_fns = SHHConfig.SHH2_QD1_FNS
+
+    to_fn = numberfilename(coor_fn)
+    copyFile(coor_fn, to_fn)
+    for geo_fn in geo_fns:
+        grf = GDALSamplingFast(geo_fn)
+        grf.csvfile(to_fn, to_fn)
+        print(to_fn)
+    df = pd.read_csv(to_fn)
+    df["NDVI"] = (df["B8"] - df["B4"]) / (df["B8"] + df["B4"] + 0.0000001)
+    df["NDWI"] = (df["B3"] - df["B8"]) / (df["B3"] + df["B8"] + 0.0000001)
+    df["MNDWI"] = (df["B3"] - df["B12"]) / (df["B3"] + df["B12"] + 0.0000001)
+    df.to_csv(to_fn, index=False)
+    method_name10(csv_fn=to_fn, to_csv_fn=to_fn)
+    print("method_name10", to_fn)
+
+    grf = GDALSamplingFast(shadow_geo_fn)
+    grf.csvfile(to_fn, to_fn, field_names=["SH_QD_GEOFN"])
+    print("SH_QD_GEOFN", to_fn)
+    df = pd.read_csv(to_fn)
+    for i in range(len(df)):
+        if int(df["F2"][i]) == 1:
+            if float(df["NDVI"][i]) > 0.38:
+                df.loc[i, "CATEGORY"] = 21
+    for i in range(len(df)):
+        if int(df["F2"][i]) == 1:
+            if int(df["CATEGORY"][i]) == 41:
+                if float(df["NDVI"][i]) > 0.0:
+                    df.loc[i, "CATEGORY"] = 31
+    for i in range(len(df)):
+        cate = int(df["CATEGORY"][i])
+        if int(df["SH_QD_GEOFN"][i]) == 2:
+            if cate != 41:
+                df.loc[i, "CATEGORY"] = int(cate / 10) * 10 + 2
+                df.loc[i, "F2"] = 0
+        else:
+            if cate == 41:
+                df.loc[i, "F2"] = 0
+    df["BLUE_D"] = (df["B2"] + df["B3"]) / 2 - df["B4"]
+    for i in range(len(df)):
+        if int(df["BLUE_D"][i]) > 450:
+            df.loc[i, "CATEGORY"] = 11
+            df.loc[i, "F2"] = 1
+    df.to_csv(to_fn, index=False)
+
+    def t_cm(field_name1, field_name2):
+        to_df = df[df["F2"] == 1]
+        y1, y2 = to_df[field_name1].tolist(), to_df[field_name2].tolist()
+        name1 = ["IS", "VEG", "SOIL", "WAT", "IS_SH", "VEG_SH", "SOIL_SH", "WAT_SH"]
+        name2 = [11, 21, 31, 41, 12, 22, 32, 42]
+        to_dict = {n1: {n2: 0 for n2 in name2} for n1 in name1}
+        for j in range(len(to_df)):
+            if y1[j] not in to_dict:
+                to_dict[y1[j]] = {}
+            if y2[j] not in to_dict[y1[j]]:
+                to_dict[y1[j]][y2[j]] = 0
+            to_dict[y1[j]][y2[j]] += 1
+        df_cm = pd.DataFrame(to_dict)
+        df_cm[pd.isna(df_cm)] = 0
+        print(pd.DataFrame(to_dict))
+
+    # t_cm("CATEGORY_NAME", "CATEGORY")
+
+
+def method_name18():
     # 筛选出阴影下样本
     csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\9\shh2_spl9_bj12.csv"
 
@@ -75,7 +357,6 @@ def main():
     df = addSort(df, "B4")
     df = addSort(df, "B8")
     df = df.sort_values(by="id")
-
     print(df.keys())
 
     def map_df(_df, map_func):
@@ -103,11 +384,9 @@ def main():
     df["SHADOW"] = map_df(df, map_func1)
     df["SHADOW_SUM"] = df[['B2_SORT0', 'B3_SORT0', 'B4_SORT0', 'B8_SORT0']].sum(axis=1)
     df["CATEGORY"] = map_df(df, map_func2)
-
     print("SHADOW number:", df["SHADOW"].sum())
-    df = df.sort_values(by=["F2", "CATEGORY", "NDVI"],ascending=[False, True, False])
+    df = df.sort_values(by=["F2", "CATEGORY", "NDVI"], ascending=[False, True, False])
     df.to_csv(numberfilename(csv_fn), index=False)
-    return
 
 
 def method_name17():
@@ -120,6 +399,7 @@ def method_name17():
     df["NDWI"] = (df["B3"] - df["B8"]) / (df["B3"] + df["B8"] + 0.0000001)
     df["MNDWI"] = (df["B3"] - df["B12"]) / (df["B3"] + df["B12"] + 0.0000001)
     df.to_csv(to_csv_fn)
+
     return to_csv_fn
 
 
@@ -328,7 +608,7 @@ def method_name11():
     sh_glcm.meanFourDirection("cd_sh2_1_gray_envi", "OPT_", r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\glcm")
 
 
-def method_name10():
+def method_name10(**kwargs):
     # 勾选测试样本
     r"""
 
@@ -359,9 +639,13 @@ def method_name10():
     # csv_fn = numberfilename(dfn.fn("shh2_spl6_qd_random2_1.csv"))
 
     # r"F:\ProjectSet\Shadow\Hierarchical\Samples\9\shh2_spl9_bj12.csv"
+    # dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Samples\9")
+    # sdfc.read_csv(dfn.fn("shh2_spl9_bj12.csv"), is_auto_type=True)
+    # csv_fn = numberfilename(dfn.fn("shh2_spl9_bj12.csv"))
+
     dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Samples\9")
-    sdfc.read_csv(dfn.fn("shh2_spl9_bj12.csv"), is_auto_type=True)
-    csv_fn = numberfilename(dfn.fn("shh2_spl9_bj12.csv"))
+    sdfc.read_csv(kwargs["csv_fn"], is_auto_type=True)
+    csv_fn = kwargs["to_csv_fn"]
 
     def sampling_column():
         x, y = sdfc["X"], sdfc["Y"]

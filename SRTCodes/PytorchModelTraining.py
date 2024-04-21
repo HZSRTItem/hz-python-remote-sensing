@@ -11,10 +11,29 @@ import os
 from shutil import copyfile
 
 import torch
+import torchvision
 from torch import optim
 from torch.utils.data import Dataset, DataLoader
 
 from SRTCodes.ModelTraining import CategoryTraining, RegressionTraining, Training
+
+
+def pytorchModelCodeString(model):
+    model_str = ""
+    if model is not None:
+        try:
+            import inspect
+            model_str = inspect.getsource(model.__class__)
+        except Exception as ex:
+            model_str = str(ex)
+    return model_str
+
+
+def dataLoaderString(data_loader):
+    model_str = {}
+    if data_loader is not None:
+        model_str = {"len": len(data_loader)}
+    return model_str
 
 
 class PytorchTraining(Training):
@@ -24,6 +43,7 @@ class PytorchTraining(Training):
         self.epochs = epochs
         self.device = device
         self.n_test = n_test
+
         if device is None:
             self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -34,12 +54,34 @@ class PytorchTraining(Training):
         self.loss = None
         self.scheduler = None
 
+        if self._log is None:
+            return
+
         self._log.addField("Epoch", "int")
         self._log.addField("Batch", "int")
         self._log.addField("Loss", "float")
         self._log.printOptions(print_float_decimal=3)
 
         return
+
+    def toDict(self):
+        to_dict_1 = super(PytorchTraining, self).toDict()
+        to_dict_1["model"] = pytorchModelCodeString(self.model)
+        to_dict_1["models"] = [pytorchModelCodeString(model) for model in self.models]
+
+        to_dict = {
+            **to_dict_1,
+            "epochs": self.epochs,
+            "device": self.device,
+            "n_test": self.n_test,
+            "train_loader": dataLoaderString(self.train_loader),
+            "test_loader": dataLoaderString(self.test_loader),
+            "optimizer": str(self.optimizer),
+            "criterion": pytorchModelCodeString(self.criterion),
+            "scheduler": str(self.scheduler),
+        }
+
+        return to_dict
 
     def saveModelCodeFile(self, model_code_file):
         copyfile(model_code_file, os.path.join(self.model_dir, os.path.split(model_code_file)[1]))
@@ -103,9 +145,7 @@ class PytorchTraining(Training):
         return mod_fn
 
     def train(self, batch_save=False, epoch_save=True, *args, **kwargs):
-        self._initTrain()
-        self._printModel()
-        self._log.saveHeader()
+        self.initTrain()
 
         # for epoch in range(self.epochs):
         #     self.model.train()
@@ -156,6 +196,11 @@ class PytorchTraining(Training):
 
             if self.scheduler is not None:
                 self.scheduler.step()
+
+    def initTrain(self):
+        self._initTrain()
+        self._printModel()
+        self._log.saveHeader()
 
     def log(self, batch, epoch):
         model_name = self.logBefore(batch, epoch)
@@ -265,6 +310,25 @@ class PytorchRegressionTraining(RegressionTraining, PytorchTraining):
         self._log.print(is_to_file=True)
         self._log.newLine()
         return model_name
+
+
+def loadMNISTDataset():
+    def func(train):
+        transform = torchvision.transforms.Compose([
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize((0.1307,), (0.3081,))
+        ])
+        ds = torchvision.datasets.MNIST(
+            r"G:\Dataset\MyMNIST",
+            train=train,
+            download=True,
+            transform=transform,
+        )
+        return ds
+
+    train_ds = func(True)
+    test_ds = func(False)
+    return train_ds, test_ds
 
 
 def main():

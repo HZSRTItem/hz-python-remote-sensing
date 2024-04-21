@@ -7,9 +7,12 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of RUNFucs
 -----------------------------------------------------------------------------"""
+import csv
 import os
 
 import pandas as pd
+
+from SRTCodes.SRTReadWrite import SRTInfoFileRW
 
 
 def checkDFKeys(df, k, filename=""):
@@ -38,6 +41,14 @@ class QJYTxt_main:
             "is": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
                    {"code": 1, "color": (255, 0, 0), "name": "IS"},
                    {"code": 2, "color": (0, 255, 0), "name": "NOIS"}],
+            # 1: (0, 255, 0), 2: (200, 200, 200), 3: (36, 36, 36),
+            "vhl": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
+                    {"code": 1, "color": (0, 255, 0), "name": "VEG"},
+                    {"code": 2, "color": (200, 200, 200), "name": "HIGH"},
+                    {"code": 3, "color": (36, 36, 36), "name": "LOW"}],
+            "is_fc": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
+                      {"code": 1, "color": (255, 255, 0), "name": "SOIL"},
+                      {"code": 2, "color": (255, 0, 0), "name": "IS"}, ],
         }
 
     def usage(self):
@@ -46,12 +57,15 @@ class QJYTxt_main:
               "    filename: excel or csv filename\n"
               "    -o: to file name default:\"spl.txt\"\n"
               "    -sheet_name: excel sheet name\n"
-              "    -ccn: category of \"code|color|name\" or shadow or is".format(self.name, self.description))
+              "    -ccn: category of \"code|color|name\" or shadow|is|vhl\n"
+              "    -to_csv spl_txt_fn to_csv_fn"
+              "".format(self.name, self.description))
 
     def run(self, argv):
 
         if len(argv) == 1:
             self.usage()
+            return
 
         filename = None
         to_filename = "spl.txt"
@@ -66,6 +80,10 @@ class QJYTxt_main:
             elif "-o" == argv[i] and i < len(argv) - 1:
                 to_filename = argv[i + 1]
                 i += 1
+            elif "-to_csv" == argv[i] and i < len(argv) - 2:
+                print(argv[i + 1], argv[i + 2])
+                splTxt2Csv(argv[i + 1], argv[i + 2])
+                return
             elif "-ccn" == argv[i] and i < len(argv) - 1:
                 name = argv[i + 1]
                 if name in self.category_dict:
@@ -83,9 +101,17 @@ class QJYTxt_main:
         if not category_dict:
             category_dict = self.category_dict["shadow"]
 
+        to_tishi_line = ""
+        ext = os.path.splitext(filename)[1]
+        if ext == ".xlsx" or ext == ".xls":
+            to_tishi_line = "{0}, sheet_name={1}".format(filename, sheet_name)
+        elif ext == ".csv" or ext == ".txt":
+            to_tishi_line = "{0}".format(filename)
+
         with open(to_filename, "w", encoding="utf-8") as f:
             f.write("# QGIS SAMPLE (C)Copyright 2023, ZhengHan. All rights reserved.\n"
                     "# If this file is generated for the first time, Please modify as follows\n"
+                    "# {0}"
                     "\n"
                     "> CATEGORY\n"
                     "\n"
@@ -97,7 +123,7 @@ class QJYTxt_main:
                     "#   (255, 255,   0, ) (  0,   0, 255, ) (255, 226, 148, ) \n"
                     "#   (132, 150, 176, ) (165, 165, 165, ) (255, 102, 255, ) \n"
                     "#   (  0, 102, 255, ) \n"
-                    "\n")
+                    "\n".format(to_tishi_line))
             category_code = {}
             for cate in category_dict:
                 f.write("{0:>3d}: ({1:>3d},{2:>3d},{3:>3d}) | {4}\n".format(
@@ -162,8 +188,131 @@ class QJYTxt_main:
                         "\n")
 
 
+def fmtLinesCSV(lines):
+    cr = csv.reader(lines)
+    return [line for line in cr]
+
+
 def main():
-    pass
+    spl_txt_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\13\sh2_spl13_12_spl2.txt"
+    to_csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\13\sh2_spl13_12_spl2_3.csv"
+
+    splTxt2Csv(spl_txt_fn, to_csv_fn)
+
+    return
+
+
+def splTxt2Csv(spl_txt_fn, to_csv_fn):
+    sif_rw = SRTInfoFileRW(spl_txt_fn)
+    to_dict = sif_rw.readAsDict()
+    lines = fmtLinesCSV(to_dict["DATA"])
+    fields = ["N", "X", "Y", "CATEGORY_NAME", "CATEGORY_CODE", "IS_TAG"] + to_dict["FIELDS"]
+    name_to_code = {}
+    for category_str in to_dict["CATEGORY"]:
+        category_str = category_str.strip()
+        clist1 = category_str.split(":", maxsplit=1)
+        c_code = int(clist1[0])
+        clist2 = clist1[1].split("|", maxsplit=1)
+        c_color = eval(clist2[0])
+        name = clist2[1].strip()
+        name_to_code[name] = c_code
+    with open(to_csv_fn, "w", encoding="utf-8", newline="") as f:
+        cw = csv.writer(f)
+        cw.writerow(fields)
+        for i, line in enumerate(lines):
+            for j in range(5):
+                line[j] = line[j].strip()
+            to_line = [i + 1, line[3], line[4], line[1], name_to_code[line[1]], line[2], *line[5:]]
+            cw.writerow(to_line)
+
+
+def splTxt2Dict(spl_txt_fn, is_ret_name_to_code=False):
+    sif_rw = SRTInfoFileRW(spl_txt_fn)
+    to_dict = sif_rw.readAsDict()
+    lines = fmtLinesCSV(to_dict["DATA"])
+    fields = ["N", "X", "Y", "CATEGORY_NAME", "CATEGORY_CODE", "IS_TAG"] + to_dict["FIELDS"]
+    name_to_code = {}
+    for category_str in to_dict["CATEGORY"]:
+        category_str = category_str.strip()
+        clist1 = category_str.split(":", maxsplit=1)
+        c_code = int(clist1[0])
+        clist2 = clist1[1].split("|", maxsplit=1)
+        c_color = eval(clist2[0])
+        name = clist2[1].strip()
+        name_to_code[name] = c_code
+
+    to_dict = {k: [] for k in fields}
+    for i, line in enumerate(lines):
+        for j in range(5):
+            line[j] = line[j].strip()
+        to_line = [i + 1, line[3], line[4], line[1], name_to_code[line[1]], line[2], *line[5:]]
+        for j, k in enumerate(to_dict):
+            to_dict[k].append(to_line[j])
+    return to_dict
+
+
+class DFColumnCount_main:
+
+    def __init__(self):
+        self.name = "dfcolumncount"
+        self.description = "Calculate the number of independent columns"
+        self.argv = []
+
+    def usage(self):
+        print("{0} [filename] [name] \n"
+              "@Des: {1}\n"
+              "    filename: excel or csv filename\n"
+              "    -sheet_name: excel sheet name default:Sheet1"
+              "".format(self.name, self.description))
+
+    def run(self, argv):
+
+        if len(argv) == 1:
+            self.usage()
+            return
+
+        filename = None
+        sheet_name = "Sheet1"
+        name = None
+
+        i = 1
+        while i < len(argv):
+            if "-sheet_name" == argv[i] and i < len(argv) - 1:
+                sheet_name = argv[i + 1]
+                i += 1
+            elif filename is None:
+                filename = os.path.abspath(argv[i])
+            elif name is None:
+                name = argv[i]
+            i += 1
+
+        ext = os.path.splitext(filename)[1]
+        if ext == ".xlsx" or ext == ".xls":
+            df = pd.read_excel(filename, sheet_name=sheet_name)
+        elif ext == ".csv" or ext == ".txt":
+            df = pd.read_csv(filename)
+        else:
+            return
+
+        data_list = df[name].tolist()
+        counts_dict = {}
+        for data in data_list:
+            data = str(data)
+            if data not in counts_dict:
+                counts_dict[data] = 0
+            counts_dict[data] += 1
+
+        len_max = max([len(k) for k in counts_dict])
+        if len_max < 5:
+            len_max = 5
+        n = sum([k for k in counts_dict.values()])
+        fmt = "{0:" + str(len_max) + "} {1}"
+        print(fmt.format("NAME", "COUTS"))
+        print("-" * len_max, "-" * 6)
+        for k, data in counts_dict.items():
+            print(fmt.format(k, data))
+        print("-" * len_max, "-" * 6)
+        print(fmt.format("ALL", n))
 
 
 if __name__ == "__main__":

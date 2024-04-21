@@ -9,7 +9,7 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 import sys
 
-from RUN.RUNFucs import QJYTxt_main
+from RUN.RUNFucs import QJYTxt_main, DFColumnCount_main
 from RUN.RUNgetdirsize import RUNgetdirsize_main
 
 
@@ -82,6 +82,7 @@ def main_run(argv):
     srt_run.add(Help_main())
     srt_run.add(GetDirSize_main())
     srt_run.add(QJYTxt_main())
+    srt_run.add(DFColumnCount_main())
 
     if len(argv) == 1:
         srt_run.usage()

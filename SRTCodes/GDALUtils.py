@@ -12,12 +12,16 @@ import random
 import xml.etree.ElementTree as ElementTree
 
 import numpy as np
+import pandas as pd
 from osgeo import osr, gdal, gdal_array
 
-from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel, GDALRasterRange
+from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel, GDALRasterRange, saveGTIFFImdc
+from SRTCodes.ModelTraining import ConfusionMatrix
+from SRTCodes.NumpyUtils import categoryMap
 from SRTCodes.SRTFeature import SRTFeatureCallBack
 from SRTCodes.SRTSample import SRTCategorySampleCollection, SRTSample
-from SRTCodes.Utils import readcsv, Jdt, savecsv, changext, getfilenamewithoutext
+from SRTCodes.TrainingUtils import SRTAccuracyConfusionMatrix
+from SRTCodes.Utils import readcsv, Jdt, savecsv, changext, getfilenamewithoutext, SRTDataFrame
 
 RESOLUTION_ANGLE = 0.0000089831529294
 
@@ -779,10 +783,23 @@ class GDALRastersSampling:
         self._gr = GDALRaster()
         self.add(*raster_fns)
 
+    def toDict(self):
+        to_dict = {
+            "rasters": {raster: self.rasters[raster].toDict() for raster in self.rasters}
+        }
+        return to_dict
+
     def getNames(self):
         return self._gr.names.copy()
 
     def add(self, *raster_fns):
+        raster_fns_deal = []
+        for raster_fn in raster_fns:
+            if isinstance(raster_fn, list) or isinstance(raster_fn, tuple):
+                raster_fns_deal.extend(raster_fn)
+            else:
+                raster_fns_deal.append(raster_fn)
+        raster_fns = raster_fns_deal
         for raster_fn in raster_fns:
             if raster_fn not in self.rasters:
                 self.rasters[raster_fn] = GDALRaster(raster_fn)
@@ -811,7 +828,7 @@ class GDALRastersSampling:
         return d
 
     def samplingIter(self, x_iter, y_iter, win_row_size=1, win_column_size=1, interleave='band',
-                     band_list=None, no_data=0):
+                     band_list=None, no_data=0, is_none_error=False):
         d_list = []
         while True:
             try:
@@ -822,6 +839,168 @@ class GDALRastersSampling:
             except StopIteration:
                 break
 
+    @property
+    def gr(self):
+        return self._gr
+
+
+class GDALSamplingFast:
+
+    def __init__(self, raster_fn):
+        self.gr = GDALRaster(raster_fn)
+        self.data = self.gr.readAsArray()
+        if len(self.data.shape) == 2:
+            self.data = np.array([self.data])
+
+    def csvfile(self, csv_fn, to_csv_fn, is_jdt=True, field_names=None):
+        if field_names is None:
+            field_names = self.gr.names
+        sdf = SRTDataFrame().read_csv(csv_fn, is_auto_type=True)
+        sdf.addFields(field_names)
+        jdt = Jdt(len(sdf), "GDALSamplingFast::csvfile").start(is_jdt=is_jdt)
+        for i in range(len(sdf)):
+            x, y = sdf["X"][i], sdf["Y"][i]
+            if not self.gr.isGeoIn(x, y):
+                data = np.ones(self.gr.n_channels)
+            else:
+                row, column = self.gr.coorGeo2Raster(x, y, is_int=True)
+                data = self.data[:, row, column]
+            data = data.ravel()
+            for j, name in enumerate(field_names):
+                sdf[name][i] = float(data[j])
+            jdt.add(is_jdt=is_jdt)
+        jdt.end(is_jdt=is_jdt)
+        sdf.toCSV(to_csv_fn)
+
+
+class GDALAccuracyConfusionMatrix(SRTAccuracyConfusionMatrix):
+
+    def __init__(self, n_class=0, class_names=None):
+        super().__init__(n_class, class_names)
+
+    def addImageCSV(self, imdc_fn, csv_fn, x_field_name="X", y_field_name="Y", category_field_name="CATEGORY",
+                    imdc_channel=1, imdc_map_dict=None, csv_map_dict=None, filter_eqs=None):
+        sdf = SRTDataFrame().read_csv(csv_fn, is_auto_type=True)
+        if filter_eqs is not None:
+            for k, data in filter_eqs.items():
+                sdf = sdf.filterEQ(k, data)
+        y1 = []
+        gr = GDALRaster(imdc_fn)
+        for i in range(len(sdf)):
+            x, y = sdf[x_field_name][i], sdf[y_field_name][i]
+            y1_tmp = gr.readAsArray(x, y, 1, 1, is_geo=True).ravel()
+            y1.append(int(y1_tmp[imdc_channel - 1]))
+        if imdc_map_dict is not None:
+            y1 = categoryMap(y1, imdc_map_dict)
+        y = sdf[category_field_name]
+        if csv_map_dict is not None:
+            y = categoryMap(y, csv_map_dict)
+        self.add(y, y1)
+
+
+def replaceCategoryImage(o_geo_fn, replace_geo_fn, to_geo_fn, o_map_dict=None, replace_map_dict=None, o_change=None,
+                         color_table=None):
+    if o_change is None:
+        o_change = []
+
+    def map_dict_arr(_data, _map_dict):
+        to_data = np.zeros_like(_data)
+        for k1, k2 in _map_dict.items():
+            to_data[_data == k1] = k2
+        return to_data
+
+    gr_origin = GDALRaster(o_geo_fn)
+    o_data = gr_origin.readAsArray()
+    if o_map_dict is not None:
+        o_data = map_dict_arr(o_data, o_map_dict)
+
+    gr_replace = GDALRaster(replace_geo_fn)
+    r_data = gr_replace.readAsArray()
+    if replace_map_dict is not None:
+        r_data = map_dict_arr(r_data, replace_map_dict)
+
+    to_imdc = o_data.copy()
+    for d in o_change:
+        to_imdc[o_data == d] = r_data[o_data == d]
+
+    saveGTIFFImdc(gr_replace, to_imdc, to_geo_fn, color_table=color_table)
+
+
+class GDALAccuracyImage:
+
+    def __init__(
+            self,
+            imdc_geo_fn=None,
+            df=pd.DataFrame(),
+            csv_fn=None,
+            category_field_name="CATEGORY",
+            x_field_name="X",
+            y_field_name="Y",
+            cnames=None,
+            imdc_map_dict=None,
+            df_map_dict=None,
+    ):
+        self.cm = None
+        self.imdc_data = None
+        self.imdc_geo_fn = imdc_geo_fn
+        self.csv_fn = csv_fn
+        self.category_field_name = category_field_name
+        self.x_field_name = x_field_name
+        self.y_field_name = y_field_name
+        self.cnames = cnames
+        self.imdc_map_dict = imdc_map_dict
+        self.df_map_dict = df_map_dict
+        self.df = df
+        self.gr = GDALRaster()
+        self.init()
+
+    def init(self):
+        if self.csv_fn is not None:
+            self.df = pd.read_csv(self.csv_fn)
+        if self.imdc_geo_fn is not None:
+            self.gr = GDALRaster(self.imdc_geo_fn)
+            self.imdc_data = self.gr.readAsArray()
+
+    def fit(self, filter_list=None):
+        """ filter_list: [(eq|neq, field_name, data), ...]"""
+
+        df = self.filterFromList(filter_list)
+        category1 = df[self.category_field_name].values
+        if self.df_map_dict is not None:
+            category1 = categoryMap(category1, self.df_map_dict)
+
+        x, y = df[self.x_field_name].values, df[self.y_field_name].values
+        category2 = self.sampling(x, y)
+        if self.imdc_map_dict is not None:
+            category2 = categoryMap(category2, self.imdc_map_dict)
+
+        cnames = self.cnames
+        if cnames is None:
+            cnames = [str(i) for i in range(int(np.min(category1)), int(np.max(category1)) + 1)]
+
+        self.cm = ConfusionMatrix(len(cnames), cnames)
+        self.cm.addData(category1, category2)
+        return self.cm
+
+    def sampling(self, x, y):
+        to_list = []
+        for x0, y0 in zip(x, y):
+            row, column = self.gr.coorGeo2Raster(x0, y0, is_int=True)
+            to_list.append(int(self.imdc_data[row, column]))
+        return to_list
+
+    def filterFromList(self, filter_list, df=None):
+        if df is None:
+            df = self.df.copy()
+        if filter_list is None:
+            return df
+        for i, (com, field_name, data) in enumerate(filter_list):
+            if com == "eq":
+                df = df[df[field_name] == data]
+            elif com == "neq":
+                df = df[df[field_name] != data]
+        return df
+
 
 def main():
     # grr = GDALRasterRange(r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_envi.dat")
@@ -829,10 +1008,10 @@ def main():
     # grr.loadNPY(fn)
     # grr.save(fn + ".json")
 
-    grcd = GDALRasterCenterDatas()
-    grcd.changeDataList(2, 3)
-    grcd.changeDataList(1, 3)
-    grcd.changeDataList(5, 6)
+    # grcd = GDALRasterCenterDatas()
+    # grcd.changeDataList(2, 3)
+    # grcd.changeDataList(1, 3)
+    # grcd.changeDataList(5, 6)
 
     pass
 

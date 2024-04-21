@@ -8,6 +8,7 @@ r"""----------------------------------------------------------------------------
 @Desc    : PytorchGeo of GDALRasterIO
 -----------------------------------------------------------------------------"""
 import os
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -240,6 +241,16 @@ class GDALRasterIO(GEORaster):
         self.raster_range = None
 
         self.grr = GDALRasterRange()
+
+    def toDict(self):
+        to_dict = {
+            "gdal_raster_fn": self.gdal_raster_fn,
+            "n_rows": self.n_rows,
+            "n_columns": self.n_columns,
+            "n_channels": self.n_channels,
+            "names": self.names,
+        }
+        return to_dict
 
     def _init(self):
         self.gdal_raster_fn = None
@@ -494,6 +505,13 @@ class GDALRaster(GDALRasterIO, SRTCollection):
 
         if os.path.isfile(gdal_raster_fn):
             self.initGDALRaster(gdal_raster_fn)
+
+    def toDict(self):
+        to_dict_front = super(GDALRaster, self).toDict()
+        to_dict = {
+            **to_dict_front,
+        }
+        return to_dict
 
     def initGDALRaster(self, gdal_raster_fn):
         self.initGDALRasterIO(gdal_raster_fn)
@@ -962,6 +980,34 @@ def saveGEORaster(d, geo_fn=None, copy_geo_fn=None, fmt="ENVI", dtype="float32",
                    geo_fn, descriptions)
 
 
+class GRCNR_read:
+
+    def __init__(self, gr: GDALRaster, channel):
+        self.gr = gr
+        self.channel = channel
+        self.data = None
+
+    def fit(self):
+        if self.data is None:
+            self.data = self.gr.readGDALBand(self.channel)
+        return self.data
+
+
+class GRCNR_featExt:
+
+    def __init__(self, data_dict, func_ext, *args, **kwargs):
+        self.data_dict = data_dict
+        self.func_ext = func_ext
+        self.args = args
+        self.kwargs = kwargs
+        self.data = None
+
+    def fit(self):
+        if self.data is None:
+            self.data = self.func_ext(self.data_dict, *self.args, **self.kwargs)
+        return self.data
+
+
 class GDALRasterChannel:
     """ GDAL Raster Channel """
 
@@ -1000,10 +1046,15 @@ class GDALRasterChannel:
         gr: GDALRaster = self.GRS[geo_fn]
         return gr
 
-    def addGDALDatas(self, raster_fn):
+    def addGDALDatas(self, raster_fn, names=None):
         gr = self.addGR(raster_fn)
-        for name in gr.names:
-            self.addGDALData(raster_fn, name)
+        if names is None:
+            names = gr.names
+        for name in names:
+            if name in gr.names:
+                self.addGDALData(raster_fn, name)
+            else:
+                warnings.warn("name of \"{0}\" not in this raster names. raster_fn:{1}".format(name, raster_fn))
 
     def saveRasterToFile(self, raster_fn, *this_key, geo_fn=None, **kwargs):
         gr = self._getGR(geo_fn)
@@ -1044,6 +1095,55 @@ class GDALRasterChannel:
         data = np.zeros((len(field_names), self.shape[0], self.shape[1]))
         for i, field_name in enumerate(field_names):
             data[i] = self.data[field_name]
+        return data
+
+    def addFeatExt(self, field_name, func_ext, *args, **kwargs):
+        self.data[field_name] = GRCNR_featExt(self.data, func_ext, *args, **kwargs).fit()
+        return field_name
+
+
+class GDALRasterChannelNotRead(GDALRasterChannel):
+    """ GDAL Raster Channel Not Read """
+
+    def __init__(self):
+        super().__init__()
+
+    def addGDALData(self, raster_fn, field_name, channel=None):
+        gr = self.addGR(raster_fn)
+        if channel is None:
+            channel = field_name
+        self.data[field_name] = GRCNR_read(gr, channel)
+        if self.shape == ():
+            self.shape = (gr.n_rows, gr.n_columns)
+        return field_name
+
+    def addFeatExt(self, field_name, func_ext, *args, **kwargs):
+        self.data[field_name] = GRCNR_featExt(self.data, func_ext, *args, **kwargs)
+        return field_name
+
+    def __setitem__(self, key, value):
+        grcnr_read = GRCNR_read(GDALRaster(), None)
+        grcnr_read.data = value
+        if self.shape == ():
+            self.shape = value.shape
+        self.data[key] = value
+
+    def __getitem__(self, item):
+        if isinstance(item, list) or isinstance(item, tuple):
+            return self.fieldNamesToData(*item)
+        else:
+            return self.get(item)
+
+    def get(self, key):
+        data = self.data[key].fit()
+        if self.shape == ():
+            self.shape = data.shape
+        return data
+
+    def fieldNamesToData(self, *field_names):
+        data = np.zeros((len(field_names), self.shape[0], self.shape[1]))
+        for i, field_name in enumerate(field_names):
+            data[i] = self.get(field_name)
         return data
 
 

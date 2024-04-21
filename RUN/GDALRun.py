@@ -164,10 +164,14 @@ class GDALListNames_main:
             return None
         gr = GDALRaster(argv[1])
         for name in gr:
-            print(name)
+            if "--list" in argv:
+                print("\"{}\",".format(name), end=" ")
+            else:
+                print(name)
+        print()
 
     def usage(self):
-        print("{0} raster_fn".format(self.name))
+        print("{0} raster_fn [--list]".format(self.name))
         print("@Des: {0}".format(self.description))
         print("    raster_fn: raster file name.")
 

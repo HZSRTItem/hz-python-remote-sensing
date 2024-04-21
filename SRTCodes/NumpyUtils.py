@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import uniform_filter
 
+from SRTCodes.Utils import Jdt
+
 
 def saveCM(cm, save_cm_file, cate_names=None, infos=None):
     """ 保存混淆矩阵
@@ -150,6 +152,79 @@ def printTable(d: np.array, columns_names=None, row_index=None, precision=2, ali
         print()
     print(line1)
     pass
+
+
+def printDict(_dict: dict, fmts=None, alignment="right"):
+    if fmts is None:
+        fmts = ["{}" for _ in _dict]
+    n_columns = len(_dict)
+    n_rows = max([len(_dict[k]) for k in _dict])
+    columns_names = list(_dict.keys())
+    for k in _dict:
+        _dict[k] = list(_dict[k])
+        if len(_dict[k]) < n_rows:
+            _dict[k].extend([""] * (n_rows - len(_dict[k])))
+    column_info = []
+    # 获得行宽
+    for i in range(n_columns):
+        column_info.append([len(columns_names[i]), precision])
+
+    d_max = np.max(d, axis=0)
+    for i in range(n_columns):
+        w = len(str(int(d_max[i]))) + precision
+        if w > column_info[i][0]:
+            column_info[i][0] = w + 2
+
+    fmts = []
+    for i in range(n_columns):
+        fmt = ":"
+        if alignment == "center":
+            fmt += "^"
+        elif alignment == "left":
+            fmt += "<"
+        else:
+            fmt += ">"
+        fmt += str(column_info[i][0]) + "." + str(precision) + "f"
+        fmts.append("{" + fmt + "}")
+
+    w = len(str(int(n_rows))) + 1
+    fmt_index = "{:>" + str(w) + "d}"
+    line0 = "|" + " " * w + " | "
+    for j in range(n_columns):
+        fmt = "{:"
+        if alignment == "center":
+            fmt += "^"
+        elif alignment == "left":
+            fmt += "<"
+        else:
+            fmt += ">"
+        fmt += str(column_info[j][0])
+        fmt += "}"
+        if columns_names is not None:
+            line0 += fmt.format(columns_names[j]) + " | "
+        else:
+            line0 += fmt.format(" ") + " | "
+
+    line0 = line0[:-1]
+    line1 = ""
+    for c in line0:
+        if c == "|":
+            line1 += "+"
+        else:
+            line1 += "-"
+    if columns_names is None:
+        print(line1)
+    else:
+        print(line1)
+        print(line0)
+        print(line1)
+    for i in range(n_rows):
+        print("", end="|")
+        print(fmt_index.format(i + 1), end=" | ")
+        for j in range(n_columns):
+            print(fmts[j].format(d[i, j]), end=" | ")
+        print()
+    print(line1)
 
 
 def neighborhood(d: np.ndarray, obj_func, rows: int, columns: int, dim=1):
@@ -307,10 +382,6 @@ def scaleMinMax(d, d_min=None, d_max=None, is_01=True):
     return d
 
 
-def main():
-    return
-
-
 def randomSampling(x, y, n=500, select_list=None):
     if select_list is None:
         select_list = [0, 1]
@@ -419,6 +490,70 @@ def dataCenter(data):
         return data[:, int(data.shape[1] / 2.0), int(data.shape[2] / 2.0)]
     else:
         return None
+
+
+def connectedComponent(image, is_jdt=False, is_ret_xys=False):
+    labels = {}
+    collection = {}
+    current_label = 1
+    jdt = Jdt(image.shape[0], "connectedComponent").start(is_jdt=is_jdt)
+    for y in range(image.shape[0]):
+        jdt.add(is_jdt=is_jdt)
+        for x in range(image.shape[1]):
+            if image[y, x] != 0:
+                neighbors = []
+                if y > 0 and image[y - 1, x] != 0:
+                    neighbors.append(labels[(y - 1, x)])
+                if x > 0 and image[y, x - 1] != 0:
+                    neighbors.append(labels[(y, x - 1)])
+
+                if len(neighbors) == 0:
+                    labels[(y, x)] = current_label
+                    collection[current_label] = [(y, x)]
+                    current_label += 1
+                else:
+                    min_neighbor = min(neighbors)
+                    labels[(y, x)] = min_neighbor
+                    collection[min_neighbor].append((y, x))
+                    is_tiao = False
+                    for neighbor in neighbors:
+                        if neighbor != min_neighbor:
+                            collection[min_neighbor].extend(collection.pop(neighbor))
+                            is_tiao = True
+                    if is_tiao:
+                        for d in collection[min_neighbor]:
+                            labels[d] = min_neighbor
+    jdt.end(is_jdt=is_jdt)
+
+    current_label = 1
+    out_image = np.zeros_like(image)
+    for d in collection.values():
+        for i, j in d:
+            out_image[i, j] = current_label
+        current_label += 1
+
+    if is_ret_xys:
+        return out_image, collection
+    return out_image
+
+
+def categoryMap(categorys, map_dict, is_notfind_to0=False):
+    if isinstance(map_dict, list):
+        map_dict = {i: map_dict[i] for i in range(len(map_dict))}
+    to_category = []
+    for d in categorys:
+        if d in map_dict:
+            to_category.append(map_dict[d])
+        else:
+            if is_notfind_to0:
+                to_category.append(0)
+            else:
+                to_category.append(d)
+    return to_category
+
+
+def main():
+    return
 
 
 if __name__ == "__main__":

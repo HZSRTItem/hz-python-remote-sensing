@@ -8,6 +8,7 @@ r"""----------------------------------------------------------------------------
 @Desc    : BaseCodes of Utils
 -----------------------------------------------------------------------------"""
 import csv
+import inspect
 import json
 import math
 import os
@@ -32,6 +33,11 @@ def getRandom(x0, x1):
 def changext(fn, ext=""):
     fn1, ext1 = os.path.splitext(fn)
     return fn1 + ext
+
+
+def changefilename(filename, fn):
+    dirname = os.path.split(filename)[0]
+    return os.path.join(dirname, fn)
 
 
 def filterStringAnd(string_list, *filters):
@@ -121,9 +127,19 @@ def readJson(json_fn):
         return json.load(f)
 
 
+def funcCodeString(func):
+    if func is None:
+        return ""
+    try:
+        return inspect.getsource(func)
+    except Exception as ex:
+        return str(ex)
+
+
 def saveJson(d, json_fn):
     with open(json_fn, "w", encoding="utf-8") as f:
         json.dump(d, f)
+    return d
 
 
 def readLines(filename, strip_str="\n"):
@@ -132,6 +148,16 @@ def readLines(filename, strip_str="\n"):
         if strip_str is not None:
             for i in range(len(lines)):
                 lines[i] = lines[i].strip(strip_str)
+        return lines
+
+
+def readLinesList(filename, sep=" ", strip_str="\n", ):
+    with open(filename, "r", encoding="utf-8") as f:
+        lines = []
+        for line in f:
+            if strip_str is not None:
+                line = line.strip(strip_str)
+            lines.append(line.split(sep))
         return lines
 
 
@@ -166,6 +192,10 @@ def writeTexts(filename, *texts, mode="w", end=""):
         for text in texts:
             f.write(str(text))
         f.write(end)
+
+
+def writeTextLine(filename, *texts, end="\n"):
+    writeTexts(filename, *texts, mode="a", end="\n")
 
 
 def copyFile(filename, to_filename):
@@ -245,6 +275,12 @@ def mkdir(dirname):
 
 
 ofn = DirFileName()
+
+
+def timeStringNow(str_fmt="%Y-%m-%d %H:%M:%S"):
+    current_time = datetime.now()
+    save_dirname = current_time.strftime(str_fmt)
+    return save_dirname
 
 
 class Jdt:
@@ -674,6 +710,11 @@ class SRTDataFrame:
 
         self._to_str_width = 100
 
+    def copyEmpty(self):
+        sdf = SRTDataFrame()
+        sdf._data = {k: [] for k in self._data}
+        return sdf
+
     def read_csv(self, csv_fn, index_column_name=None, is_auto_type=False):
         self._index_name = index_column_name
         self._data = {}
@@ -730,11 +771,14 @@ class SRTDataFrame:
             if data == "":
                 d_type = "string"
                 break
+
             if isStringFloat(data):
                 if d_type == "float":
                     continue
                 d_type = "float"
             elif isStringInt(data):
+                if d_type == "float":
+                    continue
                 d_type = "int"
             else:
                 d_type = "string"
@@ -806,12 +850,69 @@ class SRTDataFrame:
         self._data[key] = value
 
     def addFields(self, *fields):
+        to_fields = []
         for field in fields:
+            if isinstance(field, list) or isinstance(field, tuple):
+                to_fields += list(field)
+            else:
+                to_fields.append(field)
+        for field in to_fields:
             self._data[field] = [None for _ in range(self._n_length)]
+        return self
+
+    def addLine(self, line=None):
+        if line is None:
+            line = {k: None for k in self._data}
+        if isinstance(line, list) or isinstance(line, tuple):
+            line = {k: line[i] for i, k in enumerate(self._data)}
+        for k in self._data:
+            if k in line:
+                self._data[k].append(line[k])
+            else:
+                self._data[k].append(None)
+        self._n_length += 1
+
+    def toDict(self):
+        return self._data.copy()
+
+    def filterEQ(self, field_name, data):
+        sdf = self.copyEmpty()
+        for i in range(self._n_length):
+            line = self.rowToDict(i)
+            if line[field_name] == data:
+                sdf.addLine(line)
+        return sdf
 
 
 def sdf_read_csv(csv_fn):
     return SRTDataFrame().read_csv(csv_fn)
+
+
+def datasCaiFen(datas):
+    data_list = []
+    for data in datas:
+        if isinstance(data, list) or isinstance(data, tuple):
+            data_list.extend(data)
+        else:
+            data_list.append(data)
+    return data_list
+
+
+def concatCSV(*csv_fns, to_csv_fn=None):
+    csv_fns = datasCaiFen(csv_fns)
+    sdf_list = [SRTDataFrame().read_csv(csv_fn) for csv_fn in csv_fns]
+    keys = []
+    for sdf in sdf_list:
+        for k in sdf:
+            if k not in keys:
+                keys.append(k)
+    sdf_cat = SRTDataFrame().addFields(*keys)
+    for sdf in sdf_list:
+        for j in range(len(sdf)):
+            sdf_cat.addLine(sdf.rowToDict(j))
+    if to_csv_fn is not None:
+        sdf_cat.toCSV(to_csv_fn)
+    return sdf_cat
 
 
 class SRTFilter:
@@ -900,6 +1001,8 @@ class SRTWriteText:
 
     def __init__(self, text_fn, mode="w"):
         self.text_fn = text_fn
+        if self.text_fn is None:
+            return
         if mode == "w":
             with open(self.text_fn, "w", encoding="utf-8") as f:
                 f.write("")
@@ -965,6 +1068,34 @@ class FileName:
         return getfilenamewithoutext(self._filename)
 
 
+class SRTLog:
+
+    def __init__(self, log_fn=None, mode="w", is_print=True):
+        self.log_fn = log_fn
+        self.swt = SRTWriteText(text_fn=log_fn, mode=mode)
+        self.is_print = is_print
+
+    def _isPrint(self, is_print):
+        if is_print is None:
+            is_print = self.is_print
+        return is_print
+
+    def log(self, *text, sep=" ", end="\n", is_print=None):
+        is_print = self._isPrint(is_print)
+        if is_print:
+            print(*text, sep=sep, end=end)
+        if self.log_fn is not None:
+            self.swt.write(*text, sep=sep, end=end)
+
+    def kw(self, key, value, sep=": ", end="\n", is_print=None):
+        if isinstance(value, list) or isinstance(value, tuple):
+            to_str = "\"" + "\", \"".join(value) + "\""
+        else:
+            to_str = str(value)
+        self.log(key, to_str, sep=sep, end=end, is_print=is_print)
+        return value
+
+
 def main():
     # dir_QDS2RGBN_gee_2_deal = DirFileName(r"G:\ImageData\QingDao\20211023\qd20211023\QDS2RGBN_gee_2_deal")
     # print(dir_QDS2RGBN_gee_2_deal.fn("sdafsd", "sfsad", "dsfasd"))
@@ -979,10 +1110,6 @@ def main():
         f.write(fn)
 
     pass
-
-
-if __name__ == "__main__":
-    main()
 
 
 class CheckLoc:
@@ -1019,3 +1146,7 @@ class CheckLoc:
         is_column = check_is(self.n_column, i_column) and (not check_is(self.not_columns, i_column, is_none=False))
 
         return is_row and is_column
+
+
+if __name__ == "__main__":
+    main()

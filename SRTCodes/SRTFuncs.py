@@ -1,7 +1,14 @@
 import sys
 
+import pandas as pd
 import torch
+from osgeo import gdal
 from torch import nn
+from torch.utils.data import Dataset
+
+from SRTCodes.NumpyUtils import connectedComponent, categoryMap, NumpyDataCenter
+from SRTCodes.SRTModelImage import SRTModImPytorch
+from Shadow.Hierarchical import SHHConfig
 
 sys.path.append(r"F:\PyCodes")
 # _*_ coding:utf-8 _*_
@@ -17,7 +24,7 @@ r"""----------------------------------------------------------------------------
 import numpy as np
 from scipy.ndimage import uniform_filter
 
-from SRTCodes.GDALRasterIO import readGEORaster, saveGEORaster
+from SRTCodes.GDALRasterIO import readGEORaster, saveGEORaster, GDALRaster, GDALRasterChannel
 from Shadow.ShadowGeoDraw import _10log10
 
 
@@ -41,11 +48,143 @@ class TNet(nn.Module):
 
 
 def main():
-    x = torch.randn((1, 3, 128, 128))
-    mod = TNet()
-    out_x = mod(x)
+    import torch.nn.functional as F
+
+    class Net(nn.Module):
+        def __init__(self):
+            super(Net, self).__init__()
+            self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
+            self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
+            self.conv2_drop = nn.Dropout2d()
+            self.fc1 = nn.Linear(320, 50)
+            self.fc2 = nn.Linear(50, 10)
+
+        def forward(self, x):
+            x = F.relu(F.max_pool2d(self.conv1(x), 2))
+            x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
+            x = x.view(-1, 320)
+            x = F.relu(self.fc1(x))
+            x = F.dropout(x, training=self.training)
+            x = self.fc2(x)
+            return F.log_softmax(x, dim=-1)
+
+    class Net2(nn.Module):
+
+        def __init__(self):
+            super(Net2, self).__init__()
+            self.convs = nn.Sequential(
+                nn.Conv2d(10, 32, 3, 1, 1),
+                nn.ReLU(),
+                nn.Conv2d(32, 64, 3, 1, 1),
+                nn.ReLU(),
+                nn.Conv2d(64, 64, 3, 1, 1),
+                nn.Flatten(),
+                nn.Linear(1600, 8),
+            )
+
+        def forward(self, x):
+            x = self.convs(x)
+            return x
+
+    def data_deal(x, y=None):
+        out_x = np.zeros((10, x.shape[1], x.shape[2]))
+        out_x[0:2] = x[0:2] / 30 + 1
+        out_x[2:4] = x[3:5] / 30 + 1
+        out_x[4:] = x[6:] / 3000
+        x = out_x
+        if y is not None:
+            y = y - 1
+            return x, y
+        return x
+
+    class NetDataset(Dataset):
+
+        def __init__(self):
+            super(NetDataset, self).__init__()
+            self.df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\SampleData\shh2_spl\shh2_spl.csv")
+            self.data = np.load(r"F:\ProjectSet\Shadow\Hierarchical\Samples\SampleData\shh2_spl\shh2_spl.npy")
+            self.y = np.array(categoryMap(self.df["CATEGORY"].values, SHHConfig.CATE_MAP_SH881))
+            self.ndc = NumpyDataCenter()
+
+        def get(self, index):
+            x, y = self.ndc.fit(self.data[index]), self.y[index]
+            x, y = data_deal(x, y)
+            return x, y, self.df.loc[index].to_dict()
+
+        def __getitem__(self, index):
+            x, y = self.ndc.fit(self.data[index]), self.y[index]
+            x, y = data_deal(x, y)
+            return x, y
+
+        def __len__(self):
+            return len(self.y)
+
+    smip = SRTModImPytorch()
+    smip.model_dirname = r"F:\Week\20240331\Data"
+    smip.model_name = "Net2"
+    smip.epochs = 100
+    smip.device = "cuda"
+    smip.n_test = 10
+    smip.batch_size = 32
+    smip.n_class = 8
+    smip.class_names = SHHConfig.SHH_CNAMES8
+    smip.win_size = (5, 5)
+    smip.model = Net2().to(smip.device)
+
+    def func_predict(model: Net, x: torch.Tensor):
+        logit = model(x)
+        y = torch.argmax(logit, dim=1) + 1
+        return y
+
+    smip.func_predict = func_predict
+
+    def train():
+        # shh_spl = SHH2Samples()
+        # shh_spl.addCSV(r"F:\ProjectSet\Shadow\Hierarchical\Samples\11\sh2_spl11_21.csv")
+        # shh_spl.loadNpy(r"F:\ProjectSet\Shadow\Hierarchical\Samples\11\sh2_spl11_21_data.npy")
+        # shh_spl.ndc.__init__(3, smip.win_size, (21, 21))
+        # shh_spl = copySHH2Samples(shh_spl).addSamples(shh_spl.filterNotEQ("CATEGORY", 0))
+        # shh_spl.initCategory("CATEGORY", map_dict=SHHConfig.CATE_MAP_SH881, others=0)
+        # shh_spl = copySHH2Samples(shh_spl).addSamples(shh_spl.filterEQ("SH_IMDC", 2))
+        ds = NetDataset()
+        ds.ndc.__init__(3, smip.win_size, (21, 21))
+        smip.train_ds, smip.test_ds = torch.utils.data.random_split(dataset=ds, lengths=[0.8, 0.2], )
+
+        smip.timeDirName()
+        smip.initTrainLog()
+        smip.initPytorchTraining()
+        smip.pt.func_logit_category = func_predict
+        smip.pt.func_y_deal = lambda y: y + 1
+        smip.initModel()
+        smip.initDataLoader()
+        smip.initCriterion(nn.CrossEntropyLoss())
+        smip.initOptimizer(torch.optim.Adam, lr=0.0001, eps=0.00001)
+        smip.copyFile(__file__)
+        print(smip.model_dirname)
+        smip.train()
+
+    def imdc():
+        smip.loadPTH()
+        grc: GDALRasterChannel = GDALRasterChannel()
+        smip.imdc(grc=grc, is_jdt=True, data_deal=data_deal)
+        pass
+
+    train()
 
     pass
+
+
+def method_name2():
+    # x = torch.randn((1, 3, 128, 128))
+    # mod = TNet()
+    # out_x = mod(x)
+    gr = GDALRaster(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\shadowimdc\cd_shadowimdc1.tif")
+    data = gr.readAsArray() - 1
+    print(np.unique(data, return_counts=True))
+    out_d = connectedComponent(data, is_jdt=True)
+    gr.save(out_d.astype("float32"),
+            r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\shadowimdc\cd_shadowimdc1_4.tif",
+            fmt="GTiff", dtype=gdal.GDT_Float32)
 
 
 def method_name1():

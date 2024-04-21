@@ -1048,6 +1048,7 @@ class SHHModel_MMIF_Main(SHHMainInit):
                 n_one_t=15000, data_deal=data_deal)
         tiffAddColorTable(imdc_fn, code_colors=code_colors)
 
+
 def imdc1():
 
     n_mod_fn = 50

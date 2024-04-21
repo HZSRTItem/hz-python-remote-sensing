@@ -9,9 +9,47 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.image import imread, imsave
 
 
+class DataFrameDictSort:
+
+    def __init__(self, df):
+        self.df_dict = df.to_dict("records")
+
+    def sort(self, by=None, ascending=None, filter_list=None, filter_func=None):
+        if by is None:
+            by = []
+        filters_loc = []
+        if filter_list is not None:
+            filters = np.ones(len(self.df_dict), dtype=bool)
+            for f in filter_list:
+                f = np.array(f)
+                filters &= f
+            filters_loc = np.where(filters)[0]
+        elif filter_func is not None:
+            for i, line in enumerate(self.df_dict):
+                if filter_func(line):
+                    filters_loc.append(i)
+
+        to_df_dict = []
+        for i in filters_loc:
+            to_df_dict.append(self.df_dict[i])
+        to_df_dict = self._sort(by, ascending, to_df_dict)
+        j = 0
+        for i in filters_loc:
+            self.df_dict[i] = to_df_dict[j]
+            j += 1
+        return self
+
+    def toDF(self):
+        return pd.DataFrame(self.df_dict)
+
+    def _sort(self, by, ascending, df_dict):
+        df = pd.DataFrame(df_dict)
+        df = df.sort_values(by=by, ascending=ascending)
+        return df.to_dict("records")
 
 
 def filterDF(df, *filters, **filter_maps):

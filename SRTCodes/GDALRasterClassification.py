@@ -15,8 +15,9 @@ import pandas as pd
 
 from SRTCodes.GDALRasterIO import GDALRaster, saveGTIFFImdc
 from SRTCodes.ModelTraining import ConfusionMatrix, ModelDataCategory, dataModelPredict
+from SRTCodes.NumpyUtils import categoryMap
 from SRTCodes.RasterClassification import RasterPrediction
-from SRTCodes.Utils import readcsv, changext
+from SRTCodes.Utils import readcsv, changext, Jdt
 
 
 class GDALRasterPrediction(GDALRaster, RasterPrediction):
@@ -67,6 +68,100 @@ class GDALRasterPrediction(GDALRaster, RasterPrediction):
                  column_end=column_end,
                  n_one_t=n_one_t)
         self.saveToGTIFF(imdc_fn, np_type)
+
+
+class GDALImdcAcc:
+
+    def __init__(self, gr_geo_fn=None):
+        self.gr = None
+        self.initGR(gr_geo_fn)
+
+        self.x_column_name = "X"
+        self.y_column_name = "Y"
+        self.c_column_name = "CATEGORY"
+        self.is_geo = True
+
+        self.x_list = []
+        self.y_list = []
+        self.category_list = []
+        self.to_category_list = []
+        self.map_category = None
+        self.to_map_category = None
+
+        self.cm = ConfusionMatrix()
+
+    def initGR(self, gr_geo_fn):
+        if gr_geo_fn is None:
+            return
+        if isinstance(gr_geo_fn, str):
+            self.gr = GDALRaster(gr_geo_fn)
+        elif isinstance(gr_geo_fn, GDALRaster):
+            self.gr = gr_geo_fn
+
+    def _args_addDataFrame(self, x_column_name=None, y_column_name=None, c_column_name=None, is_geo=None):
+        if x_column_name is None:
+            x_column_name = self.x_column_name
+        else:
+            self.x_column_name = x_column_name
+        if y_column_name is None:
+            y_column_name = self.y_column_name
+        else:
+            self.y_column_name = y_column_name
+        if c_column_name is None:
+            c_column_name = self.c_column_name
+        else:
+            self.c_column_name = c_column_name
+        if is_geo is None:
+            is_geo = self.is_geo
+        else:
+            self.is_geo = is_geo
+        return x_column_name, y_column_name, c_column_name, is_geo
+
+    def addDataFrame(self, df, x_column_name=None, y_column_name=None, c_column_name=None, is_geo=None):
+        x_column_name, y_column_name, c_column_name, is_geo = self._args_addDataFrame(
+            x_column_name, y_column_name, c_column_name, is_geo)
+        df_dict = {
+            x_column_name: df[x_column_name].tolist(),
+            y_column_name: df[y_column_name].tolist(),
+            c_column_name: df[c_column_name].tolist(),
+        }
+        for i in range(len(df)):
+            x = float(df_dict[x_column_name][i])
+            y = float(df_dict[y_column_name][i])
+            category = int(df_dict[c_column_name][i])
+            self._addXYC(category, x, y)
+
+    def _addXYC(self, category, x, y):
+        self.x_list.append(float(x))
+        self.y_list.append(float(y))
+        self.category_list.append(int(category))
+
+    def sampling(self):
+        to_category_list = []
+        jdt = Jdt(len(self.category_list), "GDALImdcAcc::sampling").start()
+        for i in range(len(self.category_list)):
+            x, y = self.x_list[i], self.y_list[i]
+            y10 = self.gr.readAsArray(x, y, is_geo=self.is_geo, win_row_size=1, win_column_size=1)
+            y10 = y10.ravel()
+            to_category_list.append(y10[0])
+            jdt.add()
+        jdt.end()
+        self.to_category_list = to_category_list
+        return to_category_list
+
+    def calCM(self, cnames):
+        self.cm = ConfusionMatrix(len(cnames), cnames)
+        if self.map_category is not None:
+            category_list = categoryMap(self.category_list, self.map_category)
+        else:
+            category_list = self.category_list
+        self.sampling()
+        if self.to_map_category is not None:
+            to_category_list = categoryMap(self.to_category_list, self.to_map_category)
+        else:
+            to_category_list = self.to_category_list
+        self.cm.addData(category_list, to_category_list)
+        return self.cm
 
 
 class GDALRasterClassificationAccuracy:
@@ -256,7 +351,7 @@ class GDALModelDataCategory(ModelDataCategory):
         for raster_fn in raster_fns:
             raster_fn = os.path.abspath(raster_fn)
             gr = GDALRaster(raster_fn)
-            if self.gr is None:
+            if self.gr.raster_ds is None:
                 self.gr = gr
             self.addData(gr.readAsArray())
 

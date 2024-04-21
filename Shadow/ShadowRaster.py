@@ -15,7 +15,7 @@ from osgeo import gdal
 
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import GDALRasterHist, vrtAddDescriptions
-from SRTCodes.Utils import readLines
+from SRTCodes.Utils import readLines, DirFileName
 from Shadow.ShadowDraw import cal_10log10
 
 
@@ -116,11 +116,11 @@ def cdGLCM():
     # sh_glcm.meanFourDirection("cd_im5_de_vh", "DE_VV_", tmp_dirname)
     # sh_glcm.meanFourDirection("cd_im5_de_vv", "DE_VH_", tmp_dirname)
 
-    sh_glcm.updateToRelease(d_dirname("cd_im5_pca_mean"),   release_dirname)
-    sh_glcm.updateToRelease(d_dirname("cd_im5_as_vh_mean"),  release_dirname)
-    sh_glcm.updateToRelease(d_dirname("cd_im5_as_vv_mean"),  release_dirname)
-    sh_glcm.updateToRelease(d_dirname("cd_im5_de_vh_mean"),  release_dirname)
-    sh_glcm.updateToRelease(d_dirname("cd_im5_de_vv_mean"),  release_dirname)
+    sh_glcm.updateToRelease(d_dirname("cd_im5_pca_mean"), release_dirname)
+    sh_glcm.updateToRelease(d_dirname("cd_im5_as_vh_mean"), release_dirname)
+    sh_glcm.updateToRelease(d_dirname("cd_im5_as_vv_mean"), release_dirname)
+    sh_glcm.updateToRelease(d_dirname("cd_im5_de_vh_mean"), release_dirname)
+    sh_glcm.updateToRelease(d_dirname("cd_im5_de_vv_mean"), release_dirname)
 
 
 def bjGLCM():
@@ -156,6 +156,7 @@ def bjGLCM():
     sh_glcm.updateToRelease(d_dirname("bj_as_vv_mean"), release_dirname)
     sh_glcm.updateToRelease(d_dirname("bj_de_vh_mean"), release_dirname)
     sh_glcm.updateToRelease(d_dirname("bj_de_vv_mean"), release_dirname)
+
 
 
 def qdGLCM():
@@ -195,6 +196,81 @@ def qdGLCM():
     sh_glcm.updateToRelease(d_dirname(r"tmp_AS_VV_qd_mean"), r"F:\ProjectSet\Shadow\QingDao\Image\Image1\glcm\qd_glcm")
     sh_glcm.updateToRelease(d_dirname(r"tmp_DE_VH_qd_mean"), r"F:\ProjectSet\Shadow\QingDao\Image\Image1\glcm\qd_glcm")
     sh_glcm.updateToRelease(d_dirname(r"tmp_DE_VV_qd_mean"), r"F:\ProjectSet\Shadow\QingDao\Image\Image1\glcm\qd_glcm")
+
+
+def shh2GLCM():
+    sh_glcm = ShadowRasterGLCM()
+    tmp_dirname = r"F:\ProjectSet\Shadow\BeiJing\Image\GLCM"
+    release_dirname = r"G:\ImageData\SHH2QingDaoImages\SAR_glcm"
+
+    def d_dirname(fn):
+        return os.path.join(tmp_dirname, fn)
+
+    def rele_dirname(fn):
+        return os.path.join(release_dirname, fn)
+
+    # tmp_dfn = DirFileName(r"G:\ImageData\SHH2QingDaoImages\SAR_glcm")
+    # sh_glcm.meanFourDirection("qd_sh2_1_as_vv", "AS_VV_", tmp_dfn.fn("as_vv"))
+    # sh_glcm.meanFourDirection("qd_sh2_1_as_vh", "AS_VH_", tmp_dfn.fn("as_vh"))
+    # sh_glcm.meanFourDirection("qd_sh2_1_de_vh", "DE_VV_", tmp_dfn.fn("de_vh"))
+    # sh_glcm.meanFourDirection("qd_sh2_1_de_vv", "DE_VH_", tmp_dfn.fn("de_vv"))
+    # print("gdalinfo", tmp_dfn.fn("as_vv", "qd_sh2_1_as_vv_mean"))
+    # print("gdalinfo", tmp_dfn.fn("as_vh", "qd_sh2_1_as_vh_mean"))
+    # print("gdalinfo", tmp_dfn.fn("de_vh", "qd_sh2_1_de_vh_mean"))
+    # print("gdalinfo", tmp_dfn.fn("de_vv", "qd_sh2_1_de_vv_mean"))
+    # sh_glcm.updateToRelease(tmp_dfn.fn("as_vv", "qd_sh2_1_as_vv_mean"), release_dirname)
+    # sh_glcm.updateToRelease(tmp_dfn.fn("as_vh", "qd_sh2_1_as_vh_mean"), release_dirname)
+    # sh_glcm.updateToRelease(tmp_dfn.fn("de_vh", "qd_sh2_1_de_vh_mean"), release_dirname)
+    # sh_glcm.updateToRelease(tmp_dfn.fn("de_vv", "qd_sh2_1_de_vv_mean"), release_dirname)
+
+    # sh_glcm.updateToRelease(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\qd_sh2_1.tif",
+    #                         r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\qd_sh2_1_channels")
+    # sh_glcm.updateToRelease(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\glcm\qd_sh2_1_gray_envi_mean",
+    #                         r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\glcm\release")
+
+    # tmp_dfn = DirFileName(r"G:\ImageData\SHH2BeiJingImages\sar_glcm")
+    # release_dirname = r"G:\ImageData\SHH2BeiJingImages\sar_glcm\release"
+
+    # sh_glcm.meanFourDirection("bj_sh2_1_as_vv", "AS_VV_", tmp_dfn.fn())
+    # sh_glcm.meanFourDirection("bj_sh2_1_as_vh", "AS_VH_", tmp_dfn.fn())
+    # sh_glcm.meanFourDirection("bj_sh2_1_de_vh", "DE_VV_", tmp_dfn.fn())
+    # sh_glcm.meanFourDirection("bj_sh2_1_de_vv", "DE_VH_", tmp_dfn.fn())
+    # print("gdalinfo", tmp_dfn.fn("bj_sh2_1_as_vv_mean"))
+    # print("gdalinfo", tmp_dfn.fn("bj_sh2_1_as_vh_mean"))
+    # print("gdalinfo", tmp_dfn.fn("bj_sh2_1_de_vh_mean"))
+    # print("gdalinfo", tmp_dfn.fn("bj_sh2_1_de_vv_mean"))
+    # sh_glcm.updateToRelease(tmp_dfn.fn("bj_sh2_1_as_vv_mean"), release_dirname)
+    # sh_glcm.updateToRelease(tmp_dfn.fn("bj_sh2_1_as_vh_mean"), release_dirname)
+    # sh_glcm.updateToRelease(tmp_dfn.fn("bj_sh2_1_de_vh_mean"), release_dirname)
+    # sh_glcm.updateToRelease(tmp_dfn.fn("bj_sh2_1_de_vv_mean"), release_dirname)
+
+    # sh_glcm.updateToRelease(r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\bj_sh2_1.tif",
+    #                         r"G:\ImageData\SHH2BeiJingImages\bj_sh2_1_channels")
+    # sh_glcm.updateToRelease(r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\glcm\bj_sh2_1_gray_envi_mean",
+    #                         r"G:\ImageData\SHH2BeiJingImages\bj_sh2_1_glcm_channels")
+
+    tmp_dfn = DirFileName(r"G:\ImageData\SHH2ChengDuImages\sar_glcm")
+    release_dirname = r"G:\ImageData\SHH2ChengDuImages\sar_glcm\release"
+
+    sh_glcm.meanFourDirection("cd_sh2_1_as_vv", "AS_VV_", tmp_dfn.fn())
+    sh_glcm.meanFourDirection("cd_sh2_1_as_vh", "AS_VH_", tmp_dfn.fn())
+    sh_glcm.meanFourDirection("cd_sh2_1_de_vh", "DE_VV_", tmp_dfn.fn())
+    sh_glcm.meanFourDirection("cd_sh2_1_de_vv", "DE_VH_", tmp_dfn.fn())
+    print("gdalinfo", tmp_dfn.fn("cd_sh2_1_as_vv_mean"))
+    print("gdalinfo", tmp_dfn.fn("cd_sh2_1_as_vh_mean"))
+    print("gdalinfo", tmp_dfn.fn("cd_sh2_1_de_vh_mean"))
+    print("gdalinfo", tmp_dfn.fn("cd_sh2_1_de_vv_mean"))
+    sh_glcm.updateToRelease(tmp_dfn.fn("cd_sh2_1_as_vv_mean"), release_dirname)
+    sh_glcm.updateToRelease(tmp_dfn.fn("cd_sh2_1_as_vh_mean"), release_dirname)
+    sh_glcm.updateToRelease(tmp_dfn.fn("cd_sh2_1_de_vh_mean"), release_dirname)
+    sh_glcm.updateToRelease(tmp_dfn.fn("cd_sh2_1_de_vv_mean"), release_dirname)
+
+    sh_glcm.updateToRelease(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\cd_sh2_1.tif",
+                            r"G:\ImageData\SHH2ChengDuImages\cd_sh2_1_channels")
+    sh_glcm.updateToRelease(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\glcm\cd_sh2_1_gray_envi_mean",
+                            r"G:\ImageData\SHH2ChengDuImages\cd_sh2_1_glcm_channels")
+
+
 
 
 def method_name():
@@ -268,5 +344,4 @@ def raster10Log10():
 
 
 if __name__ == "__main__":
-    raster10Log10()
-    ...
+    shh2GLCM()

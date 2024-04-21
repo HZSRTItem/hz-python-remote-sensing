@@ -13,7 +13,7 @@ import time
 
 import numpy as np
 
-from SRTCodes.SRTCollection import SRTCollection
+from SRTCodes.SRTCollection import SRTCollection, SRTCollectionDict
 from SRTCodes.Utils import Jdt
 
 eps = 0.000001
@@ -46,6 +46,51 @@ class TrainLog(SRTCollection):
         self._getTypeColumnFmt()
 
         self.save_csv_file = save_csv_file
+
+    def toDict(self):
+        to_dict = {
+            "_n_iter": self._n_iter,
+            "_n_next": self._n_next,
+            "field_names": self.field_names,
+            "field_types": self.field_types,
+            "field_index": self.field_index,
+            "field_datas": self.field_datas,
+            "n_datas": self.n_datas,
+            "is_save_log": self.is_save_log,
+            "log_filename": self.log_filename,
+            "print_type": self.print_type,
+            "print_type_fmts": self.print_type_fmts,
+            "print_sep": self.print_sep,
+            "print_field_names": self.print_field_names,
+            "print_column_fmt": self.print_column_fmt,
+            "print_float_decimal": self.print_float_decimal,
+            "print_type_column_width": self.print_type_column_width,
+            "print_type_init_v": self.print_type_init_v,
+            "print_type_column_fmt": self.print_type_column_fmt,
+            "save_csv_file": self.save_csv_file,
+        }
+        return to_dict
+
+    def loadDict(self, to_dict):
+        self._n_iter = to_dict["_n_iter"]
+        self._n_next = to_dict["_n_next"]
+        self.field_names = to_dict["field_names"]
+        self.field_types = to_dict["field_types"]
+        self.field_index = to_dict["field_index"]
+        self.field_datas = to_dict["field_datas"]
+        self.n_datas = to_dict["n_datas"]
+        self.is_save_log = to_dict["is_save_log"]
+        self.log_filename = to_dict["log_filename"]
+        self.print_type = to_dict["print_type"]
+        self.print_type_fmts = to_dict["print_type_fmts"]
+        self.print_sep = to_dict["print_sep"]
+        self.print_field_names = to_dict["print_field_names"]
+        self.print_column_fmt = to_dict["print_column_fmt"]
+        self.print_float_decimal = to_dict["print_float_decimal"]
+        self.print_type_column_width = to_dict["print_type_column_width"]
+        self.print_type_init_v = to_dict["print_type_init_v"]
+        self.print_type_column_fmt = to_dict["print_type_column_fmt"]
+        self.save_csv_file = to_dict["save_csv_file"]
 
     def _getTypeColumnFmt(self):
         self.print_type_column_fmt = {
@@ -179,6 +224,8 @@ class ConfusionMatrix:
         :param n_class: number of category
         :param class_names: names of category
         """
+        self._n_class = n_class
+        self._class_names = class_names
         if n_class == 0:
             if class_names is not None:
                 n_class = len(class_names)
@@ -186,13 +233,21 @@ class ConfusionMatrix:
                 return
         self._cm = np.zeros((n_class, n_class))
         self._cm_accuracy = self.calCM()
-        self._n_class = n_class
-        self._class_names = class_names
         if self._class_names is None:
             self._class_names = ["CATEGORY_" + str(i + 1) for i in range(n_class)]
         elif len(self._class_names) != n_class:
             raise Exception("The number of category names is different from the number of input categories.")
         self._it_count = 0
+
+    def toDict(self):
+        to_dict = {
+            "_n_class": self._n_class,
+            "_class_names": self._class_names,
+        }
+        return to_dict
+
+    def CNAMES(self):
+        return self._class_names
 
     def addData(self, y_true, y_pred):
         for i in range(len(y_true)):
@@ -200,6 +255,8 @@ class ConfusionMatrix:
                 if (int(y_pred[i]) - 1) == 40:
                     continue
                 if (int(y_true[i]) <= 0) or (int(y_pred[i]) <= 0):
+                    continue
+                if (int(y_true[i]) > self._n_class) or (int(y_pred[i]) > self._n_class):
                     continue
                 self._cm[int(y_true[i]) - 1, int(y_pred[i]) - 1] += 1
         self._cm_accuracy = self.calCM()
@@ -305,6 +362,25 @@ class ConfusionMatrix:
             to_dict[cate_name] = [float(oa_d[-1]), float(pa_d[i]), float(ua_d[i])]
         return to_dict
 
+    def accuracyCategory(self, category):
+        cname = category
+        if isinstance(category, str):
+            category = self._class_names.index(category)
+        else:
+            category = category - 1
+
+        cm_category = np.zeros((2,2))
+        cm_category[0, 0] = int(self._cm[category, category])
+        cm_category[0, 1] = int(np.sum(np.diag(self._cm[category, :]))) -int(self._cm[category, category])
+        cm_category[1, 0] = int(np.sum(np.diag(self._cm[:, category]))) -int(self._cm[category, category])
+        cm_category[1, 1] = int(np.sum(self._cm)) - int(np.sum(cm_category))
+
+        cm = ConfusionMatrix(2, [str(cname), "NOT_KNOW"])
+        cm._cm = cm_category
+        cm._cm_accuracy = cm.calCM()
+        return cm
+
+
     def __iter__(self):
         return self
 
@@ -342,6 +418,114 @@ class MeanSquareError:
         self.mse = 0
 
 
+class ConfusionMatrixCollection(SRTCollectionDict):
+
+    def __init__(self, n_class=0, class_names=None):
+        super().__init__()
+        self.n_class = n_class
+        self.class_names = class_names
+
+    def toDict(self):
+        to_dict = {
+            "cms": {cm:self.n_next[cm].toDict() for cm in self.n_next}
+        }
+        return to_dict
+
+    def addCM(self, name, n_class=0, class_names=None, cm: ConfusionMatrix = None) -> ConfusionMatrix:
+        if cm is not None:
+            self.n_next[name] = cm
+            return self.n_next[name]
+        if (n_class == 0) and (class_names is None):
+            n_class = self.n_class
+            class_names = self.class_names
+        self.n_next[name] = ConfusionMatrix(n_class=n_class, class_names=class_names)
+        return self.n_next[name]
+
+    def __getitem__(self, item) -> ConfusionMatrix:
+        return self.n_next[item]
+
+
+class ConfusionMatrixLog:
+
+    def __init__(self, n_category=2, category_names=None):
+        self.cms = ConfusionMatrixCollection(n_class=n_category, class_names=category_names)
+        self.log = None
+
+    def toDict(self):
+        to_dict = {
+            "cms": self.cms.toDict(),
+            "log": self.log.toDict() if self.log is not None else None,
+        }
+        return to_dict
+
+    def addCM(self, name, cm=None, ):
+        self.cms.addCM(name, cm=cm)
+
+    def initLog(self, log_type: str, cm: ConfusionMatrix = None, log: TrainLog = None, ):
+        cm, log = self.initlogcm(cm, log, log_type)
+        log.addField("OA{}".format(log_type), "float")
+        log.addField("Kappa{}".format(log_type), "float")
+        for name in cm:
+            log.addField(name + " UA{}".format(log_type), "float")
+            log.addField(name + " PA{}".format(log_type), "float")
+
+    def initlogcm(self, cm, log, log_type):
+        if log is None:
+            log = self.log
+        else:
+            self.log = log
+        if cm is None:
+            cm = self.cms[log_type]
+        return cm, log
+
+    def initThisLogs(self, log: TrainLog = None, ):
+        for name in self.cms:
+            self.initLog(name, cm=self.cms[name], log=log)
+
+    def updateLog(self, log_type: str, cm: ConfusionMatrix = None, log: TrainLog = None, ):
+        cm, log = self.initlogcm(cm, log, log_type)
+        log.updateField("OA{}".format(log_type), cm.OA())
+        log.updateField("Kappa{}".format(log_type), cm.getKappa())
+        for name in cm:
+            log.updateField(name + " UA{}".format(log_type), cm.UA(name))
+            log.updateField(name + " PA{}".format(log_type), cm.PA(name))
+
+
+class TrainTestConfusionMatrixLog(ConfusionMatrixLog):
+
+    def __init__(self, n_category=2, category_names=None):
+        super().__init__(n_category, category_names)
+        self.train_cm = self.cms.addCM("Train")
+        self.test_cm = self.cms.addCM("Test")
+        self.log = None
+
+    def initTrainLog(self, log: TrainLog = None):
+        self.initLog("Train", log=log)
+
+    def initTestLog(self, log: TrainLog = None):
+        self.initLog("Test", log=log)
+
+    def initTrainTestLog(self, log: TrainLog = None):
+        self.initTrainLog(log=log)
+        self.initTestLog(log=log)
+
+    def updateLogTrainCM(self, log: TrainLog = None):
+        self.updateLog("Train", log=log)
+
+    def updateLogTestCM(self, log: TrainLog = None):
+        self.updateLog("Test", log=log)
+
+    def updateLogTrainTestCM(self, log: TrainLog = None):
+        self.updateLogTrainCM(log=log)
+        self.updateLogTestCM(log=log)
+
+    def addTrainData(self, y_true, y_pred):
+        self.train_cm.addData(y_true, y_pred)
+
+    def addTestData(self, y_true, y_pred):
+        self.test_cm.addData(y_true, y_pred)
+
+
 class Training:
 
     def __init__(self, model_dir, model_name):
@@ -359,7 +543,17 @@ class Training:
         if not os.path.isdir(self.model_dir):
             raise Exception("Can not find model directory " + self.model_dir)
 
-        self._log = None
+        self._log: TrainLog = None
+
+    def toDict(self):
+        to_dict = {
+            "model_dir": self.model_dir,
+            "model": str(self.model),
+            "models": [str(model) for model in self.models],
+            "model_name": self.model_name,
+            "_log": self._log.toDict(),
+        }
+        return to_dict
 
     def _initLog(self):
         self._log = TrainLog(log_filename=os.path.join(self.model_dir, "train_log.txt"))
@@ -477,6 +671,28 @@ def dataModelPredict(data, data_deal, is_jdt, model):
         data_c[i, :] = y
     jdt.end(is_jdt=is_jdt)
     return data_c
+
+
+def dataPredictPatch(image_data, win_size, predict_func, is_jdt=True):
+    imdc = np.zeros(image_data.shape[1:])
+    win_row, win_column = win_size
+    row_start, row_end, = win_row, imdc.shape[0] - win_row
+    column_start, column_end, = win_column, imdc.shape[1] - win_column
+    win_row_2, win_column_2 = int(win_row / 2), int(win_column / 2)
+    row_01, column_01 = win_row%2, win_column%2
+    col_imdc = np.zeros((column_end - column_start, image_data.shape[0], win_row, win_column))
+    jdt = Jdt(row_end - row_start, "dataPredictPatch").start(is_jdt=is_jdt)
+    for i in range(row_start, row_end):
+        j_select = 0
+        for j in range(column_start, column_end):
+            r, c = i, j
+            col_imdc[j_select] = image_data[:, r - win_row_2:r + win_row_2 + row_01, c - win_column_2:c + win_column_2 + column_01]
+            j_select += 1
+        y = predict_func(col_imdc)
+        imdc[i, column_start: column_end] = y
+        jdt.add(is_jdt=is_jdt)
+    jdt.end(is_jdt=is_jdt)
+    return imdc
 
 
 class ModelDataCategory:

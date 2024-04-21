@@ -15,7 +15,7 @@ from SRTCodes import Utils
 from SRTCodes.GDALDraw import GDALDrawImages
 from SRTCodes.GDALRasterIO import GDALRasterRange, GDALRaster
 from SRTCodes.NumpyUtils import reHist
-from SRTCodes.Utils import printList
+from SRTCodes.Utils import printList, DirFileName
 from Shadow.Hierarchical import SHHConfig
 from Shadow.Hierarchical.SHHConfig import SHHFNImages
 
@@ -28,6 +28,8 @@ class SHHGDALDrawImages(GDALDrawImages):
         self.addCategoryColor("color8", SHHConfig.SHH_COLOR8)
         self.addCategoryColor("color_vnl_8", SHHConfig.SHH_COLOR_VNL_8)
         self.addCategoryColor("color_is_8", SHHConfig.SHH_COLOR_IS_8)
+        self.addCategoryColor("color_ws_8", SHHConfig.SHH_COLOR_WS_8)
+        self.addCategoryColor("color_vhl_3", SHHConfig.SHH_COLOR_VNL)
 
     def addRCC_Im1(self):
         imfn = SHHFNImages.images1()
@@ -141,6 +143,205 @@ class SHHGDALDrawImagesColumn(SHHGDALDrawImages):
 
 
 def main():
+    sgdic = SHHGDALDrawImagesColumn((60, 60))
+    sgdic.fontdict["size"] = 16
+    sgdic.addRCC_Im1()
+    printList("Image Keys: ", sgdic.keys())
+    ml_dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\MLMods")
+    print(ml_dfn.fn(r"20240419H222504fc\qd_sh2_1_opt_sar_glcm_imdc.tif"),
+          ml_dfn.fn(r"20240419H234523nofc\qd_sh2_1_opt_sar_glcm_imdc.tif"), )
+    sgdic.addRasterCenterCollection(
+        "FC",
+        ml_dfn.fn(r"20240419H222504fc\qd_sh2_1_opt_sar_glcm_imdc.tif"),
+        ml_dfn.fn(r"20240419H223557fc\bj_sh2_1_opt_sar_glcm_imdc.tif"),
+        ml_dfn.fn(r"20240419H230332fc\cd_sh2_1_opt_sar_glcm_imdc.tif"),
+        channel_list=[0], is_min_max=False, )
+    sgdic.addRasterCenterCollection(
+        "NOFC",
+        ml_dfn.fn(r"20240419H234523nofc\qd_sh2_1_opt_sar_glcm_imdc.tif"),
+        ml_dfn.fn(r"20240419H235038nofc\bj_sh2_1_opt_sar_glcm_imdc.tif"),
+        ml_dfn.fn(r"20240420H000421nofc\cd_sh2_1_opt_sar_glcm_imdc.tif"),
+        channel_list=[0], is_min_max=False, )
+    column_names = ["RGB", "NRG", "AS SAR", "DE SAR", "FC", "NOFC"]
+    row_names = []
+
+    def add1(name, x, y):
+        n_row = len(row_names)
+        row_names.append(name)
+        sgdic.addAxisDataXY(n_row, 0, "RGB", x, y, min_list=[100, 100, 100], max_list=[2000, 2000, 2000])
+        sgdic.addAxisDataXY(n_row, 1, "NRG", x, y, min_list=[100, 100, 100], max_list=[3000, 2000, 2000])
+        sgdic.addAxisDataXY(n_row, 2, "AS_VV", x, y)
+        sgdic.addAxisDataXY(n_row, 3, "DE_VV", x, y)
+        sgdic.addAxisDataXY(n_row, 4, "FC", x, y, color_name="color8")
+        sgdic.addAxisDataXY(n_row, 5, "NOFC", x, y, color_name="color8")
+
+    add1("(1)    ", 120.297934,36.175996)
+    add1("(2)    ", 120.222028,36.266922)
+    add1("(3)    ", 120.304915,36.249621)
+    add1("(4)    ", 120.369167,36.244726)
+    add1("(5)    ", 120.028982,36.271066)
+    sgdic.draw(n_columns_ex=1.6, n_rows_ex=1.6, row_names=row_names, column_names=column_names)
+    plt.show()
+
+    pass
+
+
+def method_name13():
+    # 流程图
+    sgdic = SHHGDALDrawImagesColumn((20, 20))
+    sgdic.fontdict["size"] = 16
+    sgdic.addRCC_Im1()
+    printList("Image Keys: ", sgdic.keys())
+
+    column_names = ["RGB", "NRG", "AS SAR", "DE SAR"]
+    row_names = []
+
+    def add1(name, x, y):
+        n_row = len(row_names)
+        row_names.append(name)
+        sgdic.addAxisDataXY(n_row, 0, "RGB", x, y, min_list=[100, 100, 100], max_list=[2000, 2000, 2000])
+        sgdic.addAxisDataXY(n_row, 1, "NRG", x, y, min_list=[100, 100, 100], max_list=[3000, 2000, 2000])
+        sgdic.addAxisDataXY(n_row, 2, "AS_VV", x, y)
+        sgdic.addAxisDataXY(n_row, 3, "DE_VV", x, y)
+
+    add1("(1)    ", 120.3848296, 36.1100934)
+    add1("(2)    ", 120.4051095, 36.1039619)
+    sgdic.draw(n_columns_ex=2, n_rows_ex=2, row_names=row_names, column_names=column_names)
+    plt.show()
+
+
+def method_name12():
+    # STEP1 结果 2024年4月7日19:30:01 组会
+    sgdic = SHHGDALDrawImagesColumn((40, 40))
+    sgdic.fontdict["size"] = 16
+    sgdic.addRCC_Im1()
+    city_name = "qd"
+    if city_name == "bj":
+        sgdic.addRasterCenterCollection(
+            "Transformer",
+            r"F:\ProjectSet\Shadow\Hierarchical\VHLModels\20240407H133608\VHLModel_VIT1_epoch98_imdc1.tif",
+            channel_list=[0], is_min_max=False, )
+        sgdic.addRasterCenterCollection(
+            "RF", r"F:\ProjectSet\Shadow\Hierarchical\VHLModels\20240406H195636\BJ_VHLML_imdc.tif",
+            channel_list=[0], is_min_max=False, )
+    elif city_name == "qd":
+        sgdic.addRasterCenterCollection(
+            "Transformer",
+            r"F:\ProjectSet\Shadow\Hierarchical\VHLModels\20240406H192733\VHLModel_VIT1_epoch90_imdc1.tif",
+            channel_list=[0], is_min_max=False, )
+        sgdic.addRasterCenterCollection(
+            "RF", r"F:\ProjectSet\Shadow\Hierarchical\VHLModels\20240405H205015\QD_VHLML_imdc.tif",
+            channel_list=[0], is_min_max=False, )
+    printList("Image Keys: ", sgdic.keys())
+    column_names = ["RGB", "NRG", "AS SAR", "DE SAR", "Transformer", "RF"]
+    row_names = []
+
+    def add1(name, x, y):
+        n_row = len(row_names)
+        row_names.append(name)
+        sgdic.addAxisDataXY(n_row, 0, "RGB", x, y, min_list=[100, 100, 100], max_list=[2000, 2000, 2000])
+        sgdic.addAxisDataXY(n_row, 1, "NRG", x, y, min_list=[100, 100, 100], max_list=[3000, 2000, 2000])
+        sgdic.addAxisDataXY(n_row, 2, "AS_VV", x, y)
+        sgdic.addAxisDataXY(n_row, 3, "DE_VV", x, y)
+        sgdic.addAxisDataXY(n_row, 4, "Transformer", x, y, color_name="color_vhl_3")
+        sgdic.addAxisDataXY(n_row, 5, "RF", x, y, color_name="color_vhl_3")
+
+    if city_name == "bj":
+        add1("(1)    ", 116.427091, 40.010610)
+        # sgdic.addEllipse((8, 8), 6, 6, n_row=0, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="lime", )
+        add1("(2)    ", 116.458256, 40.009214)
+        # sgdic.addEllipse((12, 9), 6, 6, n_row=1, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+        add1("(3)    ", 116.824781, 39.800360)
+        # sgdic.addEllipse((10, 12), 6, 6, n_row=2, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+        add1("(4)    ", 116.7622717, 39.8056862)
+        # sgdic.addEllipse((9, 9), 5, 8, n_row=3, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+        # add1("(1)    ", 120.372189,36.067929)
+
+    elif city_name == "qd":
+        add1("(1)    ", 120.203040, 36.220417)
+        # sgdic.addEllipse((8, 8), 6, 6, n_row=0, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="lime", )
+        add1("(2)    ", 120.3201389, 36.3350312)
+        # sgdic.addEllipse((12, 9), 6, 6, n_row=1, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+        add1("(3)    ", 120.298611, 36.170982)
+        # sgdic.addEllipse((10, 12), 6, 6, n_row=2, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+        add1("(4)    ", 120.4097894, 36.0690048)
+        # sgdic.addEllipse((9, 9), 5, 8, n_row=3, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+        # add1("(1)    ", 120.372189,36.067929)
+    sgdic.draw(n_columns_ex=2, n_rows_ex=2, row_names=row_names, column_names=column_names)
+    plt.show()
+
+
+def method_name11():
+    # WSModel 结果
+    sgdic = SHHGDALDrawImagesColumn((100, 100))
+    sgdic.fontdict["size"] = 16
+    sgdic.addRCC_Im1()
+    sgdic.addRasterCenterCollection(
+        "DL", r"F:\ProjectSet\Shadow\Hierarchical\WSModels\20240330H114435\VIT_WS_T1_epoch90_imdc1.tif"
+        , channel_list=[0], is_min_max=False, )
+    printList("Image Keys: ", sgdic.keys())
+    column_names = ["RGB", "NRG", "AS SAR", "DE SAR", "Imdc"]
+    row_names = []
+
+    def add1(name, x, y):
+        n_row = len(row_names)
+        row_names.append(name)
+        sgdic.addAxisDataXY(n_row, 0, "RGB", x, y, min_list=[100, 100, 100], max_list=[2000, 2000, 2000])
+        sgdic.addAxisDataXY(n_row, 1, "NRG", x, y, min_list=[100, 100, 100], max_list=[3000, 2000, 2000])
+        sgdic.addAxisDataXY(n_row, 2, "AS_VV", x, y)
+        sgdic.addAxisDataXY(n_row, 3, "DE_VV", x, y)
+        sgdic.addAxisDataXY(n_row, 4, "DL", x, y, color_name="color_ws_8")
+
+    add1("(1)    ", 120.379059, 36.067248)
+    # sgdic.addEllipse((8, 8), 6, 6, n_row=0, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="lime", )
+    add1("(2)    ", 120.246732, 36.263659)
+    # sgdic.addEllipse((12, 9), 6, 6, n_row=1, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+    add1("(3)    ", 120.328479, 36.283658)
+    # sgdic.addEllipse((10, 12), 6, 6, n_row=2, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+    add1("(4)    ", 120.461028, 36.210270)
+    # sgdic.addEllipse((9, 9), 5, 8, n_row=3, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+    # add1("(1)    ", 120.372189,36.067929)
+    sgdic.draw(n_columns_ex=2, n_rows_ex=2, row_names=row_names, column_names=column_names)
+    plt.show()
+
+
+def method_name10():
+    # 阴影下数据范围改变之后看看阴影下的光学特征
+    sgdic = SHHGDALDrawImagesColumn((3, 3))
+    sgdic.fontdict["size"] = 16
+    sgdic.addRCC_Im1()
+    sgdic.addMLImdc("FC", r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240308H210341nofc")
+    printList("Image Keys: ", sgdic.keys())
+    column_names = ["RGB[100,3000]", "RGB[100,500]", "NRG[100,500]", "NRG[100,500]", "AS SAR", "DE SAR"]
+    row_names = []
+
+    def add1(name, x, y):
+        n_row = len(row_names)
+        row_names.append(name)
+        sgdic.addAxisDataXY(n_row, 0, "RGB", x, y)
+        sgdic.addAxisDataXY(n_row, 1, "RGB", x, y, min_list=[100, 100, 100], max_list=[500, 500, 500])
+        sgdic.addAxisDataXY(n_row, 2, "NRG", x, y)
+        sgdic.addAxisDataXY(n_row, 3, "NRG", x, y, min_list=[100, 100, 100], max_list=[700, 500, 500])
+        sgdic.addAxisDataXY(n_row, 4, "AS_VV", x, y, )
+        sgdic.addAxisDataXY(n_row, 5, "DE_VV", x, y, )
+
+    # add1("(1)    ", 120.3959076,36.1139105)
+    # sgdic.addEllipse((8, 8), 6, 6, n_row=0, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="lime", )
+    #
+    # add1("(2)    ", 104.1408601,30.6022039)
+    # sgdic.addEllipse((12, 9), 6, 6, n_row=1, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+    #
+    # add1("(3)    ", 120.3358679,36.1221974)
+    # sgdic.addEllipse((10, 12), 6, 6, n_row=2, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+    #
+    # add1("(4)    ", 104.0790883,30.6216332)
+    # sgdic.addEllipse((9, 9), 5, 8, n_row=3, angle=0, linewidth=1.5, fill=False, zorder=2, edgecolor="red", )
+    add1("(1)    ", 104.0534023, 30.6078706)
+    sgdic.draw(n_columns_ex=2, n_rows_ex=2, row_names=row_names, column_names=column_names)
+    plt.show()
+
+
+def method_name9():
     sgdic = SHHGDALDrawImagesColumn((31, 31))
     sgdic.fontdict["size"] = 12
     sgdic.addRCC_Im1()
@@ -165,17 +366,13 @@ def main():
     # add1("City(2)        ", 120.411755, 36.121639)
     # add1("Village(1)            ", 120.147212, 36.295521)
     # add1("Village(2)            ", 120.263935, 36.307509)
-
     # IS
     add1("City(1)        ", 120.411226, 36.126965)
     add1("City(2)        ", 120.356780, 36.080849)
     add1("Village(1)            ", 120.183232, 36.286523)
     add1("Village(2)            ", 120.361619, 36.349536)
-
     sgdic.draw(n_columns_ex=2, n_rows_ex=2, row_names=row_names, column_names=column_names)
     plt.show()
-
-    pass
 
 
 def method_name8():

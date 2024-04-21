@@ -35,6 +35,35 @@ class SRTCollection:
         return self._n_next[item]
 
 
+class SRTCollectionDict:
+
+    def __init__(self):
+        self._n_iter = 0
+        self.n_next = {}
+        self._keys = None
+
+    def __len__(self):
+        return len(self.n_next)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._n_iter == len(self.n_next):
+            self._n_iter = 0
+            raise StopIteration()
+        if self._n_iter == 0:
+            self._keys = iter(self.n_next.keys())
+        self._n_iter += 1
+        return next(self._keys)
+
+    def __contains__(self, item):
+        return item in self.n_next
+
+    def __getitem__(self, item):
+        return self.n_next[item]
+
+
 def main():
     pass
 
