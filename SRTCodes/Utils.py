@@ -161,6 +161,11 @@ def readLinesList(filename, sep=" ", strip_str="\n", ):
         return lines
 
 
+def readText(filename, encoding="utf-8", **kwargs):
+    with open(filename, mode="r", encoding=encoding, **kwargs) as f:
+        return f.read()
+
+
 def filterFileExt(dirname=".", ext=""):
     filelist = []
     for f in os.listdir(dirname):

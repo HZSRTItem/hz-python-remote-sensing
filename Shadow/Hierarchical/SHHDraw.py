@@ -181,6 +181,7 @@ def main():
     add1("(4)    ", 120.369167,36.244726)
     add1("(5)    ", 120.028982,36.271066)
     sgdic.draw(n_columns_ex=1.6, n_rows_ex=1.6, row_names=row_names, column_names=column_names)
+
     plt.show()
 
     pass

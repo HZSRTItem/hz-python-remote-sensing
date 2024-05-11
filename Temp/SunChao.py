@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 
+from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.Utils import readJson, Jdt
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
@@ -21,6 +22,14 @@ plt.rcParams['axes.unicode_minus'] = False
 
 
 def main():
+    # gr = GDALRaster(r"F:\ProjectSet\Huo\SunChao\drive-download-20240411T011255Z-001\sunchao2_clip.tif")
+    # data = gr.readAsArray()
+    # print(np.unique(data, return_counts=True))
+
+    method_name6()
+
+
+def method_name6():
     def func1(json_fn):
         d = readJson(json_fn)
         d_list = {id_dict[feat["id"]]: feat["properties"] for feat in d["features"]}
@@ -72,27 +81,24 @@ def main():
 
     df = get_df()
     # df = pd.read_csv(r"F:\ProjectSet\Huo\SunChao\drive-download-20240421T083153Z-001\samples_spl3_fw.csv")
-
     fv_y, fv_x = np.histogram(df[(df["Category"] == 1)]["FV"].values, range=[0, 1], bins=10)
-    fv_y = fv_y / len(df)
+    fv_y = fv_y / np.sum(fv_y)
     fv_x = fv_x[1:] - 0.07
-    fv_y_sum = np.array([np.sum(fv_y[:i+1]) for  i in range(len(fv_y))])
+    fv_y_sum = np.array([np.sum(fv_y[:i + 1]) for i in range(len(fv_y))])
     plt.bar(fv_x, fv_y, width=0.03, label="高潮滩植被频率")
-    plt.plot(fv_x+0.07, fv_y_sum, "ro--", label="高潮滩植被累计频率")
-
+    plt.plot(fv_x + 0.07, fv_y_sum, "ro--", label="高潮滩植被累计频率")
     fw_y, fw_x = np.histogram(df[df["Category"] == 2]["FV"].values, range=[0, 1], bins=10)
-    fw_y = fw_y / len(df)
+    fw_y = fw_y / np.sum(fw_y)
     fw_x = fw_x[1:] - 0.03
-    fw_y_sum = np.array([np.sum(fw_y[:i+1]) for i in range(len(fw_y))])
+    fw_y_sum = np.array([np.sum(fw_y[:i + 1]) for i in range(len(fw_y))])
     plt.bar(fw_x, fw_y, width=0.03, label="低潮滩植被累计频率")
-    plt.plot(fw_x+0.03, fw_y_sum,"go--", label="低潮滩植被频率")
-
+    plt.plot(fw_x + 0.03, fw_y_sum, "go--", label="低潮滩植被频率")
     plt.xticks(np.linspace(0, 1, 11))
     plt.xlim([0, 1])
     plt.xlabel("植被频率", fontdict={"size": 10})
     plt.ylabel("频率", fontdict={"size": 10})
     plt.legend()
-    plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\潮间带植被的频率分布特征2.jpg", dpi=300)
+    plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\潮间带植被的频率分布特征3.jpg", dpi=300)
     plt.show()
 
 
@@ -100,17 +106,18 @@ def method_name5():
     df = pd.read_csv(r"F:\ProjectSet\Huo\SunChao\drive-download-20240421T083153Z-001\samples_spl3_fw.csv")
 
     fv_y, fv_x = np.histogram(df[(df["Category"] == 1) | (df["Category"] == 2)]["FW"].values, range=[0, 1], bins=10)
-    fv_y = fv_y / len(df)
+    fv_y = fv_y / np.sum(fv_y)
     plt.bar(fv_x[1:] - 0.07, fv_y, width=0.03, label="潮间带")
     fw_y, fw_x = np.histogram(df[df["Category"] == 4]["FW"].values, range=[0, 1], bins=10)
-    fw_y = fw_y / len(df)
+    fw_y = fw_y / np.sum(fw_y)
     plt.bar(fw_x[1:] - 0.03, fw_y, width=0.03, label="永久性水体")
     plt.xticks(fv_x)
     plt.xlim([0, 1])
-    plt.ylim([0, 0.3])
+    plt.ylim([0, 1])
+    plt.legend()
     plt.xlabel("水体频率", fontdict={"size": 10})
     plt.ylabel("频率", fontdict={"size": 10})
-    plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\潮间带和永久性水体的频率分布特征2.jpg", dpi=300)
+    plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\潮间带和永久性水体的频率分布特征3.jpg", dpi=300)
     plt.show()
 
 
@@ -180,7 +187,7 @@ def method_name4():
         plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\植被光谱指数分布特征2.jpg", dpi=300)
         plt.show()
 
-    plot1()
+    # plot1()
 
     def plot2(fc_fields_k):
         # fc_fields_2 = ['NDWI', 'mNDWI', 'AWEIsh', 'AWEInsh', 'LSWI', 'WI2015', 'NDVI', 'EVI']
@@ -207,9 +214,9 @@ def method_name4():
             print(to_dict.keys())
 
             if is_0:
-                color = "blue"
-            else:
                 color = "orange"
+            else:
+                color = "blue"
             time0 = datetime.datetime.strptime('2017-01-01', '%Y-%m-%d')
 
             for i in to_dict:
@@ -237,14 +244,19 @@ def method_name4():
         plt.xlabel("时间/月")
         plt.ylabel(fc_fields_k)
         plt.xticks(time_list_n, time_list)
-        plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\潮间带和永久性水体的水体指数特征2_{0}.jpg".format(fc_fields_k),
-                    dpi=300)
+        to_fn = r"F:\ProjectSet\Huo\SunChao\tu\潮间带和永久性水体的水体指数特征3_{0}.jpg".format(fc_fields_k)
+        print(to_fn)
+        plt.savefig(to_fn, dpi=300)
 
         plt.show()
 
-    # fc_fields_2 = ['NDWI', 'mNDWI', 'AWEIsh', 'AWEInsh', 'LSWI', 'NDVI', 'EVI']
-    # for k in fc_fields_2:
-    #     plot2(k)
+    fc_fields_2 = [
+        'NDWI', 'mNDWI', 'AWEIsh', 'AWEInsh', 'LSWI', 'NDVI', 'EVI',
+        "WI2015"
+    ]
+    for k in fc_fields_2:
+        plot2(k)
+
     def plot3():
         data_list_tmp = data_list[:12]
         jdt = Jdt(len(data_list_tmp), "data_list").start()

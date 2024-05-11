@@ -109,6 +109,12 @@ def qdFeatureDeal(obj_feat):
     obj_feat.featureScaleMinMax("DE_VV_hom", 0.000000, 0.721794)
     obj_feat.featureScaleMinMax("DE_VV_mean", 0.000000, 61.523441)
     obj_feat.featureScaleMinMax("DE_VV_var", 0.000000, 211.846954)
+    obj_feat.featureScaleMinMax("AS_H", -0.6309294700622559, -0.00025027384981513023)
+    obj_feat.featureScaleMinMax("AS_A", -0.9995785355567932, 0.9999527931213379)
+    obj_feat.featureScaleMinMax("AS_Alpha", 0.0020001684315502644, 1.4092400074005127)
+    obj_feat.featureScaleMinMax("DE_H", -0.6309216618537903, -9.606533421901986e-05)
+    obj_feat.featureScaleMinMax("DE_A", -0.9984971284866333, 0.9999833703041077)
+    obj_feat.featureScaleMinMax("DE_Alpha", 0.001635744352824986, 1.4519890546798706)
 
 
 class ShadowMainQD(ShadowMain):

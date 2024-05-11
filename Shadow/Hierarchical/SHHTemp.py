@@ -17,7 +17,7 @@ from sklearn import tree
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
-
+from SRTCodes.GDALDraw import GDALDrawImages
 from SRTCodes.GDALRasterClassification import GDALModelDataCategory
 from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel
 from SRTCodes.GDALUtils import GDALRastersSampling, GDALSamplingFast
@@ -59,9 +59,126 @@ def randomSamples(x, y=None):
         y = y[random_list]
     return x, y
 
+
 # python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHTemp import main; main()"
 
+
 def main():
+    # 中期考核制图
+    # sgdic = SHHGDALDrawImagesColumn((600, 600))
+    # qd_fn = FileName(r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_look_envi.dat")
+    # bj_fn = FileName(r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_envi.dat")
+    # cd_fn = FileName(r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_look_envi.dat")
+    # qd_name = sgdic.addGeoRange(qd_fn.fn(), qd_fn.changext(".range"))
+    # bj_name = sgdic.addGeoRange(bj_fn.fn(), bj_fn.changext(".range"))
+    # cd_name = sgdic.addGeoRange(cd_fn.fn(), cd_fn.changext(".range"))
+    #
+    # sgdic.addRasterCenterCollection("RGB", bj_name, cd_name, qd_name, channel_list=["B4", "B3", "B2"])
+    # sgdic.addRasterCenterCollection("NRG", bj_name, cd_name, qd_name, channel_list=["B8", "B4", "B3"])
+    # sgdic.addRasterCenterCollection("NDVI", bj_name, cd_name, qd_name, channel_list=["NDVI"])
+    # sgdic.addRasterCenterCollection("NDWI", bj_name, cd_name, qd_name, channel_list=["NDWI"])
+    # sgdic.addRasterCenterCollection("AS_VV", bj_name, cd_name, qd_name, channel_list=["AS_VV"])
+    # sgdic.addRasterCenterCollection("AS_VH", bj_name, cd_name, qd_name, channel_list=["AS_VH"])
+    # sgdic.addRasterCenterCollection("DE_VV", bj_name, cd_name, qd_name, channel_list=["DE_VV"])
+    # sgdic.addRasterCenterCollection("DE_VH", bj_name, cd_name, qd_name, channel_list=["DE_VH"])
+    # sgdic.addRasterCenterCollection("AS_C11", bj_name, cd_name, qd_name, channel_list=["AS_C11"])
+    # sgdic.addRasterCenterCollection("AS_C22", bj_name, cd_name, qd_name, channel_list=["AS_C22"])
+    # sgdic.addRasterCenterCollection("DE_C11", bj_name, cd_name, qd_name, channel_list=["DE_C11"])
+    # sgdic.addRasterCenterCollection("DE_C22", bj_name, cd_name, qd_name, channel_list=["DE_C22"])
+    # sgdic.addRasterCenterCollection("AS_Epsilon", bj_name, cd_name, qd_name, channel_list=["AS_Epsilon"])
+    # sgdic.addRasterCenterCollection("DE_Epsilon", bj_name, cd_name, qd_name, channel_list=["DE_Epsilon"])
+    # sgdic.addRasterCenterCollection("AS_Mu", bj_name, cd_name, qd_name, channel_list=["AS_Mu"])
+    # sgdic.addRasterCenterCollection("DE_Mu", bj_name, cd_name, qd_name, channel_list=["DE_Mu"])
+    # sgdic.addRasterCenterCollection("AS_Beta", bj_name, cd_name, qd_name, channel_list=["AS_Beta"])
+    # sgdic.addRasterCenterCollection("DE_Beta", bj_name, cd_name, qd_name, channel_list=["DE_Beta"])
+    #
+    # column_names = ["RGB", "NRG", "AS SAR", "DE SAR", "FC", "NOFC"]
+    # row_names = []
+    #
+    # def add1(name, x, y):
+    #     n_row = len(row_names)
+    #     row_names.append(name)
+    #     sgdic.addAxisDataXY(n_row, 0, "RGB", x, y, min_list=[100, 100, 100], max_list=[2000, 2000, 2000])
+    #     sgdic.addAxisDataXY(n_row, 1, "NRG", x, y, min_list=[100, 100, 100], max_list=[3000, 2000, 2000])
+    #     sgdic.addAxisDataXY(n_row, 2, "AS_VV", x, y)
+    #     sgdic.addAxisDataXY(n_row, 3, "DE_VV", x, y)
+    #     sgdic.addAxisDataXY(n_row, 4, "FC", x, y, color_name="color8")
+    #     sgdic.addAxisDataXY(n_row, 5, "NOFC", x, y, color_name="color8")
+    #
+    # add1("(1)    ", 120.297934, 36.175996)
+    # add1("(2)    ", 120.222028, 36.266922)
+    # add1("(3)    ", 120.304915, 36.249621)
+    # add1("(4)    ", 120.369167, 36.244726)
+    # add1("(5)    ", 120.028982, 36.271066)
+    # sgdic.draw(n_columns_ex=1.6, n_rows_ex=1.6, row_names=row_names, column_names=column_names)
+    #
+    # plt.show()
+    #
+
+    gdi = GDALDrawImages((1000, 1000))
+    bj_name = gdi.addGeoRange(r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_look_tif.tif",
+                              r"F:\ProjectSet\Shadow\MkTu\Draw\SH_BJ_envi.dat.npy.json")
+    cd_name = gdi.addGeoRange(r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_tif.tif",
+                              r"F:\ProjectSet\Shadow\MkTu\Draw\SH_CD_envi.dat.npy.json")
+    qd_name = gdi.addGeoRange(r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_look_tif.tif",
+                              r"F:\ProjectSet\Shadow\MkTu\Draw\SH_QD_envi.dat.npy.json")
+    x, y = 116.45660,39.85406
+
+    class gdi_addAxisDataXY:
+
+        def __init__(self):
+            self.row = 0
+            self.column = 0
+            self.n_column = 5
+
+        def add(self, name):
+            gdi.addAxisDataXY(self.row, self.column, name, x, y)
+            self.column += 1
+            if self.column == self.n_column:
+                self.row += 1
+                self.column = 0
+
+        def adds(self, *names):
+            for name in names:
+                self.add(name)
+
+    gdi_addaxisdataxy = gdi_addAxisDataXY()
+
+    gdi.addRasterCenterCollection("RGB", bj_name, cd_name, qd_name, channel_list=["Red", "Green", "Blue"])
+    gdi.addRasterCenterCollection("NRG", bj_name, cd_name, qd_name, channel_list=["NIR", "Red", "Green"])
+    gdi.addRasterCenterCollection("NDVI", bj_name, cd_name, qd_name, channel_list=["NDVI"])
+    gdi.addRasterCenterCollection("NDWI", bj_name, cd_name, qd_name, channel_list=["NDWI"])
+    gdi.addRasterCenterCollection("AS_VV", bj_name, cd_name, qd_name, channel_list=["AS_VV"])
+    gdi.addRasterCenterCollection("AS_VH", bj_name, cd_name, qd_name, channel_list=["AS_VH"])
+    gdi.addRasterCenterCollection("DE_VV", bj_name, cd_name, qd_name, channel_list=["DE_VV"])
+    gdi.addRasterCenterCollection("DE_VH", bj_name, cd_name, qd_name, channel_list=["DE_VH"])
+    gdi.addRasterCenterCollection("AS_C11", bj_name, cd_name, qd_name, channel_list=["AS_C11"])
+    gdi.addRasterCenterCollection("AS_C22", bj_name, cd_name, qd_name, channel_list=["AS_C22"])
+    gdi.addRasterCenterCollection("DE_C11", bj_name, cd_name, qd_name, channel_list=["DE_C11"])
+    gdi.addRasterCenterCollection("DE_C22", bj_name, cd_name, qd_name, channel_list=["DE_C22"])
+    gdi.addRasterCenterCollection("AS_Epsilon", bj_name, cd_name, qd_name, channel_list=["AS_Epsilon"])
+    gdi.addRasterCenterCollection("DE_Epsilon", bj_name, cd_name, qd_name, channel_list=["DE_Epsilon"])
+    gdi.addRasterCenterCollection("AS_Mu", bj_name, cd_name, qd_name, channel_list=["AS_Mu"])
+    gdi.addRasterCenterCollection("DE_Mu", bj_name, cd_name, qd_name, channel_list=["DE_Mu"])
+    gdi.addRasterCenterCollection("AS_Beta", bj_name, cd_name, qd_name, channel_list=["AS_Beta"])
+    gdi.addRasterCenterCollection("DE_Beta", bj_name, cd_name, qd_name, channel_list=["DE_Beta"])
+    gdi.addRasterCenterCollection("AS_m", bj_name, cd_name, qd_name, channel_list=["AS_m"])
+    gdi.addRasterCenterCollection("DE_m", bj_name, cd_name, qd_name, channel_list=["DE_m"])
+
+    gdi_addaxisdataxy.adds(
+        "RGB", "NRG", "NDVI", "NDWI",
+        "AS_VV", "AS_VH", "AS_C11", "AS_C22", "AS_Epsilon", "AS_Mu", "AS_Beta", "AS_m",
+        "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_Epsilon", "DE_Mu", "DE_Beta", "DE_m",
+    )
+
+    gdi.draw(n_rows_ex=2, n_columns_ex=2)
+    plt.savefig(r"F:\OpenTitle\中期答辩\features.jpg", dpi=300)
+    plt.show()
+
+    return
+
+
+def method_name27():
     # vrtAddDescriptions(
     #     filename=r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\vrts\filelist.vrt",
     #     descriptions=["AS_VV", "AS_VH", "AS_angle", "DE_VV", "DE_VH", "DE_angle", "B2", "B3", "B4", "B8", "B11", "B12",
@@ -74,7 +191,6 @@ def main():
     tif_fns = filterFileExt(r"G:\ImageData\SHH2BeiJingImages\bj_sh2_1_opt_sar_glcm", ".tif")
     tif_fns = filterFileExt(r"G:\ImageData\SHH2ChengDuImages\cd_sh2_1_opt_sar_glcm", ".tif")
     # tif_fns = [r"G:\ImageData\SHH2QingDaoImages\qd_sh2_1_opt_sar_glcm\shh2_qd1_2_1_1.tif"]
-
     for fn in tif_fns:
         ds = gdal.Open(fn, gdal.GA_Update)
         ds: gdal.Dataset
@@ -82,7 +198,6 @@ def main():
             band: gdal.Band = ds.GetRasterBand(i + 1)
             band.SetDescription(descriptions[i])
         print(fn)
-    return
 
 
 def method_name26():

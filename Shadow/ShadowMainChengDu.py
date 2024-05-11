@@ -109,6 +109,12 @@ def cdFeatureDeal(obj_feat):
     obj_feat.featureScaleMinMax("DE_VV_hom", 0.000000, 0.980469)
     obj_feat.featureScaleMinMax("DE_VV_mean", 0.000000, 62.015629)
     obj_feat.featureScaleMinMax("DE_VV_var", 0.000000, 399.645813)
+    obj_feat.featureScaleMinMax("AS_H", -0.6309263706207275, -0.0002895382640417665)
+    obj_feat.featureScaleMinMax("AS_A", -0.9959172606468201, 0.9999446272850037)
+    obj_feat.featureScaleMinMax("AS_Alpha", 0.0012592935236170888, 1.4629809856414795)
+    obj_feat.featureScaleMinMax("DE_H", -0.6309292912483215, -0.00016973372839856893)
+    obj_feat.featureScaleMinMax("DE_A", -0.9968458414077759, 0.9999691247940063)
+    obj_feat.featureScaleMinMax("DE_Alpha", 0.0003037733549717814, 1.4996392726898193)
 
 
 class ShadowMainCD(ShadowMain):

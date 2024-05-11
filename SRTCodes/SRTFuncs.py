@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 
 from SRTCodes.NumpyUtils import connectedComponent, categoryMap, NumpyDataCenter
 from SRTCodes.SRTModelImage import SRTModImPytorch
+from SRTCodes.Utils import readText, printList
 from Shadow.Hierarchical import SHHConfig
 
 sys.path.append(r"F:\PyCodes")
@@ -48,8 +49,74 @@ class TNet(nn.Module):
 
 
 def main():
-    import torch.nn.functional as F
+    bib2csv(r"F:\Articles\ConnectedPapers\Derivative-Works-for-"
+            r"Improving-the-impervious-surface-estimation-with-combined-use-o"
+            r"f-optical-and-SAR-remote-sensing-images.bib",
+            r"F:\Articles\ConnectedPapers\tmp.csv")
+    pass
 
+
+def bib2csv(bib_fn, csv_fn):
+    bib_fns = [
+        r"F:\Articles\ConnectedPapers\ConnectedPapers-for-Improving-the-impervious-surface-estimation-with-combined-use-of-optical-and-SAR-remote-sensing-images.bib"
+        ,r"F:\Articles\ConnectedPapers\Derivative-Works-for-Improving-the-impervious-surface-estimation-with-combined-use-of-optical-and-SAR-remote-sensing-images.bib"
+        ,r"F:\Articles\ConnectedPapers\Prior-Works-for-Improving-the-impervious-surface-estimation-with-combined-use-of-optical-and-SAR-remote-sensing-images.bib"
+    ]
+
+    bib_text = ""
+    for bib_fn in bib_fns:
+        bib_text += "\n\n"
+        bib_text += readText(bib_fn)
+
+    def getch(_text):
+        n_kh = 0
+        lines = []
+        line = None
+        for i, ch in enumerate(_text):
+            if ch == "{":
+                if n_kh == 0:
+                    line = ""
+                n_kh += 1
+            elif ch == "}":
+                n_kh -= 1
+            if line is not None:
+                line += ch
+            if n_kh == 0:
+                if line is not None:
+                    lines.append(line)
+                    line = None
+        return lines
+
+    list1 = getch(bib_text)
+
+    def getkeys():
+        for line in bib_text.split('\n'):
+            if "=" in line:
+                k = line.split("=")[0]
+                k = k.strip()
+                if k not in keys:
+                    keys.append(k)
+    keys = []
+    getkeys()
+    print(keys)
+
+    to_list = []
+    for line in list1:
+        to_dict = {}
+        for line1 in line.split("\n"):
+            for k in keys:
+                if line1.startswith(k):
+                    tmp_ch = getch(line1)
+                    if len(tmp_ch) ==1 :
+                        to_dict[k] = tmp_ch[0].strip("{}")
+
+        to_list.append(to_dict)
+    print(pd.DataFrame(to_list))
+    pd.DataFrame(to_list).to_csv(csv_fn)
+
+
+def method_name3():
+    import torch.nn.functional as F
     class Net(nn.Module):
         def __init__(self):
             super(Net, self).__init__()
@@ -170,8 +237,6 @@ def main():
         pass
 
     train()
-
-    pass
 
 
 def method_name2():

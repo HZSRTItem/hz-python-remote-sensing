@@ -11,16 +11,48 @@ import os
 
 import matplotlib.colors as mcolors
 import numpy as np
+from osgeo import gdal
 
 from Draw.m_color_data import CSS4_COLORS
 from SRTCodes.GDALRasterIO import GDALRaster
 
 
 def main():
+
+    dirname = r"F:\ProjectSet\Huo\sun\drive-download-20240508T081752Z-001"
+    for fn in os.listdir(dirname):
+        if os.path.splitext(fn)[1] == ".tif":
+            print(fn)
+            fn_open = os.path.join(dirname, fn)
+            ds = gdal.Open(fn_open)
+            data = ds.ReadAsArray()
+            data = (np.clip(data, 200, 3000) - 200) / (3000 - 200) * 255
+            data = data.astype("int8")
+            driver = gdal.GetDriverByName("GTiff")
+            tif_fn = os.path.join(dirname, "1", fn)
+            if os.path.isfile(tif_fn):
+                os.remove(tif_fn)
+            dst_ds:gdal.Dataset = driver.Create(tif_fn, data.shape[2], data.shape[1], 3, gdal.GDT_Byte)
+            dst_ds.GetRasterBand(1).WriteArray(data[3])
+            dst_ds.GetRasterBand(2).WriteArray(data[2])
+            dst_ds.GetRasterBand(3).WriteArray(data[1])
+            driver_jpg = gdal.GetDriverByName("JPEG")
+            to_fn = tif_fn.replace(".tif", ".jpg")
+            if os.path.isfile(to_fn):
+                os.remove(to_fn)
+            to_ds = driver_jpg.CreateCopy(to_fn, dst_ds)
+            del to_ds
+            del dst_ds
+            if os.path.isfile(tif_fn):
+                os.remove(tif_fn)
+
+    pass
+
+
+def method_name3():
     gr = GDALRaster(r"G:\GraduationProject\Images\2021\gba_grid_183_67.tif")
     # d = np.zeros((gr.n_rows, gr.n_columns))
     # gr.save(d, r"F:\Week\20240121\Data\gba_grid_183_67_01.tif", fmt="GTiff")
-
     # gr = GDALRaster(raster_fn)
     # d = gr.readAsArray()
     # if len(d.shape) == 3:
@@ -30,8 +62,6 @@ def main():
     #     colored_image[d == k] = map_dict[k]
     # image = Image.fromarray(colored_image)
     # image.save(to_fn)
-
-    pass
 
 
 def method_name2():

@@ -726,6 +726,30 @@ class ShadowGeoDrawGradImage:
                                win_row_size=win_row_size, win_column_size=win_column_size, )
         return sgdmc
 
+    def addColumnASRGB(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, **kwargs):
+        win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
+        sgdmc = ShadowGeoDrawMultiChannel(
+            name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+            channel_list=["AS_VV", "AS_VH", "AS_VHDVV"], min_list=min_list, max_list=max_list,
+            callback_funcs=[], is_geo=True, no_data=0,
+        )
+        self.columns.append(sgdmc)
+        self.checkColumnKwargs(kwargs, name=name, min_list=min_list, max_list=max_list,
+                               win_row_size=win_row_size, win_column_size=win_column_size, )
+        return sgdmc
+
+    def addColumnDERGB(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, **kwargs):
+        win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
+        sgdmc = ShadowGeoDrawMultiChannel(
+            name=name, win_row_size=win_row_size, win_column_size=win_column_size,
+            channel_list=["DE_VV", "DE_VH", "DE_VHDVV"], min_list=min_list, max_list=max_list,
+            callback_funcs=[], is_geo=True, no_data=0,
+        )
+        self.columns.append(sgdmc)
+        self.checkColumnKwargs(kwargs, name=name, min_list=min_list, max_list=max_list,
+                               win_row_size=win_row_size, win_column_size=win_column_size, )
+        return sgdmc
+
     def addColumnGoogle(self, name, win_row_size=None, win_column_size=None, **kwargs):
         win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
         dgdmbt = ShadowGeoDrawMBTiles(name=name, win_row_size=win_row_size, win_column_size=win_column_size,
@@ -1495,8 +1519,172 @@ def method_name4():
                           callbacks=[_10log10, SFCBSM(-33.442368, -8.68537, True, True)])
 
 
+def drawRowColumn2():
+    sgdgi = ShadowGeoDrawGradImage(81, 81)
+    # sgdgi.color_dict = {1: (221,74,76), 2: (214,238,155), 3: (254,212,129), 4: (61,149,184)}
+    sgdgi.addImdcs()
+    sgdgi.isRowName(False)
+
+    sgdgi.addColumnGoogle("Google Image", 1600, 1600)
+    # sgdgi.addColumnRGB("RGB")
+    sgdgi.addColumnNRG("NRG")
+
+    # sgdgi.addColumnNDVI("NDVI")
+    # sgdgi.addColumnNDWI("NDWI")
+
+    # sgdgi.addColumnImdcKey("SH-AS-DE", "SPL_SH-SVM-TAG-OPTICS-AS-DE")
+    # sgdgi.addColumnImdcKey("NOSH-AS-DE", "SPL_NOSH-SVM-TAG-OPTICS-AS-DE")
+    # sgdgi.addColumnImdcKey("SH-AS", "SPL_SH-SVM-TAG-OPTICS-AS")
+    # sgdgi.addColumnImdcKey("NOSH-AS", "SPL_NOSH-SVM-TAG-OPTICS-AS")
+    # sgdgi.addColumnImdcKey("SH-DE", "SPL_SH-SVM-TAG-OPTICS-DE")
+    # sgdgi.addColumnImdcKey("NOSH-DE", "SPL_NOSH-SVM-TAG-OPTICS-DE")
+    # sgdgi.addColumnImdcKey("SH-OPT", "SPL_SH-SVM-TAG-OPTICS")
+    # sgdgi.addColumnImdcKey("NOSH-OPT", "SPL_NOSH-SVM-TAG-OPTICS")
+
+    # sgdgi.addColumnSAR_ASVV("SAR AS")
+    # sgdgi.addColumnSAR_DEVV("SAR DE")
+
+    # sgdgi.addColumnSAR_ASVH("AS VH")
+    # sgdgi.addColumnSAR_DEVH("DE VH")
+
+    # sgdgi.addColumnSAR_ASC11("AS C11")
+    # sgdgi.addColumnSAR_DEC11("DE C11")
+    # sgdgi.addColumnSAR_ASC22("AS C22")
+    # sgdgi.addColumnSAR_DEC22("DE C22")
+
+    def _addRowEllipse1(n_row, xy, width=8, height=6, angle=0, linewidth=1, fill=False, zorder=2,
+                        edgecolor="lightgreen", is_ratio=False):
+        sgdgi.addRowEllipse(n_row=n_row, xy=xy, width=width, height=height, angle=angle, linewidth=linewidth,
+                            fill=fill, zorder=zorder, edgecolor=edgecolor, is_ratio=is_ratio)
+
+    def _addEllipse1(xy, n_row=None, n_column=None, not_rows=None, not_columns=None,
+                     width=8, height=6, angle=0, linewidth=1.5, fill=False, zorder=2,
+                     edgecolor="lightgreen", is_ratio=False):
+        sgdgi.addEllipse(xy=xy, n_row=n_row, n_column=n_column, not_rows=not_rows, not_columns=not_columns,
+                         width=width, height=height, angle=angle, linewidth=linewidth,
+                         fill=fill, zorder=zorder, edgecolor=edgecolor, is_ratio=is_ratio)
+
+    def end_show():
+        sgdgi.addRow("1", 116.413250, 39.907738)
+        _addEllipse1((13, 6), 0, [1, 2], width=8, edgecolor="green")
+        _addEllipse1((6, 16), 0, [4], edgecolor="yellow")
+        _addEllipse1((26, 16), 0, [5], edgecolor="yellow")
+        _addEllipse1((24, 9), 0, [4], edgecolor="red")
+        _addEllipse1((10, 11), 0, [5], edgecolor="blue")
+        sgdgi.addRow("2", 104.07385, 30.65005)  # select
+        _addEllipse1((6, 7), 1, [1, 2, ], width=8, edgecolor="green")
+        _addEllipse1((14, 13), 1, [1, 2, 3, 4, 5], edgecolor="red")
+        sgdgi.addRow("3", 116.302365, 39.962880)
+        _addEllipse1((21, 14), 2, [1, 2], width=8, edgecolor="green")
+        _addEllipse1((6, 6), 2, [1, 2, 3, 4, 5], edgecolor="blue")
+        sgdgi.addRow("4", 116.486538, 39.889220)
+        _addEllipse1((23, 13), 3, [1, 2, 3, 4, 5], width=8, edgecolor="green")
+        _addEllipse1((14, 13), 3, [1, 2, 3, 4, 5], edgecolor="red")
+        _addEllipse1((11, 15), 3, [1, 2, 3, 4, 5], edgecolor="blue")
+
+    # sgdgi.addRow("IS", 116.320535, 39.864142)
+    # _addRowEllipse1(0, (22,9))
+    # sgdgi.addRow("IS", 116.426488, 39.937361)
+    # _addRowEllipse1(1, (12, 14))
+    # sgdgi.addRow("VEG", 116.332767, 39.870094)
+    # _addRowEllipse1(2, (14, 17))
+    # sgdgi.addRow("VEG", 120.339779, 36.102030)
+    # _addRowEllipse1(3, (14, 20))
+    # sgdgi.addRow("VEG", 120.4062654, 36.0823765)
+    # sgdgi.addRow("IS", 104.013075, 30.602504)
+    # sgdgi.addRow("WAT", 104.083731, 30.618372)
+
+    # sgdgi.addRow("IS", 116.4860893, 39.8936288)
+    # _addRowEllipse1(0, (22, 9))
+    # sgdgi.addRow("IS", 120.339454, 36.052821)
+    # sgdgi.addRow("VEG", 116.559579, 39.946365)
+    # sgdgi.addRow("VEG", 116.34989, 39.79670)
+    # sgdgi.addRow("VEG", 104.07385, 30.65005) # select
+    # _addRowEllipse1(4, (12, 12))
+    # sgdgi.addRow("SOIL", 116.350292, 39.798293)
+
+    def t_show():
+        # sgdgi.addRow("WAT", 116.310359, 39.915394)
+        # sgdgi.addRow("IS", 116.305999, 39.965146)
+        # sgdgi.addRow("IS", 116.302365, 39.962880)
+        # sgdgi.addRow("VEG", 116.575445, 39.935084)
+
+        # sgdgi.addRow("IS", 120.3418499, 36.0884511)
+        # sgdgi.addRow("IS", 116.4860893, 39.8936288)
+        # sgdgi.addRow("IS", 120.374407, 36.064563)
+        # sgdgi.addRow("IS", 120.332966, 36.118072)
+        # _addEllipse1((13, 8), 3, [1, 2, 3, 4, 5], edgecolor="blue")
+        # sgdgi.addRow("IS", 120.3780005, 36.1084047)
+        # sgdgi.addRow("IS", 120.353551, 36.082023)
+
+        # sgdgi.addRow("IS", 120.339454, 36.052821)
+        # sgdgi.addRow("IS", 120.397521, 36.144224)
+        # sgdgi.addRow("IS", 116.363178, 39.858848)
+        # sgdgi.addRow("VEG", 116.34989, 39.79670)
+        # sgdgi.addRow("VEG", 104.07385, 30.65005)
+        # sgdgi.addRow("VEG", 104.13064, 30.62272)
+
+        sgdgi.addRow("VEG", 116.496832, 39.912371)
+        sgdgi.addRow("VEG", 116.486538, 39.889220)
+
+    # end_show()
+
+    # sgdgi.addRow("VEG", 116.451393,39.913669)
+    sgdgi.addRow("VEG", 116.452674, 39.907181)
+    # sgdgi.addRow("VEG", 120.365614,36.056959)
+    # sgdgi.addRow("VEG", 104.072819,30.575688)
+
+    sgdgi.imshow(n_rows_ex=5.0, n_columns_ex=5.0)
+    plt.savefig(r"F:\ProjectSet\Shadow\QingDao\Dissertation\2_Data\fig_2_1.jpeg", dpi=300)
+    plt.show()
+
+
+def drawRC():
+    image_size = 181
+    is_row_name = False
+    n_rows_ex, n_columns_ex = 5.0, 5.0
+    to_fn = r"F:\ProjectSet\Shadow\QingDao\Dissertation\3_Method\3_method.jpg"
+
+    xys = {
+        "(1)": (116.471343,39.849011),
+    }
+
+    sgdgi = ShadowGeoDrawGradImage(image_size, image_size)
+    sgdgi.addImdcs()
+    sgdgi.isRowName(is_row_name)
+    # sgdgi.addColumnGoogle("Google Image", 1600, 1600)
+    # sgdgi.addColumnRGB("RGB")
+    # sgdgi.addColumnNRG("NRG")
+    # sgdgi.addColumnNDVI("NDVI")
+    # sgdgi.addColumnNDWI("NDWI")
+    # sgdgi.addColumnSAR_ASVV("SAR AS")
+    # sgdgi.addColumnSAR_DEVV("SAR DE")
+    # sgdgi.addColumnSAR_ASVH("AS VH")
+    # sgdgi.addColumnSAR_DEVH("DE VH")
+    sgdgi.addColumnASRGB("AS RGB")
+    sgdgi.addColumnDERGB("DE RGB")
+    # sgdgi.addColumnSAR_ASC11("AS C11")
+    # sgdgi.addColumnSAR_DEC11("DE C11")
+    # sgdgi.addColumnSAR_ASC22("AS C22")
+    # sgdgi.addColumnSAR_DEC22("DE C22")
+    # sgdgi.addColumnImdcKey("SH-AS-DE", "SPL_SH-SVM-TAG-OPTICS-AS-DE")
+    # sgdgi.addColumnImdcKey("NOSH-AS-DE", "SPL_NOSH-SVM-TAG-OPTICS-AS-DE")
+    # sgdgi.addColumnImdcKey("SH-AS", "SPL_SH-SVM-TAG-OPTICS-AS")
+    # sgdgi.addColumnImdcKey("NOSH-AS", "SPL_NOSH-SVM-TAG-OPTICS-AS")
+    # sgdgi.addColumnImdcKey("SH-DE", "SPL_SH-SVM-TAG-OPTICS-DE")
+    # sgdgi.addColumnImdcKey("NOSH-DE", "SPL_NOSH-SVM-TAG-OPTICS-DE")
+    # sgdgi.addColumnImdcKey("SH-OPT", "SPL_SH-SVM-TAG-OPTICS")
+    # sgdgi.addColumnImdcKey("NOSH-OPT", "SPL_NOSH-SVM-TAG-OPTICS")
+    for k, (x, y) in xys.items():
+        sgdgi.addRow(k, x, y)
+    sgdgi.imshow(n_rows_ex=n_rows_ex, n_columns_ex=n_columns_ex)
+    if to_fn is not None:
+        plt.savefig(to_fn, dpi=300)
+    plt.show()
+
+
 if __name__ == "__main__":
-    main()
+    drawRC()
 
 
     def main_t2():

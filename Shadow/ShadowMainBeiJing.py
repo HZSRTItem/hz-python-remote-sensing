@@ -109,6 +109,12 @@ def bjFeatureDeal(obj_feat):
     obj_feat.featureScaleMinMax("DE_VV_hom", 0.000000, 0.772312)
     obj_feat.featureScaleMinMax("DE_VV_mean", 0.000000, 60.310276)
     obj_feat.featureScaleMinMax("DE_VV_var", 0.000000, 316.407379)
+    obj_feat.featureScaleMinMax("AS_H", -0.6309053301811218, -0.00014013786858413368)
+    obj_feat.featureScaleMinMax("AS_A", -0.9963275790214539, 0.9999749660491943)
+    obj_feat.featureScaleMinMax("AS_Alpha", 0.00023359328042715788, 1.4077167510986328)
+    obj_feat.featureScaleMinMax("DE_H", -0.6309264898300171, -0.00018835952505469322)
+    obj_feat.featureScaleMinMax("DE_A", -0.9986072778701782, 0.9999654293060303)
+    obj_feat.featureScaleMinMax("DE_Alpha", 0.0018608815735206008, 1.4594115018844604)
 
 
 class ShadowMainBJ(ShadowMain):
@@ -199,12 +205,12 @@ class ShadowMainBJ(ShadowMain):
 
 
 def main():
-    sm_bj = ShadowMainBJ()
-    # sm_bj.sampleToCsv()
-    # sm_bj.sampling()
-    # sm_bj.shadowTraining()
-    # sm_bj.testImdc()
-    sm_bj.trainSampleNumber()
+    sh_main_bj = ShadowMainBJ()
+    # sh_main_bj.sampleToCsv()
+    # sh_main_bj.sampling()
+    sh_main_bj.shadowTraining()
+    # sh_main_bj.testImdc()
+    # sh_main_bj.trainSampleNumber()
     pass
 
 
