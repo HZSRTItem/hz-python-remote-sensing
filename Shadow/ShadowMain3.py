@@ -7,6 +7,7 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2024, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ShadowMain3
 -----------------------------------------------------------------------------"""
+import csv
 import os
 from shutil import copyfile
 
@@ -17,6 +18,7 @@ from SRTCodes.GDALRasterClassification import GDALImdcAcc
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import GDALSamplingFast
 from SRTCodes.ModelTraining import ConfusionMatrix
+from SRTCodes.PandasUtils import splitDf
 from SRTCodes.SRTReadWrite import SRTInfoFileRW
 from SRTCodes.Utils import DirFileName, Jdt, filterFileContain, getfilenamewithoutext, numberfilename, readText
 from Shadow.ShadowMain import ShadowMain
@@ -24,6 +26,7 @@ from Shadow.ShadowMainBeiJing import bjFeatureDeal
 from Shadow.ShadowMainChengDu import cdFeatureDeal
 from Shadow.ShadowMainQingDao import qdFeatureDeal
 from Shadow.ShadowTraining import ShadowCategoryTraining
+from Shadow.ShadowUtils import ShadowTiaoTestAcc
 
 
 class ShadowCategoryTrainingFeatures(ShadowCategoryTraining):
@@ -325,11 +328,22 @@ def featExtHA():
 
         gr.save(d_h, dfn.fn("h.dat"))
         gr.save(alp, dfn.fn("alp.dat"))
-        print(raster_fn)
+
 
 
 def accuracyImdc():
-    dirname = r"F:\ProjectSet\Shadow\BeiJing\Mods\20240510H153417"
+
+    # QingDao
+    # dirname = r"F:\ProjectSet\Shadow\QingDao\Mods\20240510H202956"
+    # dirname = r"F:\ProjectSet\Shadow\QingDao\Mods\20240510H224639"
+
+    # BeiJing
+    # dirname = r"F:\ProjectSet\Shadow\BeiJing\Mods\20240510H214314"
+    # dirname = r"F:\ProjectSet\Shadow\BeiJing\Mods\20240510H235533"
+
+    # ChengDu
+    # dirname = r"F:\ProjectSet\Shadow\ChengDu\Mods\20240510H231256"
+    dirname = r"F:\ProjectSet\Shadow\ChengDu\Mods\20240511H012421"
 
     dirname_list = [
         r"F:\ProjectSet\Shadow\ChengDu\Mods\20240222H170152",
@@ -338,10 +352,13 @@ def accuracyImdc():
     ]
 
     # dirname = r"F:\ProjectSet\Shadow\BeiJing\Mods\20231225H110303"
-    csv_fn = r"F:\ProjectSet\Shadow\Analysis\11\bj\QJY_2\20240221H115949\bj_qjy_2-back.csv"
+    # csv_fn = r"F:\ProjectSet\Shadow\Analysis\14\samples\bj_qjy_2.csv"
+    csv_fn = r"F:\ProjectSet\Shadow\Analysis\14\samples\cd_qjy_3.csv"
+    # csv_fn = r"F:\ProjectSet\Shadow\Analysis\14\samples\qd_qjy_1.csv"
 
     fns = filterFileContain(dirname, "_imdc.dat")
     fns = [os.path.join(dirname, fn) for fn in os.listdir(dirname) if fn.endswith("_imdc.dat")]
+    fns = [fn for fn in fns if "SPL_SH-SVM-TAG" in fn]
     cnames = ["IS", "VEG", "SOIL", "WAT"]
     to_dict = {
         "NAME": [],
@@ -357,11 +374,11 @@ def accuracyImdc():
                     "WAT_SH": 42}
         category_list = []
         for i in range(len(df)):
-            cname = str(df["__CNAME"][i])
+            cname = str(df["CATEGORY_NAME"][i])
             category_list.append(map_dict[cname])
         df["CATEGORY"] = category_list
-        df["X"] = df["__X"]
-        df["Y"] = df["__Y"]
+        # df["X"] = df["__X"]
+        # df["Y"] = df["__Y"]
         return df
 
     def imdc_acc(imdc_fn):
@@ -389,7 +406,10 @@ def accuracyImdc():
     for fn in fns:
         imdc_acc(fn)
     to_df = pd.DataFrame(to_dict)
-    print(to_df)
+    pd.set_option('display.max_columns', 1000)
+    pd.set_option('display.width', 1000)
+    pd.set_option('display.max_colwidth', 1000)
+    print(to_df.sort_values("IS OA", ascending=False)[["NAME", "OA", "IS OA", "IS Kappa"]])
     to_csv_fn = numberfilename(r"F:\ProjectSet\Shadow\Analysis\14\test\imdc_test.csv")
     print(to_csv_fn)
     to_df.to_csv(to_csv_fn)
@@ -491,11 +511,129 @@ def calOA():
             f.write("\n")
 
 
+class STTA1(ShadowTiaoTestAcc):
+
+    def __init__(self, init_dirname=None, init_name=None):
+        super().__init__(init_dirname, init_name)
+
+    def acc1(self, name, is_save=False):
+        to_dirname = os.path.join(self.init_dirname, "QJY_{0}".format(name))
+
+        csv_fn = os.path.join(to_dirname, "{0}_qjy_{1}.csv".format(self.init_name, name))
+        txt_fn = os.path.join(to_dirname, "{0}_qjy_{1}.txt".format(self.init_name, name))
+
+        srt_fr = SRTInfoFileRW(txt_fn)
+        d = srt_fr.readAsDict()
+        df_dict = {"__X": [], "__Y": [], "__CNAME": [], "__IS_TAG": []}
+        for k in d["FIELDS"]:
+            df_dict[k] = []
+
+        fields = d["FIELDS"].copy()
+        cr = csv.reader(d["DATA"])
+        for line in cr:
+            for k in df_dict:
+                df_dict[k].append(None)
+
+            x = float(line[3])
+            y = float(line[4])
+            c_name = line[1].strip()
+            is_tag = eval(line[2])
+            df_dict["__X"][-1] = x
+            df_dict["__Y"][-1] = y
+            df_dict["__CNAME"][-1] = c_name
+            df_dict["__IS_TAG"][-1] = is_tag
+
+            for i in range(5, len(line)):
+                df_dict[fields[i - 5]][-1] = line[i]
+
+        df_dict = self.samplingNew(df_dict, csv_fn)
+
+        c_list = [self.category_map[cname] for cname in df_dict["__CNAME"]]
+
+        df_acc = []
+        cm_dict = {}
+        for k in self.imdc_fns:
+            print(k)
+            imdc_list = _listToInt(df_dict[k])
+            cm = ConfusionMatrix(4, self.cm_names)
+            cm.addData(c_list, imdc_list)
+            print(cm.fmtCM())
+            cm_dict[k] = cm.fmtCM()
+            to_dict = {"NAME": k, "OA": cm.OA(), "Kappa": cm.getKappa(), }
+            for cm_name in cm:
+                to_dict[cm_name + " UATest"] = cm.UA(cm_name)
+                to_dict[cm_name + " PATest"] = cm.PA(cm_name)
+            df_acc.append(to_dict)
+
+        df_acc = pd.DataFrame(df_acc)
+        df_acc = df_acc.sort_values("OA", ascending=False)
+        pd.options.display.precision = 2
+        print(df_acc)
+        pd.options.display.precision = 6
+
+        if is_save:
+            to_dirname_save = timeDirName(to_dirname, True)
+            time_name = os.path.split(to_dirname_save)[1]
+
+            to_csv_fn = changefiledirname(csv_fn, to_dirname_save)
+            to_csv_fn = changext(to_csv_fn, "_{0}.csv".format(time_name))
+            shutil.copyfile(csv_fn, to_csv_fn)
+
+            to_txt_fn = changefiledirname(txt_fn, to_dirname_save)
+            to_txt_fn = changext(to_txt_fn, "_{0}.txt".format(time_name))
+            shutil.copyfile(csv_fn, to_txt_fn)
+
+            df_acc.to_csv(os.path.join(to_dirname_save, "{0}_acc.csv".format(time_name)))
+            to_cm_fn = os.path.join(to_dirname_save, "{0}_cm.txt".format(time_name))
+            with open(to_cm_fn, "w", encoding="utf-8") as fw:
+                for k, cm in cm_dict.items():
+                    print(">", k, file=fw)
+                    print(cm, file=fw)
+                    print(file=fw)
+
+        return
+
+
+def accTiao1():
+
+    # txt to csv
+    stta = ShadowTiaoTestAcc(r"F:\ProjectSet\Shadow\Analysis\11\cd")
+    # stta.buildNew(r"F:\ProjectSet\Shadow\ChengDu\Mods\20231226H093253")
+    # stta.buildNew(r"F:\ProjectSet\Shadow\ChengDu\Mods\20240222H170152")
+    stta.load()
+    # stta.categoryMap(NOT_KNOW=0, IS=1, VEG=2, SOIL=3, WAT=4, IS_SH=1, VEG_SH=2, SOIL_SH=3, WAT_SH=4)
+    # stta.cm_names = ["IS", "VEG", "SOIL", "WAT"]
+    # stta.updateTrueFalseColumn(True)
+    # stta.sumColumns("SUM1", "TF_", "OPTICS")
+    # stta.sortColumn(["SUM1", "CATEGORY"], ascending=True)
+    # stta.addQJY("3", field_names=[
+    #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
+    # ], TEST=0)
+    # stta.accQJY("3", is_save=True)
+    stta.accSHQJY("3", is_save=True)
+    stta.saveDFToCSV()
+    stta.save()
+
+
 def main():
-    sm = ShadowMain3BJ()
-    sm.shadowTraining()
+    df = pd.read_csv(r"F:\ProjectSet\Shadow\Analysis\14\samples\bj\bj_spl1.csv")
+    print(df["CATEGORY_NAME"].value_counts())
+    print(df.keys())
+    df_is, df_shis, df_nois = splitDf(df, "CATEGORY_NAME", ["IS"], [ "IS_SH"], ["VEG", "VEG_SH", "SOIL", "SOIL_SH", "WAT", "WAT_SH", ])
+    print("len df_nois", len(df_is))
+    print("len df_nois", len(df_nois))
+    df_nois_spl = df_nois.sample(len(df_is) + 50)
+    print(pd.unique(df_nois_spl["CATEGORY_NAME"]))
+    to_df = pd.concat([df_is, df_nois_spl, df_shis.sample(50)])
+    print(to_df["CATEGORY_NAME"].value_counts())
+    to_df.to_csv(r"F:\ProjectSet\Shadow\Analysis\14\samples\bj\bj_spl2.csv")
 
     pass
+
+
+def method_name1():
+    sm = ShadowMain3BJ()
+    sm.shadowTraining()
 
 
 if __name__ == "__main__":
@@ -503,4 +641,4 @@ if __name__ == "__main__":
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowMain3 import ShadowMain3BJ; ShadowMain3BJ().shadowTraining()" 
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowMain3 import featExtHA; featExtHA()" 
     """
-    calOA()
+    accuracyImdc()

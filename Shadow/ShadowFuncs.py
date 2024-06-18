@@ -23,7 +23,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.svm import SVC
 
-import scienceplots
+import scienceplots_codes
 from SRTCodes.GDALRasterClassification import GDALRasterClassificationAccuracy
 from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterCollection, readGEORaster, saveGEORaster
 from SRTCodes.GDALRasterIO import GDALRasterFeatures
@@ -43,10 +43,33 @@ from Shadow.ShadowUtils import ShadowSampleAdjustNumber, ShadowFindErrorSamples,
 
 imdcDirname = DirFileName(r"F:\ProjectSet\Shadow\QingDao\Mods\20230707H200910")
 
-scienceplots.init()
+scienceplots_codes.init()
 
 
 def main():
+    line = r"""
+    
+    obj_feat.featureScaleMinMax("AS_H", -0.6309053301811218, -0.00014013786858413368)
+    obj_feat.featureScaleMinMax("AS_A", -0.9963275790214539, 0.9999749660491943)
+    obj_feat.featureScaleMinMax("AS_Alpha", 0.00023359328042715788, 1.4077167510986328)
+    obj_feat.featureScaleMinMax("DE_H", -0.6309264898300171, -0.00018835952505469322)
+    obj_feat.featureScaleMinMax("DE_A", -0.9986072778701782, 0.9999654293060303)
+    obj_feat.featureScaleMinMax("DE_Alpha", 0.0018608815735206008, 1.4594115018844604)
+    
+    
+
+    """
+    line = line.replace("obj_feat.featureScaleMinMax(", "")
+    line = line.replace(")", "")
+    lines = [line1.strip() for line1 in line.split("\n")]
+    for line2 in lines:
+        if line2 != "":
+            line3 = line2.split(", ")
+            print("{0}:|\"min\":{1}, \"max\":{2}+, ".format(*line3).replace("|", "{").replace("+", "}"))
+    haha = 0
+
+
+def method_name58():
     se_coll = SRTGEECollection().initJson(r"M:\ProjectSet\Shadow\Hierarchical\Images\Find\cd_s2_coll (1).geojson")
     "COPERNICUS/S2_SR_HARMONIZED/20211001T025551_20211001T025549_T50TMK"
     ims = {}
@@ -56,13 +79,10 @@ def main():
         if id_str1 not in ims:
             ims[id_str1] = []
         ims[id_str1].append(id_str)
-
     for k, id_str_list in ims.items():
         for id_str_show in id_str_list:
             print("showS2Image(\"{0}\", null);".format(id_str_show))
         print()
-
-    haha = 0
 
 
 def method_name57():

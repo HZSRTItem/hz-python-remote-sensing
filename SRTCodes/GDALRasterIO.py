@@ -242,6 +242,8 @@ class GDALRasterIO(GEORaster):
 
         self.grr = GDALRasterRange()
 
+        self.open_type = gdal.GA_ReadOnly
+
     def toDict(self):
         to_dict = {
             "gdal_raster_fn": self.gdal_raster_fn,
@@ -275,7 +277,7 @@ class GDALRasterIO(GEORaster):
         self.save_probing = None
 
     def ioOpen(self, *args, **kwargs):
-        return gdal.Open(self.gdal_raster_fn)
+        return gdal.Open(self.gdal_raster_fn, self.open_type)
 
     def initGDALRasterIO(self, gdal_raster_fn):
         self.initRaster()
@@ -445,6 +447,14 @@ class GDALRasterIO(GEORaster):
         d = self._GRR(d, is_01, is_range, n_band)
         return d
 
+    def getGDALBand(self, n_band, ds: gdal.Dataset = None, ) -> gdal.Band:
+        if ds is None:
+            ds = self.raster_ds
+        if isinstance(n_band, str):
+            n_band = self.names.index(n_band) + 1
+        band = ds.GetRasterBand(n_band)
+        return band
+
     def _GRR(self, d, is_01, is_range, n_band):
         if is_range:
             name = self.names[n_band - 1]
@@ -476,6 +486,15 @@ class GDALRasterIO(GEORaster):
         # self._GRRS(interleave, is_01, is_range)
         return self.d
 
+    def readAsLine(self, x_row_off=0.0, y_column_off=0.0, is_geo=False, is_trans=False, ):
+        if is_geo:
+            if is_trans:
+                x_row_off, y_column_off, _ = self.coor_trans.TransformPoint(x_row_off, y_column_off)
+            x_row_off, y_column_off = self.coorGeo2Raster(x_row_off, y_column_off)
+        x_row_off, y_column_off = int(x_row_off), int(y_column_off)
+        data = gdal_array.DatasetReadAsArray(self.raster_ds, y_column_off, x_row_off, win_xsize=1, win_ysize=1)
+        return data.ravel()
+
     def _GRRS(self, interleave, is_01, is_range):
         if interleave == "band":
             for i in range(self.d.shape[0]):
@@ -499,9 +518,10 @@ class GDALRasterIO(GEORaster):
 class GDALRaster(GDALRasterIO, SRTCollection):
     """ GDALRaster """
 
-    def __init__(self, gdal_raster_fn=""):
+    def __init__(self, gdal_raster_fn="", open_type=gdal.GA_ReadOnly):
         GDALRasterIO.__init__(self)
         SRTCollection.__init__(self)
+        self.open_type = open_type
 
         if os.path.isfile(gdal_raster_fn):
             self.initGDALRaster(gdal_raster_fn)
@@ -917,6 +937,101 @@ class GDALRasterWarp(GDALRaster):
         row, column = self.coorGeo2Raster(x_image, y_image)
 
         self.addGCP(x_ground, y_ground, 0, column, row)
+
+
+class NPYRaster(GDALRasterIO):
+
+    def __init__(self, npy_fn=None):
+        super().__init__()
+        self.geo_json_fn = None
+        self.data = None
+        self.initNPYRaster(npy_fn)
+
+    def initNPYRaster(self, npy_fn):
+        if npy_fn is None:
+            return
+        self.initRaster()
+        self.initGEORaster()
+
+        geo_json_fn = changext(npy_fn, ".geonpy")
+        json_dict = readJson(geo_json_fn)
+        self.raster_ds = json_dict
+        self.gdal_raster_fn = npy_fn
+        self.geo_json_fn = geo_json_fn
+        self.grr.init(self.gdal_raster_fn)
+        self.geo_transform = json_dict["geo_transform"]
+        self.inv_geo_transform = json_dict["inv_geo_transform"]
+        self.n_rows = json_dict["n_rows"]
+        self.n_columns = json_dict["n_columns"]
+        self.n_channels = json_dict["n_channels"]
+        self.names = json_dict["names"]
+
+        self.src_srs = osr.SpatialReference()
+        self.src_srs.ImportFromEPSG(4326)
+        self.dst_srs = osr.SpatialReference()
+        wkt = json_dict["wkt"]
+        self.dst_srs.ImportFromWkt(wkt)
+        wgs84_srs = osr.SpatialReference()
+        wgs84_srs.ImportFromEPSG(4326)
+        if __version__ >= "3.0.0":
+            self.src_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+            self.dst_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+            wgs84_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        if wkt != "":
+            self.coor_trans = osr.CoordinateTransformation(self.src_srs, self.dst_srs)
+            self.towgs84_coor_trans = osr.CoordinateTransformation(self.dst_srs, wgs84_srs)
+            self.wgs84_to_this = osr.CoordinateTransformation(wgs84_srs, self.dst_srs)
+
+        self.save_geo_transform = self.geo_transform
+        self.save_probing = self.dst_srs.ExportToWkt()
+
+        self.getRange()
+        self.x_min = self.raster_range[0]
+        self.x_max = self.raster_range[1]
+        self.y_min = self.raster_range[2]
+        self.y_max = self.raster_range[3]
+        self.x_size = self.geo_transform[1]
+        self.y_size = self.geo_transform[5]
+
+        return
+
+    def readAsArrayCenter(self, x_row_off=0.0, y_column_off=0.0, win_row_size=None, win_column_size=None,
+                          interleave='band',
+                          band_list=None, is_geo=False, is_trans=False, is_range=False, is_01=False):
+        if self.data is None:
+            self.readNPYData()
+        if is_geo:
+            if is_trans:
+                x_row_off, y_column_off, _ = self.coor_trans.TransformPoint(x_row_off, y_column_off)
+            x_row_off, y_column_off = self.coorGeo2Raster(x_row_off, y_column_off)
+        x_row_off, y_column_off = int(x_row_off), int(y_column_off)
+        row, column = x_row_off, y_column_off
+        win_spl = [0, 0, 0, 0]
+        win_spl[0] = 0 - int(win_row_size / 2)
+        win_spl[1] = 0 + round(win_row_size / 2 + 0.1)
+        win_spl[2] = 0 - int(win_column_size / 2)
+        win_spl[3] = 0 + round(win_column_size / 2 + 0.1)
+        self.d = self.data[:, row + win_spl[0]: row + win_spl[1], column + win_spl[2]: column + win_spl[3]]
+        self.interleave = interleave
+        return self.d
+
+    def readAsArray(self, x_row_off=0.0, y_column_off=0.0, win_row_size=None, win_column_size=None, interleave='band',
+                    band_list=None, is_geo=False, is_trans=False, is_range=False, is_01=False):
+        if self.data is None:
+            self.readNPYData()
+        if is_geo:
+            if is_trans:
+                x_row_off, y_column_off, _ = self.coor_trans.TransformPoint(x_row_off, y_column_off)
+            x_row_off, y_column_off = self.coorGeo2Raster(x_row_off, y_column_off)
+        x_row_off, y_column_off = int(x_row_off), int(y_column_off)
+        self.d = self.data[:, x_row_off: x_row_off + win_row_size, y_column_off: y_column_off + win_column_size]
+        self.interleave = interleave
+        return self.d
+
+    def readNPYData(self):
+        self.data = np.load(self.gdal_raster_fn)
+        if len(self.data.shape) == 2:
+            self.data = np.array([self.data])
 
 
 _GR_RW: gdal.Dataset  # GDALRaster as read and write

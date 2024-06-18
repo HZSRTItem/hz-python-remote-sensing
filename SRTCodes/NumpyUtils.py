@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import uniform_filter
 
-from SRTCodes.Utils import Jdt
+from SRTCodes.Utils import Jdt, datasCaiFen
 
 
 def saveCM(cm, save_cm_file, cate_names=None, infos=None):
@@ -481,6 +481,20 @@ class NumpyDataCenter:
 
         return out_x
 
+    def fit2(self, x):
+        if self.win_size is None:
+            return x
+        if self.spl_size is None:
+            if self.dim == 2:
+                self.spl_size = x.shape
+            elif self.dim == 3:
+                self.spl_size = x.shape[1:]
+            self.initSampleSize(self.spl_size)
+            self.initRange()
+
+        out_x = x[:, :, self.range[0]:self.range[1], self.range[2]:self.range[3]]
+        return out_x
+
 
 def dataCenter(data):
     if len(data.shape) == 2:
@@ -550,6 +564,74 @@ def categoryMap(categorys, map_dict, is_notfind_to0=False):
             else:
                 to_category.append(d)
     return to_category
+
+
+def npyShape(npy_fn):
+    with open(npy_fn, 'rb') as fp:
+        from numpy.lib.format import _read_array_header
+        shape, fortran_order, dtype = _read_array_header(fp, version=(1, 0), max_header_size=10000)
+
+    return shape
+
+
+class _TSN:
+
+    def __init__(self, *names, dim=0):
+        self.names = list(datasCaiFen(names))
+        self.select_names = None
+        self.numbers = []
+        self.dim = dim
+
+    def selectNames(self, *names):
+        names = list(datasCaiFen(names))
+        self.select_names = names
+        self.numbers = []
+        for name in names:
+            self.numbers.append(self.names.index(name))
+        return self
+
+    def fit(self, data):
+        if self.select_names is None:
+            return data
+        if self.dim == 0:
+            return data[self.numbers]
+        elif self.dim == 1:
+            return data[:, self.numbers]
+
+    def length(self):
+        return len(self.select_names)
+
+    def toDict(self):
+        return {"names": self.names, "select_names": self.select_names, "numbers": self.numbers, "dim": self.dim}
+
+
+class TensorSelectNames:
+
+    def __init__(self, *names, dim=0):
+        self.names = list(datasCaiFen(names))
+        self.dim = dim
+        self.tsns = {}
+
+    def __getitem__(self, item) -> _TSN:
+        return self.tsns[item]
+
+    def __len__(self):
+        return len(self.tsns)
+
+    def addTSN(self, tsn_name, select_names, names=None, dim=None):
+        if names is None:
+            names = self.names
+        if dim is None:
+            dim = self.dim
+        self.tsns[tsn_name] = _TSN(*names, dim=dim).selectNames(select_names)
+
+    def toDict(self):
+        return {"names": self.names, "dim": self.dim, "tsns": {tsn: self.tsns[tsn].toDict() for tsn in self.tsns}}
+
+    def length(self, *names):
+        if len(names) == 0:
+            names = list(self.tsns.keys())
+        return sum(list(self.tsns[name].length() for name in names))
 
 
 def main():

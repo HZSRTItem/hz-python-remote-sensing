@@ -343,6 +343,32 @@ def _listToInt(_list: list):
     return list(map(int, _list))
 
 
+def readQJYTxt(txt_fn):
+    srt_fr = SRTInfoFileRW(txt_fn)
+    d = srt_fr.readAsDict()
+    df_dict = {"__X": [], "__Y": [], "__CNAME": [], "__IS_TAG": []}
+    for k in d["FIELDS"]:
+        df_dict[k] = []
+    fields = d["FIELDS"].copy()
+    cr = csv.reader(d["DATA"])
+    for line in cr:
+        for k in df_dict:
+            df_dict[k].append(None)
+
+        x = float(line[3])
+        y = float(line[4])
+        c_name = line[1].strip()
+        is_tag = eval(line[2])
+        df_dict["__X"][-1] = x
+        df_dict["__Y"][-1] = y
+        df_dict["__CNAME"][-1] = c_name
+        df_dict["__IS_TAG"][-1] = is_tag
+
+        for i in range(5, len(line)):
+            df_dict[fields[i - 5]][-1] = line[i]
+    return df_dict
+
+
 class ShadowTiaoTestAcc:
 
     def __init__(self, init_dirname=None, init_name=None, ):
@@ -530,29 +556,8 @@ class ShadowTiaoTestAcc:
         to_dirname = os.path.join(self.init_dirname, "QJY_{0}".format(name))
         csv_fn = os.path.join(to_dirname, "{0}_qjy_{1}.csv".format(self.init_name, name))
         txt_fn = os.path.join(to_dirname, "{0}_qjy_{1}.txt".format(self.init_name, name))
-        srt_fr = SRTInfoFileRW(txt_fn)
-        d = srt_fr.readAsDict()
-        df_dict = {"__X": [], "__Y": [], "__CNAME": [], "__IS_TAG": []}
-        for k in d["FIELDS"]:
-            df_dict[k] = []
 
-        fields = d["FIELDS"].copy()
-        cr = csv.reader(d["DATA"])
-        for line in cr:
-            for k in df_dict:
-                df_dict[k].append(None)
-
-            x = float(line[3])
-            y = float(line[4])
-            c_name = line[1].strip()
-            is_tag = eval(line[2])
-            df_dict["__X"][-1] = x
-            df_dict["__Y"][-1] = y
-            df_dict["__CNAME"][-1] = c_name
-            df_dict["__IS_TAG"][-1] = is_tag
-
-            for i in range(5, len(line)):
-                df_dict[fields[i - 5]][-1] = line[i]
+        df_dict = readQJYTxt(txt_fn)
 
         df_dict = self.samplingNew(df_dict, csv_fn)
 
@@ -605,29 +610,7 @@ class ShadowTiaoTestAcc:
         to_dirname = os.path.join(self.init_dirname, "QJY_{0}".format(name))
         csv_fn = os.path.join(to_dirname, "{0}_qjy_{1}.csv".format(self.init_name, name))
         txt_fn = os.path.join(to_dirname, "{0}_qjy_{1}.txt".format(self.init_name, name))
-        srt_fr = SRTInfoFileRW(txt_fn)
-        d = srt_fr.readAsDict()
-        df_dict = {"__X": [], "__Y": [], "__CNAME": [], "__IS_TAG": []}
-        for k in d["FIELDS"]:
-            df_dict[k] = []
-
-        fields = d["FIELDS"].copy()
-        cr = csv.reader(d["DATA"])
-        for line in cr:
-            for k in df_dict:
-                df_dict[k].append(None)
-
-            x = float(line[3])
-            y = float(line[4])
-            c_name = line[1].strip()
-            is_tag = eval(line[2])
-            df_dict["__X"][-1] = x
-            df_dict["__Y"][-1] = y
-            df_dict["__CNAME"][-1] = c_name
-            df_dict["__IS_TAG"][-1] = is_tag
-
-            for i in range(5, len(line)):
-                df_dict[fields[i - 5]][-1] = line[i]
+        df_dict = readQJYTxt(txt_fn)
 
         df_dict = self.samplingNew(df_dict, csv_fn)
 
@@ -895,8 +878,8 @@ def main():
         # stta.addQJY("2", field_names=[
         #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
         # ], TEST=0)
-        # stta.accQJY("2", is_save=True)
-        stta.accSHQJY("2", is_save=True)
+        stta.accQJY("2", is_save=True)
+        # stta.accSHQJY("2", is_save=True)
         stta.saveDFToCSV()
         stta.save()
 
@@ -912,8 +895,8 @@ def main():
         # stta.addQJY("1", field_names=[
         #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
         # ], TEST=0)
-        # stta.accQJY("1", is_save=True)
-        stta.accSHQJY("1", is_save=True)
+        stta.accQJY("1", is_save=True)
+        # stta.accSHQJY("1", is_save=True)
         stta.saveDFToCSV()
         stta.save()
 
@@ -930,8 +913,8 @@ def main():
         # stta.addQJY("3", field_names=[
         #     'SRT', 'X', 'Y', 'CNAME', 'CATEGORY', 'TAG', 'TEST', 'NDVI', 'NDWI', 'SUM1'
         # ], TEST=0)
-        stta.accQJY("3", is_save=True)
-        # stta.accSHQJY("3", is_save=True)
+        # stta.accQJY("3", is_save=True)
+        stta.accSHQJY("3", is_save=True)
         stta.saveDFToCSV()
         stta.save()
 

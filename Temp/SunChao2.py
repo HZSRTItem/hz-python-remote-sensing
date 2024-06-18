@@ -16,9 +16,16 @@ import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from osgeo import gdal
-from scipy.ndimage import binary_dilation
 
-from SRTCodes.GDALRasterIO import GDALRaster
+
+class GDALRaster:
+
+    def __init__(self, geo_fn):
+        self.geo_fn = geo_fn
+
+    def readAsArray(self):
+        return gdal.Open(self.geo_fn).ReasAsArray()
+
 
 def readJson(json_fn):
     with open(json_fn, "r", encoding="utf-8") as f:
@@ -92,6 +99,7 @@ class Jdt:
         self.is_run = False
         print()
 
+
 def filterFileExt(dirname=".", ext=""):
     filelist = []
     for f in os.listdir(dirname):
@@ -99,11 +107,10 @@ def filterFileExt(dirname=".", ext=""):
             filelist.append(os.path.join(dirname, f))
     return filelist
 
+
 def changefiledirname(filename, dirname):
     filename = os.path.split(filename)[1]
     return os.path.join(dirname, filename)
-
-
 
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
@@ -111,59 +118,18 @@ plt.rcParams['axes.unicode_minus'] = False
 
 
 def main():
-    # gr = GDALRaster(r"F:\ProjectSet\Huo\SunChao\drive-download-20240411T011255Z-001\sunchao2_clip.tif")
-    # data = gr.readAsArray()
-    # print(np.unique(data, return_counts=True))
-
-    # concatCSV(
-    #     r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T021111Z-001\sunchao_spl1.csv",
-    #     r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T021111Z-001\sunchao_spl2.csv",
-    #     r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T021111Z-001\sunchao_spl3.csv",
-    #     r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T021111Z-001\sunchao_spl4.csv",
-    #     to_csv_fn = r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T021111Z-001\sunchao_spl.csv"
-    # )
-    def func1():
-        dirname = r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T103852Z-001"
-        to_dirname = r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T103852Z-001\1"
-        if not os.path.isdir(to_dirname):
-            os.mkdir(to_dirname)
-        lines = filterFileExt(dirname, ".tif")
-
-        def pengzhang(_data):
-            structure = np.ones((11, 11), dtype="int")
-            dilated_array = binary_dilation(_data, structure)
-            return dilated_array
-
-        for geo_fn in lines:
-            to_geo_fn = changefiledirname(geo_fn, to_dirname)
-            gr = GDALRaster(geo_fn)
-            data = gr.readAsArray()
-            print(geo_fn, data.shape)
-            data = pengzhang(data)
-            gr.save(data.astype("int8"), to_geo_fn, fmt="GTiff", dtype=gdal.GDT_Byte, options=["COMPRESS=PACKBITS"])
-
-    def func2():
-        gr = GDALRaster(r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T103852Z-001\1\sunchao_cjd_image_0_this.vrt")
-        data = gr.readAsArray()
-        print(data.shape)
-        to_data = np.zeros(data.shape[1:], dtype="int8")
-        to_data[data[1] == 1] = data[0, data[1] == 1]
-        gr.save(to_data.astype("int8"),
-                r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T103852Z-001\1\sunchao_cjd_image_0_this_tif.tif",
-                fmt="GTiff", dtype=gdal.GDT_Byte, options=["COMPRESS=PACKBITS"])
 
     def func3():
         gr = GDALRaster(
-            r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T103852Z-001\1\sunchao_cjd_image_0_this_tif.tif")
+            r".\drive-download-20240530T103852Z-001\1\sunchao_cjd_image_0_this_tif.tif")
         data = gr.readAsArray()
         print("1", np.sum(data == 1) * 100 / 1000000)
         print("2", np.sum(data == 2) * 100 / 1000000)
         print("3", np.sum(data == 3) * 100 / 1000000)
 
-
     def func5():
         gr = GDALRaster(
-            r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T103852Z-001\1\sunchao_cjd_image_0_this_tif.tif")
+            r".\drive-download-20240530T103852Z-001\1\sunchao_cjd_image_0_this_tif.tif")
         data = gr.readAsArray()
 
         n = 60
@@ -223,27 +189,9 @@ def main():
         print(data.shape)
 
     def func6():
-        gr = GDALRaster(r"F:\ProjectSet\Huo\SunChao\drive-download-20240530T103852Z-001\sunchao_cjd_image.vrt")
+        gr = GDALRaster(r".\drive-download-20240530T103852Z-001\sunchao_cjd_image.vrt")
         data = gr.readAsArray()
         print("1", np.sum(data == 1) * 100 / 1000000)
-
-    def func7():
-        concatCSV(
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\119034_1area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\119034_2area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\119034_3area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\119034_4area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\120034_1area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\120034_2area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\120035_1area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\120035_2area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\121034_1area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\121034_2area.csv",
-            r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\122033_3area.csv",
-            to_csv_fn=r"F:\ProjectSet\Huo\SunChao\TidalChina_1995-2015\1\122033data.csv",
-        )
-
-    func7()
 
 
 def method_name6():
@@ -264,7 +212,7 @@ def method_name6():
 
     fc_fields = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11',
                  'NDWI', 'mNDWI', 'AWEIsh', 'AWEInsh', 'LSWI', 'WI2015', 'NDVI', 'EVI']
-    dirname = r"F:\ProjectSet\Huo\SunChao\drive-download-20240421T083153Z-001"
+    dirname = r".\drive-download-20240421T083153Z-001"
     id_dict = {}
     [func_id_dict(dirname + r"\samples_spl3_{}.geojson".format(i)) for i in range(36)]
     data_list = [func1(dirname + r"\samples_spl3_{}.geojson".format(i)) for i in range(36)]
@@ -290,7 +238,7 @@ def method_name6():
         df["FV"] = df["FV_N1"] / df["FV_N2"]
         df.mean()
 
-        # to_fn = numberfilename(r"F:\ProjectSet\Huo\SunChao\sample\1\sunchao_spl.csv")
+        # to_fn = numberfilename(r".\sample\1\sunchao_spl.csv")
         # df.to_csv(to_fn)
         df = df[['Category', 'id', "FV", "FV_N1", "FV_N2"]]
         print(df)
@@ -298,7 +246,7 @@ def method_name6():
 
     df = get_df()
 
-    # df = pd.read_csv(r"F:\ProjectSet\Huo\SunChao\drive-download-20240421T083153Z-001\samples_spl3_fw.csv")
+    # df = pd.read_csv(r".\drive-download-20240421T083153Z-001\samples_spl3_fw.csv")
 
     def text(x, y):
         for i in range(len(x)):
@@ -325,12 +273,12 @@ def method_name6():
     plt.xlabel("植被频率", fontdict={"size": 10})
     plt.ylabel("频率", fontdict={"size": 10})
     plt.legend()
-    plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\潮间带植被的频率分布特征3.jpg", dpi=300)
+    plt.savefig(r".\tu\潮间带植被的频率分布特征3.jpg", dpi=300)
     plt.show()
 
 
 def method_name5():
-    df = pd.read_csv(r"F:\ProjectSet\Huo\SunChao\drive-download-20240421T083153Z-001\samples_spl3_fw.csv")
+    df = pd.read_csv(r".\drive-download-20240421T083153Z-001\samples_spl3_fw.csv")
 
     fv_y, fv_x = np.histogram(df[(df["Category"] == 1) | (df["Category"] == 2)]["FW"].values, range=[0, 1], bins=10)
     fv_y = fv_y / np.sum(fv_y)
@@ -344,13 +292,13 @@ def method_name5():
     plt.legend()
     plt.xlabel("水体频率", fontdict={"size": 10})
     plt.ylabel("频率", fontdict={"size": 10})
-    plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\潮间带和永久性水体的频率分布特征3.jpg", dpi=300)
+    plt.savefig(r".\tu\潮间带和永久性水体的频率分布特征3.jpg", dpi=300)
     plt.show()
 
 
 def method_name4():
-    # saveJson(to_dict, r"F:\ProjectSet\Huo\SunChao\sample\t1.txt")
-    # d = readJson(r"F:\ProjectSet\Huo\SunChao\sample\t1.txt")
+    # saveJson(to_dict, r".\sample\t1.txt")
+    # d = readJson(r".\sample\t1.txt")
     # print([d0["id"] for d0 in d["bands"]])
     def func1(json_fn):
         d = readJson(json_fn)
@@ -369,7 +317,7 @@ def method_name4():
 
     fc_fields = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11',
                  'NDWI', 'mNDWI', 'AWEIsh', 'AWEInsh', 'LSWI', 'WI2015', 'NDVI', 'EVI']
-    dirname = r"F:\ProjectSet\Huo\SunChao\drive-download-20240421T083153Z-001"
+    dirname = r".\drive-download-20240421T083153Z-001"
     id_dict = {}
     [func_id_dict(dirname + r"\samples_spl3_{}.geojson".format(i)) for i in range(36)]
     data_list = [func1(dirname + r"\samples_spl3_{}.geojson".format(i)) for i in range(36)]
@@ -392,7 +340,7 @@ def method_name4():
         df[fc_fields] = df[fc_fields] / 36
 
         print(df)
-        # to_fn = numberfilename(r"F:\ProjectSet\Huo\SunChao\sample\1\sunchao_spl.csv")
+        # to_fn = numberfilename(r".\sample\1\sunchao_spl.csv")
         # df.to_csv(to_fn)
 
         return df
@@ -411,7 +359,7 @@ def method_name4():
         plt.legend()
         plt.xlabel("植被光谱指数", fontdict={"size": 11})
         plt.ylabel("频率(%)", fontdict={"size": 11})
-        plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\植被光谱指数分布特征2.jpg", dpi=300)
+        plt.savefig(r".\tu\植被光谱指数分布特征2.jpg", dpi=300)
         plt.show()
 
     # plot1()
@@ -471,7 +419,7 @@ def method_name4():
         plt.xlabel("时间/月")
         plt.ylabel(fc_fields_k)
         plt.xticks(time_list_n, time_list)
-        to_fn = r"F:\ProjectSet\Huo\SunChao\tu\潮间带和永久性水体的水体指数特征3_{0}.jpg".format(fc_fields_k)
+        to_fn = r".\tu\潮间带和永久性水体的水体指数特征3_{0}.jpg".format(fc_fields_k)
         print(to_fn)
         plt.savefig(to_fn, dpi=300)
 
@@ -506,7 +454,7 @@ def method_name3():
 
     fc_fields = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11',
                  'NDWI', 'mNDWI', 'AWEIsh', 'AWEInsh', 'LSWI', 'WI2015', 'NDVI', 'EVI']
-    dirname = r"F:\ProjectSet\Huo\SunChao\sample\1\drive-download-20240418T014323Z-001"
+    dirname = r".\sample\1\drive-download-20240418T014323Z-001"
     data_list = [func1(dirname + r"\samples_spl2_{}.geojson".format(i)) for i in range(36)]
 
     def get_df():
@@ -526,7 +474,7 @@ def method_name3():
         df = pd.DataFrame(to_dict).T
         df[fc_fields] = df[fc_fields] / 36
         df.mean()
-        # to_fn = numberfilename(r"F:\ProjectSet\Huo\SunChao\sample\1\sunchao_spl.csv")
+        # to_fn = numberfilename(r".\sample\1\sunchao_spl.csv")
         # df.to_csv(to_fn)
         df = df[['SAMPLE_1', 'id', "NDWI"]]
         print(df)
@@ -556,7 +504,7 @@ def method_name3():
     plt.ylim([0, 1])
     plt.xlabel("水体频率", fontdict={"size": 14})
     plt.ylabel("潮间带", fontdict={"size": 14})
-    plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\潮间带和永久性水体的频率分布特征.jpg", dpi=300)
+    plt.savefig(r".\tu\潮间带和永久性水体的频率分布特征.jpg", dpi=300)
     plt.show()
 
 
@@ -566,7 +514,7 @@ def method_name2():
         d_list = [feat["properties"] for feat in d["features"]]
         return d_list
 
-    d_list = func1(r"F:\ProjectSet\Huo\SunChao\sample\1\sunchao_coll_counts.geojson")
+    d_list = func1(r".\sample\1\sunchao_coll_counts.geojson")
     df = pd.DataFrame(d_list)
     df["B2"] = df["B2"] / df["B2"].max()
     print(df)
@@ -595,9 +543,7 @@ def method_name2():
 
 
 def method_name():
-    # saveJson(to_dict, r"F:\ProjectSet\Huo\SunChao\sample\t1.txt")
-    # d = readJson(r"F:\ProjectSet\Huo\SunChao\sample\t1.txt")
-    # print([d0["id"] for d0 in d["bands"]])
+
     def func1(json_fn):
         d = readJson(json_fn)
         d_list = {feat["properties"]["id"]: feat["properties"] for feat in d["features"]}
@@ -605,7 +551,7 @@ def method_name():
 
     fc_fields = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11',
                  'NDWI', 'mNDWI', 'AWEIsh', 'AWEInsh', 'LSWI', 'WI2015', 'NDVI', 'EVI']
-    dirname = r"F:\ProjectSet\Huo\SunChao\sample\1\drive-download-20240418T014323Z-001"
+    dirname = r".\sample\1\drive-download-20240418T014323Z-001"
     data_list = [func1(dirname + r"\samples_spl2_{}.geojson".format(i)) for i in range(36)]
 
     def get_df():
@@ -625,7 +571,7 @@ def method_name():
         df[fc_fields] = df[fc_fields] / 36
         df.mean()
         print(df)
-        # to_fn = numberfilename(r"F:\ProjectSet\Huo\SunChao\sample\1\sunchao_spl.csv")
+        # to_fn = numberfilename(r".\sample\1\sunchao_spl.csv")
         # df.to_csv(to_fn)
 
         return df
@@ -644,7 +590,7 @@ def method_name():
         plt.legend()
         plt.xlabel("植被光谱指数", fontdict={"size": 11})
         plt.ylabel("频率(%)", fontdict={"size": 11})
-        plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\植被光谱指数分布特征.jpg", dpi=300)
+        plt.savefig(r".\tu\植被光谱指数分布特征.jpg", dpi=300)
         plt.show()
 
     def plot2(fc_fields_k):
@@ -692,7 +638,7 @@ def method_name():
         plot2_func1(False)
         plt.xlabel("时间/月")
         plt.ylabel(fc_fields_k)
-        plt.savefig(r"F:\ProjectSet\Huo\SunChao\tu\潮间带和永久性水体的水体指数特征_{0}.jpg".format(fc_fields_k),
+        plt.savefig(r".\tu\潮间带和永久性水体的水体指数特征_{0}.jpg".format(fc_fields_k),
                     dpi=300)
 
         plt.show()

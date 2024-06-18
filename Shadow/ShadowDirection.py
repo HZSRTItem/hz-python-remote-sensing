@@ -1939,6 +1939,7 @@ class ShadowSketchMap:
         plt.savefig(r"F:\ProjectSet\Shadow\MkTu\4.1Details\double_bounds2.jpg", dpi=300)
         plt.show()
 
+
 def main():
     # line = SHDLine()
     # line.azimuthCoor(360 - 8.9, 1, 2)

@@ -9,6 +9,7 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 
 import os.path
+import warnings
 from inspect import isfunction
 
 import matplotlib.pyplot as plt
@@ -21,9 +22,10 @@ from SRTCodes.GDALRasterIO import GDALRasterRange, GDALMBTiles, GDALRaster
 from SRTCodes.GDALUtils import GDALRasterCenter, readGDALRasterCenter
 from SRTCodes.GeoRasterRW import GeoRasterWrite
 from SRTCodes.SRTDraw import MplPatchesEllipse, MplPatchesEllipseColl
-from SRTCodes.SRTFeature import SRTFeatureCallBackScaleMinMax as SFCBSM
+from SRTCodes.SRTFeature import SRTFeatureCallBackScaleMinMax as SFCBSM, SRTFeatureCallBack
 from SRTCodes.Utils import saveJson, readcsv, changext, filterFileContain, sdf_read_csv, Jdt, printList
 
+HA_FL = False
 
 def isCloseInt(d, eps=0.000001):
     d_int = int(d)
@@ -517,16 +519,29 @@ class ShadowGeoDrawChannel:
 
     def __init__(self, name, win_row_size, win_column_size, channel_list=None, min_list=None, max_list=None,
                  callback_funcs=None, is_geo=True, no_data=0, ):
-        self.file_list = [
-            r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_look_tif.tif",
-            r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_tif.tif",
-            r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_look_tif.tif",
-        ]
-        self.geo_ranges = [
-            GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\MkTu\Draw\SH_BJ_envi.dat.npy.json"),
-            GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\MkTu\Draw\SH_CD_envi.dat.npy.json"),
-            GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\MkTu\Draw\SH_QD_envi.dat.npy.json"),
-        ]
+        if not HA_FL:
+            self.file_list = [
+                r"F:\ProjectSet\Shadow\Analysis\14\BJ\SH_BJ_envi.dat",
+                r"F:\ProjectSet\Shadow\Analysis\14\CD\SH_CD_envi.dat",
+                r"F:\ProjectSet\Shadow\Analysis\14\QD\SH_QD_envi.dat",
+            ]
+            self.geo_ranges = [
+                GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\Analysis\14\SH_BJ_envi.dat.npy.json"),
+                GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\Analysis\14\SH_CD_envi.dat.npy.json"),
+                GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\Analysis\14\SH_QD_envi.dat.npy.json"),
+            ]
+        else:
+            self.file_list = [
+                r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_look_tif.tif",
+                r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_tif.tif",
+                r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_look_tif.tif",
+            ]
+            self.geo_ranges = [
+                GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\MkTu\Draw\SH_BJ_envi.dat.npy.json"),
+                GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\MkTu\Draw\SH_CD_envi.dat.npy.json"),
+                GDALRasterRange(range_fn=r"F:\ProjectSet\Shadow\MkTu\Draw\SH_QD_envi.dat.npy.json"),
+            ]
+
         self.name = name
         self.win_row_size = win_row_size
         self.win_column_size = win_column_size
@@ -795,12 +810,18 @@ class ShadowGeoDrawGradImage:
 
     def addColumnSAR(self, name, channel_name, min_list=None, max_list=None, win_row_size=None, win_column_size=None,
                      **kwargs):
+        if "HA" in name:
+            callback_funcs = []
+            warnings.warn("\"HA\" in name \"{}\"".format(name))
+        else:
+            callback_funcs = [SRTFeatureCallBack(_10log10, is_trans=True)]
         win_column_size, win_row_size = self.initSize(win_column_size, win_row_size)
         sgdsc = ShadowGeoDrawSingleChannel(
             name=name, win_row_size=win_row_size, win_column_size=win_column_size,
             channel_list=[channel_name], min_list=min_list, max_list=max_list,
-            # callback_funcs=[SRTFeatureCallBack(_power10, is_trans=True)],
-            callback_funcs=[],
+            # callback_funcs=[SRTFeatureCallBack(_10log10, is_trans=True)],
+            # callback_funcs=[],
+            callback_funcs=callback_funcs,
             is_geo=True, no_data=0,
         )
         self.columns.append(sgdsc)
@@ -826,6 +847,10 @@ class ShadowGeoDrawGradImage:
 
     def addColumnSAR_ASC11(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, **kwargs):
         return self.addColumnSAR(name=name, channel_name="AS_C11", min_list=min_list, max_list=max_list,
+                                 win_row_size=win_row_size, win_column_size=win_column_size, **kwargs)
+
+    def addColumnSAR_ASH(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, **kwargs):
+        return self.addColumnSAR(name=name, channel_name="AS_H", min_list=min_list, max_list=max_list,
                                  win_row_size=win_row_size, win_column_size=win_column_size, **kwargs)
 
     def addColumnSAR_ASC22(self, name, min_list=None, max_list=None, win_row_size=None, win_column_size=None, **kwargs):
@@ -1079,10 +1104,10 @@ def drawRowColumn41():
     sgdgi.addImdcs()
     sgdgi.isRowName(False)
 
-    sgdgi.addColumnGoogle("Google Image", 1000, 1000)
-    sgdgi.addColumnRGB("RGB")
-    sgdgi.addColumnNRG("NRG")
-    sgdgi.addColumnNDVI("NDVI")
+    sgdgi.addColumnGoogle("(a) Google Image", 1000, 1000)
+    sgdgi.addColumnRGB("(b) RGB")
+    sgdgi.addColumnNRG("(c) NRG")
+    sgdgi.addColumnNDVI("(d) NDVI")
     # sgdgi.addColumnNDWI("NDWI")
 
     # sgdgi.addColumnImdcKey("SH-AS-DE", "SPL_SH-SVM-TAG-OPTICS-AS-DE")
@@ -1094,8 +1119,8 @@ def drawRowColumn41():
     # sgdgi.addColumnImdcKey("SH-OPT", "SPL_SH-SVM-TAG-OPTICS")
     # sgdgi.addColumnImdcKey("NOSH-OPT", "SPL_NOSH-SVM-TAG-OPTICS")
 
-    sgdgi.addColumnSAR_ASVV("SAR AS")
-    sgdgi.addColumnSAR_DEVV("SAR DE")
+    sgdgi.addColumnSAR_ASVV("(e) SAR AS")
+    sgdgi.addColumnSAR_DEVV("(f) SAR DE")
 
     # sgdgi.addColumnSAR_ASVH("AS VH")
     # sgdgi.addColumnSAR_DEVH("DE VH")
@@ -1119,19 +1144,19 @@ def drawRowColumn41():
 
     def end_show():
         sgdgi.addRow("1", 116.413250, 39.907738)
-        _addEllipse1((13, 6), 0, [1, 2], width=8, edgecolor="green")
+        _addEllipse1((13, 6), 0, [1, 2], width=8, edgecolor="lightgreen")
         _addEllipse1((6, 16), 0, [4], edgecolor="yellow")
         _addEllipse1((26, 16), 0, [5], edgecolor="yellow")
         _addEllipse1((24, 9), 0, [4], edgecolor="red")
         _addEllipse1((10, 11), 0, [5], edgecolor="blue")
         sgdgi.addRow("2", 104.07385, 30.65005)  # select
-        _addEllipse1((6, 7), 1, [1, 2, ], width=8, edgecolor="green")
+        _addEllipse1((6, 7), 1, [1, 2, ], width=8, edgecolor="lightgreen")
         _addEllipse1((14, 13), 1, [1, 2, 3, 4, 5], edgecolor="red")
         sgdgi.addRow("3", 116.302365, 39.962880)
-        _addEllipse1((21, 14), 2, [1, 2], width=8, edgecolor="green")
+        _addEllipse1((21, 14), 2, [1, 2], width=8, edgecolor="lightgreen")
         _addEllipse1((6, 6), 2, [1, 2, 3, 4, 5], edgecolor="blue")
         sgdgi.addRow("4", 116.486538, 39.889220)
-        _addEllipse1((23, 13), 3, [1, 2, 3, 4, 5], width=8, edgecolor="green")
+        _addEllipse1((23, 13), 3, [1, 2, 3, 4, 5], width=8, edgecolor="lightgreen")
         _addEllipse1((14, 13), 3, [1, 2, 3, 4, 5], edgecolor="red")
         _addEllipse1((11, 15), 3, [1, 2, 3, 4, 5], edgecolor="blue")
 
@@ -1182,24 +1207,24 @@ def drawRowColumn41():
 
     end_show()
     sgdgi.imshow(n_rows_ex=2.0, n_columns_ex=2.0)
-    plt.savefig(r"F:\ProjectSet\Shadow\MkTu\4.1Details\fig_41_1.jpeg", dpi=300)
+    plt.savefig(r"F:\ProjectSet\Shadow\MkTu\4.1Details\fig_41_2.jpeg", dpi=300)
     plt.show()
 
 
 def drawRowColumn42():
     sgdgi = ShadowGeoDrawGradImage(31, 31)
-    # sgdgi.color_dict = {1: (221,74,76), 2: (214,238,155), 3: (254,212,129), 4: (61,149,184)}
+    sgdgi.color_dict = {1: (230, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
     sgdgi.addImdcs()
     sgdgi.isRowName(True)
 
-    sgdgi.addColumnGoogle("Google Image", 800, 800)
-    sgdgi.addColumnRGB("RGB")
-    sgdgi.addColumnNRG("NRG")
+    sgdgi.addColumnGoogle("(a) Google Image", 800, 800)
+    sgdgi.addColumnRGB("(b) RGB")
+    sgdgi.addColumnNRG("(c) NRG")
     # sgdgi.addColumnNDVI("NDVI")
     # sgdgi.addColumnNDWI("NDWI")
 
-    sgdgi.addColumnSAR_ASVV("SAR AS")
-    sgdgi.addColumnSAR_DEVV("SAR DE")
+    sgdgi.addColumnSAR_ASVV("(d) SAR AS")
+    sgdgi.addColumnSAR_DEVV("(e) SAR DE")
     # sgdgi.addColumnSAR_ASVH("AS VH")
     # sgdgi.addColumnSAR_DEVH("DE VH")
 
@@ -1207,10 +1232,10 @@ def drawRowColumn42():
     sgdgi.addColumnImdcKey("SH-AS", "SPL_SH-SVM-TAG-OPTICS-AS")
     sgdgi.addColumnImdcKey("SH-DE", "SPL_SH-SVM-TAG-OPTICS-DE")
     sgdgi.addColumnImdcKey("SH-OPT", "SPL_SH-SVM-TAG-OPTICS")
-    sgdgi.column_name_map["SH-AS-DE"] = "Opt-AS-DE"
-    sgdgi.column_name_map["SH-AS"] = "Opt-AS"
-    sgdgi.column_name_map["SH-DE"] = "Opt-DE"
-    sgdgi.column_name_map["SH-OPT"] = "Opt"
+    sgdgi.column_name_map["SH-AS-DE"] = "(f) Opt-AS-DE"
+    sgdgi.column_name_map["SH-AS"] = "(g) Opt-AS"
+    sgdgi.column_name_map["SH-DE"] = "(h) Opt-DE"
+    sgdgi.column_name_map["SH-OPT"] = "(i) Opt"
 
     # sgdgi.addColumnImdcKey("NOSH-AS-DE", "SPL_NOSH-SVM-TAG-OPTICS-AS-DE")
     # sgdgi.addColumnImdcKey("NOSH-AS", "SPL_NOSH-SVM-TAG-OPTICS-AS")
@@ -1272,7 +1297,7 @@ def drawRowColumn42():
             self.j_column = j_column
             axes = kwargs["axes"]
             ax2 = axes[self.i_row, self.j_column]
-            d[15:20, 15:20, :] = np.array([1.0, 0, 0])
+            d[15:20, 15:20, :] = np.array(sgdgi.color_dict[1])/255
             ax2.imshow(d)
 
     sgdgi.ead_coll.add(eds3)
@@ -1338,14 +1363,14 @@ def drawRowColumn43():
     sgdgi.addImdcs()
     sgdgi.isRowName(True)
 
-    sgdgi.addColumnGoogle("Google Image", 800, 800)
-    sgdgi.addColumnRGB("RGB")
-    sgdgi.addColumnNRG("NRG")
+    sgdgi.addColumnGoogle("(a) Google Image", 800, 800)
+    sgdgi.addColumnRGB("(b) RGB")
+    sgdgi.addColumnNRG("(c) NRG")
     # sgdgi.addColumnNDVI("NDVI")
     # sgdgi.addColumnNDWI("NDWI")
 
-    sgdgi.addColumnSAR_ASVV("SAR AS")
-    sgdgi.addColumnSAR_DEVV("SAR DE")
+    sgdgi.addColumnSAR_ASVV("(d) SAR AS")
+    sgdgi.addColumnSAR_DEVV("(e) SAR DE")
     # sgdgi.addColumnSAR_ASVH("AS VH")
     # sgdgi.addColumnSAR_DEVH("DE VH")
 
@@ -1362,10 +1387,10 @@ def drawRowColumn43():
     sgdgi.addColumnImdcKey("NOSH-AS", "SPL_NOSH-SVM-TAG-OPTICS-AS")
     sgdgi.addColumnImdcKey("NOSH-DE", "SPL_NOSH-SVM-TAG-OPTICS-DE")
     sgdgi.addColumnImdcKey("NOSH-OPT", "SPL_NOSH-SVM-TAG-OPTICS")
-    sgdgi.column_name_map["NOSH-AS-DE"] = "Opt-AS-DE"
-    sgdgi.column_name_map["NOSH-AS"] = "Opt-AS"
-    sgdgi.column_name_map["NOSH-DE"] = "Opt-DE"
-    sgdgi.column_name_map["NOSH-OPT"] = "Opt"
+    sgdgi.column_name_map["NOSH-AS-DE"] = "(f) Opt-AS-DE"
+    sgdgi.column_name_map["NOSH-AS"] = "(g) Opt-AS"
+    sgdgi.column_name_map["NOSH-DE"] = "(h) Opt-DE"
+    sgdgi.column_name_map["NOSH-OPT"] = "(i) Opt"
 
     def _addEllipse1(xy, n_row=None, n_column=None, not_rows=None, not_columns=None,
                      width=8, height=6, angle=0, linewidth=1.5, fill=False, zorder=2,
@@ -1683,8 +1708,59 @@ def drawRC():
     plt.show()
 
 
+def drawTaoLun():
+    sgdgi = ShadowGeoDrawGradImage(61, 61)
+    # sgdgi.color_dict = {1: (221,74,76), 2: (214,238,155), 3: (254,212,129), 4: (61,149,184)}
+    sgdgi.addImdcs([
+        r"F:\ProjectSet\Shadow\BeiJing\Mods\20240510H235533",
+        r"F:\ProjectSet\Shadow\ChengDu\Mods\20240511H012421",
+        r"F:\ProjectSet\Shadow\QingDao\Mods\20240510H224639",
+    ])
+    sgdgi.isRowName(True)
+
+    sgdgi.addColumnNRG("(a) NRG")
+    sgdgi.addColumnImdcKey("(b) Opt", "SPL_SH-SVM-TAG-OPT")
+    sgdgi.addColumnSAR_ASVV("(c) VV")
+    sgdgi.addColumnImdcKey("(d) BSC", "SPL_SH-SVM-TAG-OPT-BSC")
+    sgdgi.addColumnSAR_ASC11("(e) C11")
+    sgdgi.addColumnImdcKey("(f) C2", "SPL_SH-SVM-TAG-OPT-C2")
+    sgdgi.addColumnSAR_ASH("(g) HA")
+    sgdgi.addColumnImdcKey("(h) HA", "SPL_SH-SVM-TAG-OPT-HA")
+    sgdgi.addColumn("(i) Mean", "AS_VV_mean")
+    sgdgi.addColumnImdcKey("(j) GLCM", "SPL_SH-SVM-TAG-OPT-GLCM")
+
+    def _addEllipse1(xy, n_row=None, n_column=None, not_rows=None, not_columns=None,
+                     width=8, height=6, angle=0, linewidth=1.5, fill=False, zorder=2,
+                     edgecolor="lightgreen", is_ratio=False):
+        sgdgi.addEllipse(xy=xy, n_row=n_row, n_column=n_column, not_rows=not_rows, not_columns=not_columns,
+                         width=width, height=height, angle=angle, linewidth=linewidth,
+                         fill=fill, zorder=zorder, edgecolor=edgecolor, is_ratio=is_ratio)
+
+    df = sdf_read_csv(r"F:\ProjectSet\Shadow\Analysis\12\mktu423_coors2.csv")
+    df.asColumnType("X", float)
+    df.asColumnType("Y", float)
+    df.indexColumnName("Name")
+
+    def add_row(n, row_name=None):
+        if row_name is None:
+            row_name = df.loc(n, "Name")
+        sgdgi.addRow(row_name, df.loc(n, "X"), df.loc(n, "Y"))
+        print(row_name, df.loc(n, "X"), df.loc(n, "Y"))
+
+    find_rows = ["bj13", "bj14", "bj17", "bj20", "bj21", "qd3", "cd1", "qd4", "qd5", "cd1", "cd2", ]
+
+    sgdgi.addRow("(1)    ", 116.479348,39.896649)
+    sgdgi.addRow("(2)    ", 116.456871,39.912046)
+    sgdgi.addRow("(3)    ", 116.564432,39.882698)
+    sgdgi.addRow("(4)    ", 116.519735,39.882080)
+
+    sgdgi.imshow(n_rows_ex=1.6, n_columns_ex=1.6)
+    plt.savefig(r"F:\ProjectSet\Shadow\MkTu\taolun\fig_talun2.jpg", dpi=300)
+    plt.show()
+
+
 if __name__ == "__main__":
-    drawRC()
+    drawRowColumn43()
 
 
     def main_t2():

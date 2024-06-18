@@ -17,7 +17,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
 from SRTCodes.ModelTraining import ConfusionMatrix
-from SRTCodes.Utils import timeDirName, DirFileName, writeCSVLine, copyFile, FileName, changext, Jdt, readLines
+from SRTCodes.Utils import timeDirName, DirFileName, writeCSVLine, copyFile, FN, changext, Jdt, readLines
 
 
 class JHModel(nn.Module):
@@ -395,7 +395,7 @@ def train_1():
         cuur_dfn = DirFileName(curr_dirname)
         log_fn = cuur_dfn.fn("log.txt")
         writeCSVLine(log_fn, ["EPOCH", "BATCH", "LOSS", "OA", "FN"])
-        copyFile(__file__, FileName(__file__).changedirname(curr_dirname))
+        copyFile(__file__, FN(__file__).changedirname(curr_dirname))
         print("curr_dirname:", curr_dirname)
         print("log_fn:", log_fn)
 

@@ -1,3 +1,4 @@
+import gc
 import sys
 
 import pandas as pd
@@ -6,6 +7,7 @@ from osgeo import gdal
 from torch import nn
 from torch.utils.data import Dataset
 
+from SRTCodes.GDALUtils import GDALSamplingInit, GDALSamplingFast, GDALSampling
 from SRTCodes.NumpyUtils import connectedComponent, categoryMap, NumpyDataCenter
 from SRTCodes.SRTModelImage import SRTModImPytorch
 from SRTCodes.Utils import readText, printList
@@ -49,11 +51,30 @@ class TNet(nn.Module):
 
 
 def main():
+    gsf = GDALSampling()
+    gsf.initNPYRaster(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\2\SHH2_QD2_data.npy")
+    data = gsf.sampling2DF(
+        df=pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\sh2_spl25_2_spl2_2.csv"),
+        win_row=21, win_column=21
+    )
+    print(data[0][:3])
+    np.save(r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\sh2_spl25_2_spl2_2_data.npy", data.astype("float32"))
+    # input(">")
+    # del gsf.gr.data
+    # gsf.gr.data = None
+    # gc.collect()
+    # # data1 = np.load(r"F:\Week\20240609\Data\spl1_data.npy")
+    # # data2 = np.load(r"F:\Week\20240609\Data\spl1_data2.npy")
+    # # print(np.sum(data1-data2))
+    # input(">")
+    pass
+
+
+def method_name4():
     bib2csv(r"F:\Articles\ConnectedPapers\Derivative-Works-for-"
             r"Improving-the-impervious-surface-estimation-with-combined-use-o"
             r"f-optical-and-SAR-remote-sensing-images.bib",
             r"F:\Articles\ConnectedPapers\tmp.csv")
-    pass
 
 
 def bib2csv(bib_fn, csv_fn):

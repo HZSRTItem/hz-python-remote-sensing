@@ -13,15 +13,16 @@ import xml.etree.ElementTree as ElementTree
 
 import numpy as np
 import pandas as pd
+from osgeo import __version__
 from osgeo import osr, gdal, gdal_array
 
-from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel, GDALRasterRange, saveGTIFFImdc
+from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel, GDALRasterRange, saveGTIFFImdc, NPYRaster
 from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.NumpyUtils import categoryMap
-from SRTCodes.SRTFeature import SRTFeatureCallBack
+from SRTCodes.SRTFeature import SRTFeatureCallBack, SRTFeaturesMemory
 from SRTCodes.SRTSample import SRTCategorySampleCollection, SRTSample
 from SRTCodes.TrainingUtils import SRTAccuracyConfusionMatrix
-from SRTCodes.Utils import readcsv, Jdt, savecsv, changext, getfilenamewithoutext, SRTDataFrame
+from SRTCodes.Utils import readcsv, Jdt, savecsv, changext, getfilenamewithoutext, SRTDataFrame, datasCaiFen
 
 RESOLUTION_ANGLE = 0.0000089831529294
 
@@ -150,6 +151,7 @@ class RasterToVRTS:
 
     def frontStr(self, fstr):
         self.save_fns = ["{0}{1}".format(fstr, name) for name in self.save_fns]
+        return self
 
     def save(self, to_dirname=None):
         if to_dirname is None:
@@ -159,6 +161,11 @@ class RasterToVRTS:
         for i, fn in enumerate(self.save_fns):
             fn = os.path.join(to_dirname, fn)
             gdal.BuildVRT(fn, self.raster_fn, options=["-b", str(i + 1)])
+
+
+def dictRasterToVRT(to_fn, raster_dict: dict):
+    gdal.BuildVRT(to_fn, list(raster_dict.values()), options=["-separate"])
+    vrtAddDescriptions(to_fn, descriptions=list(raster_dict.keys()))
 
 
 class SRTRasterConcat:
@@ -261,6 +268,7 @@ class GDALRasterCenter:
             save_dict = {}
         if channel_list is None:
             channel_list = [0]
+        self.wgs84_to_this = None
         ds, raster_fn = self.initRaster(ds, raster_fn)
         self.ds = ds
         self.name = name
@@ -279,10 +287,23 @@ class GDALRasterCenter:
                 if raster_fn not in self.GDALDatasetCollection:
                     self.GDALDatasetCollection[raster_fn] = gdal.Open(raster_fn)
                 ds = self.GDALDatasetCollection[raster_fn]
+
+        wkt = ds.GetProjection()
+        if wkt != "":
+            dst_srs = osr.SpatialReference()
+            dst_srs.ImportFromWkt(wkt)
+            wgs84_srs = osr.SpatialReference()
+            wgs84_srs.ImportFromEPSG(4326)
+            if __version__ >= "3.0.0":
+                dst_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+                wgs84_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+            self.wgs84_to_this = osr.CoordinateTransformation(wgs84_srs, dst_srs)
+
         self.ds = ds
         return ds, raster_fn
 
-    def read(self, x_row=0.0, y_column=0.0, win_row_size=0, win_column_size=0, is_geo=True, no_data=0, *args, **kwargs):
+    def read(self, x_row=0.0, y_column=0.0, win_row_size=0, win_column_size=0, is_geo=True, no_data=0, is_trans=False,
+             *args, **kwargs):
         ds: gdal.Dataset = self.ds
         names = []
         for i in range(ds.RasterCount):
@@ -299,6 +320,8 @@ class GDALRasterCenter:
         n_columns = ds.RasterXSize
         n_channels = ds.RasterCount
         if is_geo:
+            if is_trans:
+                x_row, y_column, _ = self.wgs84_to_this.TransformPoint(x_row, y_column)
             x_row, y_column = coorTrans(inv_geo_trans, x_row, y_column)
         x_row, y_column = int(x_row), int(y_column)
 
@@ -346,6 +369,7 @@ class GDALRasterCenter:
                 d = np.expand_dims(d, axis=2)
             else:
                 d = d[:, :, channel_list]
+            d = d * 1.0
 
         self.d = d
         return d
@@ -462,7 +486,7 @@ class GDALRasterCenterCollection:
 
     def getPatch(self, x, y, win_size=None, channel_list=None,
                  is_min_max=None, is_01=None, min_list=None, max_list=None,
-                 callback_funcs=None, is_geo=True, no_data=None, ):
+                 callback_funcs=None, is_geo=True, no_data=None, is_trans=False):
 
         if win_size is None:
             win_size = self.win_size
@@ -486,7 +510,7 @@ class GDALRasterCenterCollection:
 
         if self.grc is not None:
             if not (self.grc.read(x_row=x, y_column=y, win_row_size=win_size[0], win_column_size=win_size[1],
-                                  is_geo=is_geo, no_data=no_data, ) is not None):
+                                  is_geo=is_geo, no_data=no_data, is_trans=is_trans) is not None):
                 self.grc = None
                 self.geo_range = None
 
@@ -494,7 +518,7 @@ class GDALRasterCenterCollection:
             for i, fn in enumerate(self.geo_image_fns):
                 self.grc = GDALRasterCenter(channel_list=channel_list, raster_fn=fn)
                 if self.grc.read(x_row=x, y_column=y, win_row_size=win_size[0], win_column_size=win_size[1],
-                                 is_geo=is_geo, no_data=no_data, ) is not None:
+                                 is_geo=is_geo, no_data=no_data, is_trans=is_trans) is not None:
                     if fn in self.geo_ranges:
                         self.geo_range = self.geo_ranges[fn]
                     break
@@ -582,6 +606,13 @@ class GDALRasterCenterDatas:
         self.grccs[name] = grcc
         return name
 
+    def addRCC(self, name, *raster_fns, channel_list=None, fns=None, win_size=None, is_min_max=None,
+               is_01=None, no_data=0.0, min_list=None, max_list=None, callback_funcs=None):
+        return self.addRasterCenterCollection(
+            name, *raster_fns, channel_list=channel_list, fns=fns, win_size=win_size, is_min_max=is_min_max,
+            is_01=is_01, no_data=no_data, min_list=min_list, max_list=max_list, callback_funcs=callback_funcs
+        )
+
     def addGeoRange(self, raster_fn, geo_range=None):
         if geo_range is not None:
             if isinstance(geo_range, str):
@@ -610,7 +641,7 @@ class GDALRasterCenterDatas:
         self.category_colors[name] = c_dict
         return name
 
-    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, *args, **kwargs):
+    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, is_trans=False, *args, **kwargs):
         n_row, n_column = self.changeDataList(n_row, n_column)
         grcc: GDALRasterCenterCollection = self.grccs[grcc_name]
         min_list, max_list = None, None
@@ -618,7 +649,8 @@ class GDALRasterCenterDatas:
             min_list = kwargs["min_list"]
         if "max_list" in kwargs:
             max_list = kwargs["max_list"]
-        d = grcc.getPatch(x, y, win_size=win_size, min_list=min_list, max_list=max_list)
+        d = grcc.getPatch(x, y, win_size=win_size, min_list=min_list, max_list=max_list, is_trans=is_trans)
+
         self.setData(n_row, n_column, d)
         return d
 
@@ -844,33 +876,306 @@ class GDALRastersSampling:
         return self._gr
 
 
-class GDALSamplingFast:
+class GDALSamplingInit:
 
-    def __init__(self, raster_fn):
-        self.gr = GDALRaster(raster_fn)
+    def __init__(self, geo_fn=None, gr=None, *args, **kwargs):
+        self.gr = GDALRaster()
+        if gr is not None:
+            self.gr = gr
+        else:
+            if geo_fn is not None:
+                self.gr = GDALRaster(geo_fn)
+        self.n_channels = self.gr.n_channels
+
+    def initNPYRaster(self, npy_fn):
+        self.gr = NPYRaster(npy_fn)
+        self.n_channels = self.gr.n_channels
+
+    def sampling(self, x, y, field_names=None, is_jdt=True, is_trans=False):
+        if field_names is None:
+            field_names = self.gr.names
+        to_dict = {field_name: [0 for i in range(len(x))] for field_name in field_names}
+        jdt = Jdt(len(x), "sampling").start(is_jdt)
+        for i in range(len(x)):
+            x0, y0 = x[i], y[i]
+            if is_trans:
+                x0, y0, _ = self.gr.wgs84_to_this.TransformPoint(x0, y0)
+            line = self.samplingOne(x0, y0)
+            for k in line:
+                if k in to_dict:
+                    to_dict[k][i] = line[k]
+            jdt.add(is_jdt=is_jdt)
+        jdt.end(is_jdt=is_jdt)
+        return to_dict
+
+    def samplingOne(self, x0, y0, *args, **kwargs):
+        to_dict = {field_name: 0 for field_name in self.gr.names}
+        return to_dict
+
+    def csvfile(self, csv_fn, to_csv_fn, field_names=None, is_jdt=True,
+                x_field_names="X", y_field_names="Y", is_trans=False):
+        df = pd.read_csv(csv_fn)
+        to_df = self.samplingDF(df, field_names=field_names, is_jdt=is_jdt,
+                                x_field_names=x_field_names, y_field_names=y_field_names, is_trans=is_trans, )
+        to_df.to_csv(to_csv_fn, index=False)
+        return to_csv_fn
+
+    def samplingDF(self, df, field_names=None, is_jdt=True,
+                   x_field_names="X", y_field_names="Y", is_trans=False):
+        df_list = df.to_dict("list")
+        to_dict = self.sampling(
+            df_list[x_field_names], df_list[y_field_names],
+            field_names=field_names, is_jdt=is_jdt, is_trans=is_trans
+        )
+        for k in to_dict:
+            df_list[k] = to_dict[k]
+        to_df = pd.DataFrame(df_list)
+        return to_df
+
+    def sampling2(self, x, y, win_row, win_column, is_jdt=True, is_trans=False):
+        win_spl = [0, 0, 0, 0]
+        win_spl[0] = 0 - int(win_row / 2)
+        win_spl[1] = 0 + round(win_row / 2 + 0.1)
+        win_spl[2] = 0 - int(win_column / 2)
+        win_spl[3] = 0 + round(win_column / 2 + 0.1)
+        jdt = Jdt(len(x), "sampling2").start(is_jdt)
+        to_data = np.zeros((len(x), self.n_channels, win_row, win_column))
+        for i in range(len(x)):
+            x0, y0 = x[i], y[i]
+            if is_trans:
+                x0, y0, _ = self.gr.wgs84_to_this.TransformPoint(x0, y0)
+            data = self.sampling2One(win_spl, x0, y0, win_row=win_row, win_column=win_column)
+            if data is not None:
+                to_data[i] = data
+            jdt.add(is_jdt=is_jdt)
+        jdt.end(is_jdt=is_jdt)
+        return to_data
+
+    def sampling2One(self, win_spl, x0, y0, win_row=1, win_column=1, *args, **kwargs):
+        return None
+
+    def csvfile2(self, csv_fn, to_npy_fn, win_row, win_column,
+                 x_field_names="X", y_field_names="Y", is_jdt=True, is_trans=False):
+        df = pd.read_csv(csv_fn)
+        to_data = self.sampling2DF(df, win_row, win_column, x_field_names, y_field_names, is_jdt, is_trans)
+        np.save(to_npy_fn, to_data.astype("float32"))
+        del to_data
+        return to_npy_fn
+
+    def sampling2DF(self, df, win_row, win_column, x_field_names="X", y_field_names="Y", is_jdt=True, is_trans=False):
+        return self.sampling2(
+            df[x_field_names].tolist(), df[y_field_names].tolist(),
+            win_row, win_column,
+            is_jdt=is_jdt, is_trans=is_trans
+        )
+
+
+class GDALSamplingFast(GDALSamplingInit):
+
+    def __init__(self, raster_fn, gr=None, *args, **kwargs):
+        super().__init__(geo_fn=raster_fn, gr=gr, *args, **kwargs)
         self.data = self.gr.readAsArray()
         if len(self.data.shape) == 2:
             self.data = np.array([self.data])
 
-    def csvfile(self, csv_fn, to_csv_fn, is_jdt=True, field_names=None):
-        if field_names is None:
-            field_names = self.gr.names
-        sdf = SRTDataFrame().read_csv(csv_fn, is_auto_type=True)
-        sdf.addFields(field_names)
-        jdt = Jdt(len(sdf), "GDALSamplingFast::csvfile").start(is_jdt=is_jdt)
-        for i in range(len(sdf)):
-            x, y = sdf["X"][i], sdf["Y"][i]
-            if not self.gr.isGeoIn(x, y):
-                data = np.ones(self.gr.n_channels)
-            else:
-                row, column = self.gr.coorGeo2Raster(x, y, is_int=True)
-                data = self.data[:, row, column]
+    def samplingOne(self, x0, y0, *args, **kwargs):
+        if self.gr.isGeoIn(x0, y0):
+            row, column = self.gr.coorGeo2Raster(x0, y0, is_int=True)
+            data = self.data[:, row, column]
             data = data.ravel()
-            for j, name in enumerate(field_names):
-                sdf[name][i] = float(data[j])
-            jdt.add(is_jdt=is_jdt)
-        jdt.end(is_jdt=is_jdt)
-        sdf.toCSV(to_csv_fn)
+            to_dict = {field_name: float(data[i]) for i, field_name in enumerate(self.gr.names)}
+        else:
+            to_dict = {field_name: 0 for field_name in self.gr.names}
+        return to_dict
+
+    def sampling2One(self, win_spl, x0, y0, *args, **kwargs):
+        if self.gr.isGeoIn(x0, y0):
+            row, column = self.gr.coorGeo2Raster(x0, y0, is_int=True)
+            data = self.data[:, row + win_spl[0]: row + win_spl[1], column + win_spl[2]: column + win_spl[3]]
+        else:
+            data = None
+        return data
+
+    # def csvfile(self, csv_fn, to_csv_fn, field_names=None, is_jdt=True,
+    #             x_field_names="X", y_field_names="Y", is_trans=False):
+    #
+    #     # def csvfile(self, csv_fn, to_csv_fn, is_jdt=True, field_names=None):
+    #
+    #
+    #     if field_names is None:
+    #         field_names = self.gr.names
+    #     sdf = SRTDataFrame().read_csv(csv_fn, is_auto_type=True)
+    #     sdf.addFields(field_names)
+    #     jdt = Jdt(len(sdf), "GDALSamplingFast::csvfile").start(is_jdt=is_jdt)
+    #     for i in range(len(sdf)):
+    #         x, y = sdf["X"][i], sdf["Y"][i]
+    #         if not self.gr.isGeoIn(x, y):
+    #             data = np.ones(self.gr.n_channels)
+    #         else:
+    #             row, column = self.gr.coorGeo2Raster(x, y, is_int=True)
+    #             data = self.data[:, row, column]
+    #         data = data.ravel()
+    #         for j, name in enumerate(field_names):
+    #             sdf[name][i] = float(data[j])
+    #         jdt.add(is_jdt=is_jdt)
+    #     jdt.end(is_jdt=is_jdt)
+    #     sdf.toCSV(to_csv_fn)
+    #
+    # def sampling(self, x, y, field_names=None, is_jdt=True, ):
+    #     if field_names is None:
+    #         field_names = self.gr.names
+    #     to_dict = {field_name: [0 for i in range(len(x))] for field_name in field_names}
+    #     jdt = Jdt(len(x), "GDALSamplingFast::sampling").start(is_jdt=is_jdt)
+    #     for i in range(len(x)):
+    #         x0, y0 = x[i], y[i]
+    #         if not self.gr.isGeoIn(x0, y0):
+    #             data = np.zeros(self.gr.n_channels)
+    #         else:
+    #             row, column = self.gr.coorGeo2Raster(x0, y0, is_int=True)
+    #             data = self.data[:, row, column]
+    #         data = data.ravel()
+    #         for j, name in enumerate(field_names):
+    #             to_dict[name][i] = float(data[j])
+    #         jdt.add(is_jdt=is_jdt)
+    #     jdt.end(is_jdt=is_jdt)
+    #     return to_dict
+    #
+    # def sampling2(self, x, y, win_row, win_column, is_jdt=True, is_trans=False):
+    #     win_spl = [0, 0, 0, 0]
+    #     win_spl[0] = 0 - int(win_row / 2)
+    #     win_spl[1] = 0 + round(win_row / 2 + 0.1)
+    #     win_spl[2] = 0 - int(win_column / 2)
+    #     win_spl[3] = 0 + round(win_column / 2 + 0.1)
+    #     jdt = Jdt(len(x), "GDALSamplingFast::sampling2").start(is_jdt=is_jdt)
+    #     to_data = np.zeros((len(x), self.data.shape[0], win_row, win_column))
+    #     for i in range(len(x)):
+    #         x0, y0 = x[i], y[i]
+    #         if is_trans:
+    #             x0, y0, _ = self.gr.wgs84_to_this.TransformPoint(x0, y0)
+    #         if self.gr.isGeoIn(x0, y0):
+    #             row, column = self.gr.coorGeo2Raster(x0, y0, is_int=True)
+    #             data = self.data[:, row + win_spl[0]: row + win_spl[1], column + win_spl[2]: column + win_spl[3]]
+    #             to_data[i] = data
+    #         to_data = to_data * 0
+    #         jdt.add(is_jdt=is_jdt)
+    #     jdt.end(is_jdt=is_jdt)
+    #     return to_data
+
+
+class GDALSampling(GDALSamplingInit):
+
+    def __init__(self, raster_fn=None, gr=None, *args, **kwargs):
+        super().__init__(geo_fn=raster_fn, gr=gr, *args, **kwargs)
+
+    def samplingOne(self, x0, y0, *args, **kwargs):
+        if self.gr.isGeoIn(x0, y0):
+            data = self.gr.readAsArray(x0, y0, win_row_size=1, win_column_size=1, is_geo=True)
+            data = data.ravel()
+            to_dict = {field_name: float(data[i]) for i, field_name in enumerate(self.gr.names)}
+        else:
+            to_dict = {field_name: 0 for field_name in self.gr.names}
+        return to_dict
+
+    def sampling2One(self, win_spl, x0, y0, win_row=1, win_column=1, *args, **kwargs):
+        if self.gr.isGeoIn(x0, y0):
+            data = self.gr.readAsArrayCenter(x0, y0, win_row, win_column, is_geo=True)
+        else:
+            data = None
+        return data
+
+    # def sampling(self, x, y, field_names=None, is_jdt=True, ):
+    #     if field_names is None:
+    #         field_names = self.gr.names
+    #     to_dict = {field_name: [0 for i in range(len(x))] for field_name in field_names}
+    #     jdt = Jdt(len(x), "GDALSamplingFast::sampling").start(is_jdt=is_jdt)
+    #     for i in range(len(x)):
+    #         x0, y0 = x[i], y[i]
+    #         if not self.gr.isGeoIn(x0, y0):
+    #             data = np.zeros(self.gr.n_channels)
+    #         else:
+    #             data = self.gr.readAsArray(x0, y0, win_row_size=1, win_column_size=1, is_geo=True)
+    #         data = data.ravel()
+    #         for j, name in enumerate(field_names):
+    #             to_dict[name][i] = float(data[j])
+    #
+    #         jdt.add(is_jdt=is_jdt)
+    #     jdt.end(is_jdt=is_jdt)
+    #     return to_dict
+    #
+    # def csvfile(self, csv_fn, to_csv_fn, is_jdt=True, field_names=None):
+    #     if field_names is None:
+    #         field_names = self.gr.names
+    #     df = pd.read_csv(csv_fn)
+    #     df_list = df.to_dict("list")
+    #     to_dict = self.sampling(df_list["X"], df_list["Y"], field_names=field_names, is_jdt=is_jdt)
+    #     for k in to_dict:
+    #         df_list[k] = to_dict[k]
+    #     pd.DataFrame(df_list).to_csv(to_csv_fn, index=False)
+    #     return df_list
+    #
+    # def sampling2(self, x, y, win_row, win_column, is_jdt=True, is_trans=False):
+    #     win_spl = [0, 0, 0, 0]
+    #     win_spl[0] = 0 - int(win_row / 2)
+    #     win_spl[1] = 0 + round(win_row / 2 + 0.1)
+    #     win_spl[2] = 0 - int(win_column / 2)
+    #     win_spl[3] = 0 + round(win_column / 2 + 0.1)
+    #     jdt = Jdt(len(x), "GDALSamplingFast::sampling2").start(is_jdt=is_jdt)
+    #     to_data = np.zeros((len(x), self.gr.n_channels, win_row, win_column))
+    #     for i in range(len(x)):
+    #         x0, y0 = x[i], y[i]
+    #         if is_trans:
+    #             x0, y0, _ = self.gr.wgs84_to_this.TransformPoint(x0, y0)
+    #         if self.gr.isGeoIn(x0, y0):
+    #             data = self.gr.readAsArray(x0, y0, win_row, win_column, is_geo=True)
+    #             to_data[i] = data
+    #         to_data = to_data * 0
+    #         jdt.add(is_jdt=is_jdt)
+    #     jdt.end(is_jdt=is_jdt)
+    #     return to_data
+
+
+class _GSIC:
+
+    def __init__(self, imdc_fn):
+        self.gs = GDALSampling(imdc_fn)
+        self.imdc_fn = imdc_fn
+
+    def sampling(self, x, y, map_dict=None):
+        to_dict = self.gs.sampling(x, y)
+        y2 = list(to_dict.values())[0]
+        if map_dict is not None:
+            y2 = categoryMap(y2, map_dict)
+        return y2
+
+
+class GDALSamplingImageClassification:
+
+    def __init__(self):
+        self.gsics = {}
+
+    def add(self, name, imdc_fn):
+        self.gsics[name] = _GSIC(imdc_fn)
+
+    def __getitem__(self, item) -> _GSIC:
+        return self.gsics[item]
+
+    def __len__(self):
+        return len(self.gsics)
+
+    def keys(self):
+        return list(self.gsics.keys())
+
+    def fit(self, x, y, *names, to_dict=None, map_dict=None):
+        names = datasCaiFen(names)
+        if len(names) == 0:
+            names = list(self.gsics.keys())
+        if to_dict is None:
+            to_dict = {}
+        return {**to_dict, **{name: self.gsics[name].sampling(x, y, map_dict=map_dict) for name in names}}
+
+    def toDict(self):
+        to_dict = {name: self.gsics[name].imdc_fn for name in self.gsics}
+        return to_dict
 
 
 class GDALAccuracyConfusionMatrix(SRTAccuracyConfusionMatrix):
@@ -1000,6 +1305,24 @@ class GDALAccuracyImage:
             elif com == "neq":
                 df = df[df[field_name] != data]
         return df
+
+
+class GDALFeaturesMemory(SRTFeaturesMemory):
+
+    def __init__(self, raster_fn):
+        self.gr = GDALRaster(raster_fn)
+        super().__init__(names=self.gr.names)
+
+    # def read(self, *names, data=None):
+    #     names = datasCaiFen(names)
+    #     if len(names) == 0:
+    #         names = self.gr.names
+    #     if data is None:
+    #         data = np.zeros((self.gr.n_channels, self.gr.n_rows, self.gr.n_columns))
+    #     for name in names:
+    #         data
+
+
 
 
 def main():

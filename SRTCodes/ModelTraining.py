@@ -231,6 +231,7 @@ class ConfusionMatrix:
                 n_class = len(class_names)
             else:
                 return
+        self._n_class = n_class
         self._cm = np.zeros((n_class, n_class))
         self._cm_accuracy = self.calCM()
         if self._class_names is None:
@@ -369,17 +370,16 @@ class ConfusionMatrix:
         else:
             category = category - 1
 
-        cm_category = np.zeros((2,2))
+        cm_category = np.zeros((2, 2))
         cm_category[0, 0] = int(self._cm[category, category])
-        cm_category[0, 1] = int(np.sum(np.diag(self._cm[category, :]))) -int(self._cm[category, category])
-        cm_category[1, 0] = int(np.sum(np.diag(self._cm[:, category]))) -int(self._cm[category, category])
+        cm_category[0, 1] = int(np.sum(np.diag(self._cm[category, :]))) - int(self._cm[category, category])
+        cm_category[1, 0] = int(np.sum(np.diag(self._cm[:, category]))) - int(self._cm[category, category])
         cm_category[1, 1] = int(np.sum(self._cm)) - int(np.sum(cm_category))
 
         cm = ConfusionMatrix(2, [str(cname), "NOT_KNOW"])
         cm._cm = cm_category
         cm._cm_accuracy = cm.calCM()
         return cm
-
 
     def __iter__(self):
         return self
@@ -427,7 +427,7 @@ class ConfusionMatrixCollection(SRTCollectionDict):
 
     def toDict(self):
         to_dict = {
-            "cms": {cm:self.n_next[cm].toDict() for cm in self.n_next}
+            "cms": {cm: self.n_next[cm].toDict() for cm in self.n_next}
         }
         return to_dict
 
@@ -660,13 +660,14 @@ class RegressionTraining(Training):
 
 
 def dataModelPredict(data, data_deal, is_jdt, model):
-    if data_deal is None:
-        data_deal = lambda _data: _data
     data_c = np.zeros((data.shape[1], data.shape[2]))
     jdt = Jdt(data.shape[1], "dataModelPredict").start(is_jdt=is_jdt)
     for i in range(data.shape[1]):
         jdt.add(is_jdt=is_jdt)
-        x = data_deal(data[:, i, :].T)
+        if data_deal is not None:
+            x = data_deal(data[:, i, :].T)
+        else:
+            x = data[:, i, :].T
         y = model.predict(x)
         data_c[i, :] = y
     jdt.end(is_jdt=is_jdt)
@@ -676,17 +677,18 @@ def dataModelPredict(data, data_deal, is_jdt, model):
 def dataPredictPatch(image_data, win_size, predict_func, is_jdt=True):
     imdc = np.zeros(image_data.shape[1:])
     win_row, win_column = win_size
-    row_start, row_end, = win_row, imdc.shape[0] - win_row
-    column_start, column_end, = win_column, imdc.shape[1] - win_column
+    row_start, row_end, = int(win_row / 2 + 2), imdc.shape[0] - int(win_row / 2 + 2)
+    column_start, column_end, = int(win_column / 2 + 2), imdc.shape[1] - int(win_column / 2 + 2)
     win_row_2, win_column_2 = int(win_row / 2), int(win_column / 2)
-    row_01, column_01 = win_row%2, win_column%2
+    row_01, column_01 = win_row % 2, win_column % 2
     col_imdc = np.zeros((column_end - column_start, image_data.shape[0], win_row, win_column))
     jdt = Jdt(row_end - row_start, "dataPredictPatch").start(is_jdt=is_jdt)
     for i in range(row_start, row_end):
         j_select = 0
         for j in range(column_start, column_end):
             r, c = i, j
-            col_imdc[j_select] = image_data[:, r - win_row_2:r + win_row_2 + row_01, c - win_column_2:c + win_column_2 + column_01]
+            col_imdc[j_select] = image_data[:, r - win_row_2:r + win_row_2 + row_01,
+                                 c - win_column_2:c + win_column_2 + column_01]
             j_select += 1
         y = predict_func(col_imdc)
         imdc[i, column_start: column_end] = y

@@ -10,6 +10,7 @@ r"""----------------------------------------------------------------------------
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.image import imread, imsave
 
 
@@ -61,6 +62,21 @@ def filterDF(df, *filters, **filter_maps):
     for k, f in filter_dict.items():
         df = df[df[k] == f]
     return df
+
+
+def splitDf(_df, field_name, *df_splits):
+    df_list = []
+    for df_split in df_splits:
+        df_list_tmp = []
+        for data in df_split:
+            df_tmp = _df[_df[field_name] == data]
+            if len(df_tmp) != 0:
+                df_list_tmp.append(df_tmp)
+        if len(df_list_tmp) != 0:
+            df_list.append(pd.concat(df_list_tmp))
+        else:
+            df_list.append(None)
+    return tuple(df_list)
 
 
 def main():

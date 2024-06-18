@@ -90,6 +90,9 @@ class GDALImdcAcc:
 
         self.cm = ConfusionMatrix()
 
+        self.category_func = lambda category1, category2: category1
+        self.to_category_func = lambda category1, category2: category2
+
     def initGR(self, gr_geo_fn):
         if gr_geo_fn is None:
             return
@@ -160,6 +163,8 @@ class GDALImdcAcc:
             to_category_list = categoryMap(self.to_category_list, self.to_map_category)
         else:
             to_category_list = self.to_category_list
+        category_list = self.category_func(category_list, to_category_list)
+        to_category_list = self.to_category_func(category_list, to_category_list)
         self.cm.addData(category_list, to_category_list)
         return self.cm
 

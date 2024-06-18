@@ -7,6 +7,7 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of GDALRun
 -----------------------------------------------------------------------------"""
+import os
 import sys
 
 import numpy as np
@@ -190,7 +191,8 @@ class GDALDataDes_main:
             return None
 
         raster_fn = None
-        fmt = "csv"
+        fmt = "table"
+        n_xiaoshu = 6
 
         i = 1
         while i < len(argv):
@@ -203,6 +205,17 @@ class GDALDataDes_main:
 
         grc = GDALRasterChannel()
         channels = grc.getRasterNames(raster_fn)
+        gr = GDALRaster(raster_fn)
+
+        # gr = GDALRaster(raster_fn)
+        # data = gr.readAsLine(int(gr.n_rows / 2), int(gr.n_columns / 2))
+        len_name = max([len(name) for name in channels])
+        len_column = 10
+        print(len_column)
+
+        fmt_name = "{:<" + str(len_name) + "}"
+        fmt_column_names = "{:>" + str(len_column + n_xiaoshu) + "}"
+        fmt_column = "{:>" + str(len_column+ n_xiaoshu) + "." + str(n_xiaoshu) + "f}"
 
         if fmt == "lines" or fmt == "csv":
             if fmt == "lines":
@@ -216,19 +229,107 @@ class GDALDataDes_main:
                     print(name, np.min(d), np.max(d), np.mean(d), np.std(d), sep=" ")
                 elif fmt == "csv":
                     print(name, np.min(d), np.max(d), np.mean(d), np.std(d), sep=",")
-        else:
+        elif fmt == "table":
             datas = [["NAME", "MIN", "MAX", "MEAN", "STD"]]
+
+            print("{} | {} | {} | {} | {}".format(
+                fmt_name.format("NAME"),
+                fmt_column_names.format("MIN"),
+                fmt_column_names.format("MAX"),
+                fmt_column_names.format("MEAN"),
+                fmt_column_names.format("STD"),
+            ))
+
             for name in channels:
-                name = grc.addGDALData(raster_fn, name)
-                d = grc[name]
-                datas.append([name, float(np.min(d)), float(np.max(d)), float(np.mean(d)), float(np.std(d))])
-            printListTable(datas, precision=6, rcl=">")
+                d = gr.readGDALBand(name)
+                print("{} | {} | {} | {} | {}".format(
+                    fmt_name.format(name),
+                    fmt_column.format(float(np.min(d))),
+                    fmt_column.format(float(np.max(d))),
+                    fmt_column.format(float(np.mean(d))),
+                    fmt_column.format(float(np.std(d))),
+                ))
+                # datas.append([name, float(np.min(d)), float(np.max(d)), float(np.mean(d)), float(np.std(d))])
+            # printListTable(datas, precision=6, rcl=">")
 
     def usage(self):
         print("{0} raster_fn [-fmt table|csv|lines]".format(self.name))
         print("@Des: {0}".format(self.description))
         print("    raster_fn: raster file name.")
         print("    -fmt: out format table|csv")
+
+
+class GDALDesCopy_main:
+
+    def __init__(self):
+        self.name = "gdaldescopy"
+        self.description = "Copy each channel description information from a grid to multiple raster files."
+        self.argv = []
+
+    def run(self, argv):
+        self.argv = argv
+        if len(argv) == 1:
+            self.usage()
+            return None
+
+        description_f = None
+        to_fns = []
+        ext = ".tif"
+
+        i = 1
+        while i < len(argv):
+            if (argv[i] == "-filelist") and (i < len(argv) - 1):
+                i += 1
+                with open(argv[i], "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        line = line.strip("\"")
+                        if line == "":
+                            continue
+                        to_fns.append(line)
+
+            elif (argv[i] == "-dir") and (i < len(argv) - 1):
+                i += 1
+                dirname = argv[i]
+                for fn in os.listdir(dirname):
+                    fn = os.path.join(dirname, fn)
+                    if os.path.isfile(fn):
+                        if fn.endswith(ext):
+                            to_fns.append(fn)
+            elif (argv[i] == "-filter") and (i < len(argv) - 1):
+                i += 1
+                ext = argv[i]
+
+            elif description_f is None:
+                description_f = argv[i]
+
+            else:
+                to_fns.append(argv[i])
+
+            i += 1
+
+        if description_f is None:
+            print("Not find description raster file")
+            return
+
+        gr1 = GDALRaster(description_f)
+
+        for i, fn in enumerate(to_fns):
+            gr2 = GDALRaster(fn)
+            print("{:2d}: {}".format(i, fn))
+            for i in range(gr2.n_channels):
+                band = gr2.raster_ds.GetRasterBand(i + 1)
+                band.SetDescription(gr1.names[i])
+
+    def usage(self):
+        print(
+            "{0} description_f [-filelist filelist.txt] [-dir dirname] [-filter string] *raster_fns".format(self.name))
+        print("@Des: {0}".format(self.description))
+        print("    description_f: description raster file name.")
+        print("    -filelist: to raster filelist")
+        print("    -dir: dirname of all raster file")
+        print("    -filter: filters of dirname")
+        print("    *raster_fns: raster files")
 
 
 class SRTGeo:
@@ -294,6 +395,7 @@ def main_gdalrun(argv):
     srt_geo.add(GLI_main())
     srt_geo.add(GDALListNames_main())
     srt_geo.add(GDALDataDes_main())
+    srt_geo.add(GDALDesCopy_main())
     if len(argv) == 1:
         srt_geo.usage()
     else:

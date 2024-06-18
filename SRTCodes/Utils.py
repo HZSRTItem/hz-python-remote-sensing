@@ -166,15 +166,32 @@ def readText(filename, encoding="utf-8", **kwargs):
         return f.read()
 
 
-def filterFileExt(dirname=".", ext=""):
+def listfilename(fn_list):
+    return [os.path.split(fn)[1] for fn in fn_list]
+
+
+def filterFileExt(dirname=".", ext="", is_full=True):
     filelist = []
     for f in os.listdir(dirname):
         if os.path.splitext(f)[1] == ext:
             filelist.append(os.path.join(dirname, f))
+
+    if not is_full:
+        return listfilename(filelist)
     return filelist
 
 
-def filterFileContain(dirname=".", *filters):
+def filterFileEndWith(dirname=".", end="", is_full=True):
+    filelist = []
+    for f in os.listdir(dirname):
+        if f.endswith(end):
+            filelist.append(os.path.join(dirname, f))
+    if not is_full:
+        return listfilename(filelist)
+    return filelist
+
+
+def filterFileContain(dirname=".", *filters, is_full=True):
     out_fns = []
     filter_list = []
     for filter_ele in filters:
@@ -189,6 +206,8 @@ def filterFileContain(dirname=".", *filters):
                 n += 1
         if n == len(filter_list):
             out_fns.append(os.path.join(dirname, fn))
+    if not is_full:
+        return listfilename(out_fns)
     return out_fns
 
 
@@ -197,10 +216,20 @@ def writeTexts(filename, *texts, mode="w", end=""):
         for text in texts:
             f.write(str(text))
         f.write(end)
+    return filename
 
 
-def writeTextLine(filename, *texts, end="\n"):
-    writeTexts(filename, *texts, mode="a", end="\n")
+def writeTextLine(filename, *texts, mode="a", end="\n"):
+    writeTexts(filename, *texts, mode=mode, end=end)
+
+
+def writeLines(filename, *lines, mode="w", sep="\n"):
+    lines = datasCaiFen(lines)
+    with open(filename, mode=mode, encoding="utf-8") as f:
+        for line in lines:
+            f.write(str(line))
+            f.write(sep)
+    return filename
 
 
 def copyFile(filename, to_filename):
@@ -880,11 +909,12 @@ class SRTDataFrame:
     def toDict(self):
         return self._data.copy()
 
-    def filterEQ(self, field_name, data):
+    def filterEQ(self, field_name, *data):
+        data = list(data)
         sdf = self.copyEmpty()
         for i in range(self._n_length):
             line = self.rowToDict(i)
-            if line[field_name] == data:
+            if line[field_name] in data:
                 sdf.addLine(line)
         return sdf
 
@@ -1033,8 +1063,13 @@ class SRTDFColumnCal(SRTDataFrame):
         self._data[field_name] = to_list
         return to_list
 
+    def copyEmpty(self):
+        sdf = SRTDFColumnCal()
+        sdf._data = {k: [] for k in self._data}
+        return sdf
 
-class FileName:
+
+class FN:
 
     def __init__(self, filename=""):
         self._filename = filename
@@ -1073,9 +1108,30 @@ class FileName:
         return getfilenamewithoutext(self._filename)
 
 
+class DFN:
+
+    def __init__(self, name="."):
+        self.name = name
+
+    def dirname(self):
+        self.name = os.path.split(self.name)[0]
+        return self
+
+    def filterFileContain(self, *filters, is_full=True):
+        return filterFileContain(self.name, *filters, is_full=is_full)
+
+    def filterFileExt(self, ext="", is_full=True):
+        return filterFileExt(self.name, ext, is_full=is_full)
+
+    def filterFileEndWith(self, end="", is_full=True):
+        return filterFileEndWith(self.name, end=end, is_full=is_full)
+
+
 class SRTLog:
 
     def __init__(self, log_fn=None, mode="w", is_print=True):
+        if log_fn is None:
+            return
         self.log_fn = log_fn
         self.swt = SRTWriteText(text_fn=log_fn, mode=mode)
         self.is_print = is_print
@@ -1092,9 +1148,13 @@ class SRTLog:
         if self.log_fn is not None:
             self.swt.write(*text, sep=sep, end=end)
 
+    def wl(self, line, end="\n", is_print=None):
+        self.log(line, end=end, is_print=is_print)
+        return line
+
     def kw(self, key, value, sep=": ", end="\n", is_print=None):
         if isinstance(value, list) or isinstance(value, tuple):
-            to_str = "\"" + "\", \"".join(value) + "\""
+            to_str = "\"" + "\", \"".join(str(value)) + "\""
         else:
             to_str = str(value)
         self.log(key, to_str, sep=sep, end=end, is_print=is_print)
@@ -1151,6 +1211,80 @@ class CheckLoc:
         is_column = check_is(self.n_column, i_column) and (not check_is(self.not_columns, i_column, is_none=False))
 
         return is_row and is_column
+
+
+class TimeName:
+
+    def __init__(self, fmt="%Y%m%dH%H%M%S", _dirname=""):
+        self.time = datetime.now()
+        self.time_str = self.time.strftime(fmt)
+        self._dirname = _dirname
+
+    def thisDirName(self):
+        return self._dirname
+
+    def dirname(self, dirname=None, is_mk=False):
+        if dirname is None:
+            dirname = self._dirname
+        to_dirname = os.path.join(dirname, self.time_str)
+        if is_mk:
+            os.mkdir(to_dirname)
+        return to_dirname
+
+    def filename(self, fmt="{}", dirname=None):
+        if dirname is None:
+            dirname = self._dirname
+        fn = fmt.format(self.time_str)
+        fn = os.path.join(dirname, fn)
+        return fn
+
+
+
+
+class FRW:
+
+    def __init__(self, filename):
+        self.filename = filename
+
+    def read(self):
+        with open(self.filename, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def readcsv(self):
+        return readcsv(self.filename)
+
+    def readcsvlines(self):
+        return readcsvlines(self.filename)
+
+    def readJson(self):
+        return readJson(self.filename)
+
+    def readLines(self, strip_str="\n", is_remove_empty=False):
+        lines = readLines(filename=self.filename, strip_str=strip_str)
+        if is_remove_empty:
+            lines = [line for line in lines if line != ""]
+        return lines
+
+    def readLinesList(self, sep=" ", strip_str="\n", ):
+        readLinesList(self.filename, sep=sep, strip_str=strip_str, )
+
+    def savecsv(self, data):
+        return savecsv(self.filename, data)
+
+    def saveJson(self, data):
+        return saveJson(data, self.filename)
+
+    def writeCSVLine(self, line):
+        return writeCSVLine(self.filename, line)
+
+    def writeTextLine(self, *texts, mode="a", end="\n"):
+        return writeTextLine(self.filename, *texts, mode=mode, end=end)
+
+    def writeTexts(self, *texts, mode="w", end=""):
+        return writeTexts(self.filename, *texts, mode=mode, end=end)
+
+    def writeLines(self, *lines, mode="w", sep="\n"):
+        return writeLines(self.filename, *lines, mode=mode, sep=sep)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 from SRTCodes.SRTFeature import SRTFeatureCallBackCollection, SRTFeatureExtractionCollection
-from SRTCodes.Utils import printList, SRTDataFrame, readJson, Jdt, SRTFilter
+from SRTCodes.Utils import printList, SRTDataFrame, readJson, Jdt, SRTFilter, FRW, getfilenamewithoutext
 
 
 def filter_1(c_names, cate, select):
@@ -769,6 +769,155 @@ class SRTCSplColl(SRTCategorySampleCollection):
 
     def __init__(self):
         super(SRTCSplColl, self).__init__()
+
+
+def is_in_poly(p, poly):
+    px, py = p
+    is_in = False
+    for i, corner in enumerate(poly):
+        next_i = i + 1 if i + 1 < len(poly) else 0
+        x1, y1 = corner[0], corner[1],
+        x2, y2 = poly[next_i][0], poly[next_i][1]
+        if (x1 == px and y1 == py) or (x2 == px and y2 == py):  # if point is on vertex
+            is_in = True
+            break
+        if min(y1, y2) < py <= max(y1, y2):  # find horizontal edges of polygon
+            x = x1 + (py - y1) * (x2 - x1) / (y2 - y1)
+            if x == px:  # if point is on edge
+                is_in = True
+                break
+            elif x > px:  # if point is on left-side of line
+                is_in = not is_in
+    return is_in
+
+
+class GeoJsonPolygonCoor:
+
+    def __init__(self, geo_json_fn):
+        self.data = readJson(geo_json_fn)
+        self.type = self.data["type"]
+        self.name = self.data["name"]
+        self.crs = self.data["crs"]
+        self.features = self.data["features"]
+        self.feature = self.features[0] if len(self.features) > 0 else None
+        self.x_min = None
+        self.x_max = None
+        self.y_min = None
+        self.y_max = None
+        self.getRange()
+
+    def coor(self, x, y, field_names=None, **kwargs):
+        to_dict = self.filterFeature(x, y, field_names=field_names, **kwargs)
+        if to_dict is None:
+            for feat in self.features:
+                to_dict = self.filterFeature(x, y, feat=feat, field_names=field_names, **kwargs)
+                if to_dict is not None:
+                    return to_dict
+        return None
+
+    def filterFeature(self, x, y, feat=None, field_names=None, **kwargs):
+        if feat is None:
+            feat = self.feature
+        else:
+            self.feature = feat
+        if not is_in_poly((x, y), feat["geometry"]["coordinates"][0]):
+            return None
+        if field_names is None:
+            field_names = {}
+        return {"X": x, "Y": y, **feat["properties"], **field_names, **kwargs}
+
+    def coors(self, x, y, column_dicts=None, field_names=None, **kwargs):
+        to_list = []
+        if column_dicts is None:
+            column_dicts = {}
+        if field_names is None:
+            field_names = {}
+        for i in range(len(x)):
+            to_dict = self.coor(x[i], y[i])
+            if to_dict is None:
+                continue
+            line = {**to_dict, **field_names, **{k: column_dicts[k][i] for k in column_dicts}, **kwargs}
+            to_list.append(line)
+        return to_list
+
+    def coorDF(self, df, column_dicts=None, field_names=None, x_field_name="X", y_field_name="Y", **kwargs):
+        df_keys = list(df.keys())
+        df_keys.remove(x_field_name)
+        df_keys.remove(y_field_name)
+        if column_dicts is None:
+            column_dicts = {}
+        df_columns = df[df_keys].to_dict("list")
+        column_dicts = {**df_columns, **column_dicts, }
+        to_list = self.coors(df[x_field_name], df[y_field_name],
+                             column_dicts=column_dicts, field_names=field_names, **kwargs)
+        return to_list
+
+    def random(self, n_samples, field_names=None, **kwargs):
+        n_spl = 0
+        to_list = []
+        jdt = Jdt(n_samples, "GeoJsonPolygonCoor::random").start()
+        while n_spl <= n_samples:
+            x, y = self.randomXY()
+            to_dict = self.coor(x, y, field_names=field_names, **kwargs)
+            if to_dict is not None:
+                to_list.append(to_dict)
+                n_spl += 1
+                jdt.add()
+        jdt.end()
+        return to_list
+
+    def randomXY(self, n_samples=1):
+        def getRandom(x0, x1):
+            return x0 + random.random() * (x1 - x0)
+
+        if n_samples == 1:
+            return getRandom(self.x_min, self.x_max), getRandom(self.y_min, self.y_max)
+        return [getRandom(self.x_min, self.x_max) for i in range(n_samples)], \
+               [getRandom(self.y_min, self.y_max) for i in range(n_samples)]
+
+    def getRange(self):
+        x_min, x_max, y_min, y_max = None, None, None, None
+        for feat in self.features:
+            for coor in feat["geometry"]["coordinates"][0]:
+                x, y = coor[0], coor[1]
+                if x_min is None:
+                    x_min, x_max = x, y
+                    y_min, y_max = x, y
+                if x_min > x:
+                    x_min = x
+                if x_max < x:
+                    x_max = x
+                if y_min > y:
+                    y_min = y
+                if y_max < y:
+                    y_max = y
+        self.x_min, self.x_max, self.y_min, self.y_max = x_min, x_max, y_min, y_max
+        return x_min, x_max, y_min, y_max
+
+
+class GEOJsonWriteWGS84:
+
+    def __init__(self, *properties):
+        self.type = "FeatureCollection"
+        self.crs = {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}}
+        self.features = []
+        self.properties = list(properties)
+
+    def addPolygon(self, coors, properties=None, **kwargs):
+        if properties is None:
+            properties = {}
+        properties = {**properties, **kwargs}
+        to_properties = {name: None for name in self.properties}
+        for name in properties:
+            if name in to_properties:
+                to_properties[name] = to_properties[name]
+        self.features.append({
+            "type": "Feature", "properties": to_properties, "geometry": {"type": "Polygon", "coordinates": coors}
+        })
+
+    def save(self, to_fn):
+        name = getfilenamewithoutext(to_fn)
+        FRW(to_fn).saveJson({"type": self.type, "name": name, "crs": self.crs, "features": self.features})
 
 
 def main():

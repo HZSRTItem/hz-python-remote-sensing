@@ -13,6 +13,7 @@ import os
 import pandas as pd
 
 from SRTCodes.SRTReadWrite import SRTInfoFileRW
+from SRTCodes.Utils import concatCSV
 
 
 def checkDFKeys(df, k, filename=""):
@@ -156,7 +157,7 @@ class QJYTxt_main:
 
                 for k in df:
                     if k not in ["X", "Y", "CATEGORY"]:
-                        f.write(k)
+                        f.write(str(k))
                         f.write("\n")
 
                 f.write("\n")
@@ -313,6 +314,93 @@ class DFColumnCount_main:
             print(fmt.format(k, data))
         print("-" * len_max, "-" * 6)
         print(fmt.format("ALL", n))
+
+
+class ConcatCSV_main:
+
+    def __init__(self):
+        self.name = "concatcsv"
+        self.description = "Concate csv files"
+        self.argv = []
+
+    def usage(self):
+        print("{0} to_csv_fn [-filelist filelist.txt] [-dir dirname] [-filter string] [--y]"
+              "*csv_fns".format(self.name))
+        print("@Des: {0}".format(self.description))
+        print("    to_csv_fn: save csv file")
+        print("    -filelist: csv filelist")
+        print("    -dir: dirname of all csv file")
+        print("    -filter: filters of dirname")
+        print("    --y: to csv file exist, whether delete")
+        print("    *csv_fns: csv files")
+
+    def run(self, argv):
+        self.argv = argv
+        if len(argv) == 1:
+            self.usage()
+            return None
+
+        to_csv_fn = None
+        csv_fns = []
+        ext = ".tif"
+        is_to_csv_fn_del = False
+
+        i = 1
+        while i < len(argv):
+            if (argv[i] == "-filelist") and (i < len(argv) - 1):
+                i += 1
+                with open(argv[i], "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        line = line.strip("\"")
+                        if line == "":
+                            continue
+                        csv_fns.append(line)
+
+            elif (argv[i] == "-dir") and (i < len(argv) - 1):
+                i += 1
+                dirname = argv[i]
+                for fn in os.listdir(dirname):
+                    fn = os.path.join(dirname, fn)
+                    if os.path.isfile(fn):
+                        if fn.endswith(ext):
+                            csv_fns.append(fn)
+
+            elif (argv[i] == "-filter") and (i < len(argv) - 1):
+                i += 1
+                ext = argv[i]
+
+            elif argv[i] == "--y":
+                is_to_csv_fn_del = True
+
+            elif to_csv_fn is None:
+                to_csv_fn = argv[i]
+
+            else:
+                csv_fns.append(argv[i])
+
+            i += 1
+
+        if to_csv_fn is None:
+            print("Not find to csv file")
+            return
+
+        if len(csv_fns) ==0:
+            print("Not find csv files")
+            return
+
+        if not os.path.isfile(to_csv_fn):
+            concatCSV(*csv_fns, to_csv_fn=to_csv_fn)
+            print("Save to", to_csv_fn)
+        else:
+            if not is_to_csv_fn_del:
+                is_y = input("CSV file existed: \"{}\"\nWhether delete or not? [y/n] ".format(to_csv_fn))
+                is_to_csv_fn_del = (is_y[0] == "y")
+            if is_to_csv_fn_del:
+                concatCSV(*csv_fns, to_csv_fn=to_csv_fn)
+                print("Save to", to_csv_fn)
+            else:
+                print("Can not concat csv.")
 
 
 if __name__ == "__main__":

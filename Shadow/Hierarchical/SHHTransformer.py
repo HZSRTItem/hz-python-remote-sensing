@@ -22,7 +22,7 @@ from torchvision.models.vision_transformer import ConvStemConfig, Encoder, Visio
 
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.ModelTraining import ConfusionMatrix
-from SRTCodes.Utils import timeDirName, DirFileName, writeCSVLine, copyFile, FileName, Jdt, changext
+from SRTCodes.Utils import timeDirName, DirFileName, writeCSVLine, copyFile, FN, Jdt, changext
 from Shadow.Hierarchical import SHHConfig
 from Shadow.Hierarchical.ShadowHSample import SHH2Samples, copySHH2Samples, loadSHH2SamplesDataset
 
@@ -270,7 +270,7 @@ def shh2VITTrain():
         cuur_dfn = DirFileName(curr_dirname)
         log_fn = cuur_dfn.fn("log.txt")
         writeCSVLine(log_fn, ["EPOCH", "BATCH", "LOSS", "OA", "FN"])
-        copyFile(__file__, FileName(__file__).changedirname(curr_dirname))
+        copyFile(__file__, FN(__file__).changedirname(curr_dirname))
         print("curr_dirname:", curr_dirname)
         print("log_fn:", log_fn)
 

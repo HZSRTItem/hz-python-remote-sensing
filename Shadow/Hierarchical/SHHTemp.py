@@ -7,6 +7,7 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2024, ZhengHan. All rights reserved.
 @Desc    : PyCodes of SHHTemp
 -----------------------------------------------------------------------------"""
+import os.path
 import random
 
 import matplotlib.pyplot as plt
@@ -64,6 +65,17 @@ def randomSamples(x, y=None):
 
 
 def main():
+    geo_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\qd_sh2_1.tif"
+    gr =  GDALRaster(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\qd_sh2_1.tif")
+    for i, name in enumerate(gr.names):
+        print("gdalbuildvrt -r bilinear -b {} {} {}".format(
+            i+1, os.path.join(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\qd_sh2_1_VRTS", "{}.vrt".format(name))
+            , geo_fn))
+
+    return
+
+
+def method_name28():
     # 中期考核制图
     # sgdic = SHHGDALDrawImagesColumn((600, 600))
     # qd_fn = FileName(r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_look_envi.dat")
@@ -114,7 +126,6 @@ def main():
     #
     # plt.show()
     #
-
     gdi = GDALDrawImages((1000, 1000))
     bj_name = gdi.addGeoRange(r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_look_tif.tif",
                               r"F:\ProjectSet\Shadow\MkTu\Draw\SH_BJ_envi.dat.npy.json")
@@ -122,7 +133,7 @@ def main():
                               r"F:\ProjectSet\Shadow\MkTu\Draw\SH_CD_envi.dat.npy.json")
     qd_name = gdi.addGeoRange(r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_look_tif.tif",
                               r"F:\ProjectSet\Shadow\MkTu\Draw\SH_QD_envi.dat.npy.json")
-    x, y = 116.45660,39.85406
+    x, y = 116.45660, 39.85406
 
     class gdi_addAxisDataXY:
 
@@ -143,7 +154,6 @@ def main():
                 self.add(name)
 
     gdi_addaxisdataxy = gdi_addAxisDataXY()
-
     gdi.addRasterCenterCollection("RGB", bj_name, cd_name, qd_name, channel_list=["Red", "Green", "Blue"])
     gdi.addRasterCenterCollection("NRG", bj_name, cd_name, qd_name, channel_list=["NIR", "Red", "Green"])
     gdi.addRasterCenterCollection("NDVI", bj_name, cd_name, qd_name, channel_list=["NDVI"])
@@ -164,18 +174,14 @@ def main():
     gdi.addRasterCenterCollection("DE_Beta", bj_name, cd_name, qd_name, channel_list=["DE_Beta"])
     gdi.addRasterCenterCollection("AS_m", bj_name, cd_name, qd_name, channel_list=["AS_m"])
     gdi.addRasterCenterCollection("DE_m", bj_name, cd_name, qd_name, channel_list=["DE_m"])
-
     gdi_addaxisdataxy.adds(
         "RGB", "NRG", "NDVI", "NDWI",
         "AS_VV", "AS_VH", "AS_C11", "AS_C22", "AS_Epsilon", "AS_Mu", "AS_Beta", "AS_m",
         "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_Epsilon", "DE_Mu", "DE_Beta", "DE_m",
     )
-
     gdi.draw(n_rows_ex=2, n_columns_ex=2)
     plt.savefig(r"F:\OpenTitle\中期答辩\features.jpg", dpi=300)
     plt.show()
-
-    return
 
 
 def method_name27():

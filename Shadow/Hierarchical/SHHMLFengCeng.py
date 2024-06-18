@@ -7,7 +7,9 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2024, ZhengHan. All rights reserved.
 @Desc    : PyCodes of SHHMLFengCeng
 -----------------------------------------------------------------------------"""
+import datetime
 import os
+import random
 
 import joblib
 import matplotlib.pyplot as plt
@@ -19,16 +21,22 @@ from sklearn.svm import SVC
 
 from SRTCodes.GDALRasterClassification import GDALImdcAcc
 from SRTCodes.GDALRasterIO import GDALRasterChannel, GDALRaster, tiffAddColorTable
-from SRTCodes.GDALUtils import GDALRastersSampling
+from SRTCodes.GDALUtils import GDALRastersSampling, GDALSamplingFast
 from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.NumpyUtils import reHist
 from SRTCodes.OGRUtils import sampleSpaceUniform
 from SRTCodes.Utils import timeDirName, DirFileName, SRTWriteText, saveJson, readJson, Jdt, filterFileExt, \
     SRTDFColumnCal, getfilenamewithoutext, printList, datasCaiFen, changefiledirname, changext, readLines, \
-    changefilename, readLinesList, numberfilename
+    changefilename, readLinesList, numberfilename, concatCSV, SRTLog
 from Shadow.Hierarchical import SHHConfig
 from Shadow.Hierarchical.SHHConfig import SHH_COLOR8, categoryMap
-from Shadow.Hierarchical.ShadowHSample import samplingSHH21OptSarGLCM
+from Shadow.Hierarchical.ShadowHSample import SHH2_SPL
+from Shadow.ShadowTraining import trainSVM_RandomizedSearchCV
+
+pd.set_option('display.width', 500)
+pd.set_option('max_colwidth', 200)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
 
 
 def feat_norm(d1, d2):
@@ -54,6 +62,7 @@ def ext_feat(data, *feat_names):
 
 
 def df_get_data(df, x_keys, test_n, fengcheng=-1, cate_name=None):
+    # X
     if fengcheng != -1:
         if "TEST" in df:
             df_train = df[df["TEST"] == test_n]
@@ -66,6 +75,7 @@ def df_get_data(df, x_keys, test_n, fengcheng=-1, cate_name=None):
         else:
             df_train = df
     x = df_train[x_keys].values
+    # Y
     if fengcheng != -1:
         if cate_name is None:
             cate_name = "FC"
@@ -265,7 +275,10 @@ class NoFenCeng:
         self.nofc_x_keys = x_keys
         self.log_wt.write("NOFC_X_KEYS:", x_keys)
 
-    def fit(self, df, cate_name=None):
+    def fit(self, df, cate_name=None, filter_eqs=None):
+        if filter_eqs is not None:
+            filter_eqs = {}
+
         def get_data(x_keys, test_n, fengcheng=-1):
             return df_get_data(df, x_keys, test_n, fengcheng, cate_name=cate_name)
 
@@ -435,23 +448,24 @@ class SHHMLFC:
         self.logWT("DF.KEYS", self.df.keys())
         self.df.to_csv(self.init_dfn.fn("train_data.csv"), index=False)
 
-    def fitFC(self, test_cate_name=None):
+    def fitFC(self, cate_name=None, test_cate_name=None):
         self.dealDF()
-        self.fc.fit(self.df, test_cate_name=test_cate_name)
+        self.fc.fit(self.df, cate_name=cate_name, test_cate_name=test_cate_name)
         to_dict = self.fc.save()
         self.log_wt.write("MODEL_SAVE", to_dict)
 
-    def fitNoFC(self):
+    def fitNoFC(self, cate_name=None, ):
         self.dealDF()
-        clf = self.no_fc.fit(self.df)
+        self.df = self.df[self.df["NO_FEN_CENG"] == 1]
+        clf = self.no_fc.fit(self.df, cate_name=cate_name)
         joblib.dump(clf, self.init_dfn.fn("nofc.mod"))
         self.log_wt.write("MODEL_SAVE", self.init_dfn.fn("nofc.mod"))
 
     def fit(self):
         if self.is_fenceng == "fc":
-            return self.fitFC(test_cate_name="CODE")
+            return self.fitFC(cate_name="FC", test_cate_name=None)
         elif self.is_fenceng == "nofc":
-            return self.fitNoFC()
+            return self.fitNoFC(cate_name="NOFC", )
 
     def imdcFun(self, geo_fn, to_geo_fn=None, glcm_fn=None):
         if to_geo_fn is None:
@@ -549,19 +563,39 @@ class MLFCFeatures:
         return self.opt_f + self.as_f + self.de_f
 
 
+class MLFCModel_trainSVM_RandomizedSearchCV(MLFCModel):
+
+    def __init__(self, clf_name=None, clf=None, x_keys=None, range_dict=None, city_name=None):
+        super().__init__(clf_name, clf, x_keys, range_dict, city_name)
+
+    def fit(self, X, y, sample_weight=None):
+        X = self.xRange(X)
+        self.clf = trainSVM_RandomizedSearchCV(x=X, y=y, n_iter=20, is_return_model=True, )
+        return self.clf
+
+
 def SHHMLFC_main(city_name="qd", is_fenceng="nofc"):
     mlfc = SHHMLFC(is_fenceng)
     mlfc.logWT("CITY_NAME:", city_name)
     mlfc_feats = MLFCFeatures()
-    mlfc.loadDFCity(city_name, csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc2.csv")
+
+    r"""
+    "FEN_CENG": model of fenceng 1|2|3
+    "FC": CATEGORY of fenceng 
+    """
+    # mlfc.loadDFCity(city_name, csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc2.csv")
+    # mlfc.loadDF(csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is7_spl.csv")
+    mlfc.loadDF(csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\sh2_spl25_2_spl2_32.csv")
+
+    model = MLFCModel
+    model = MLFCModel_trainSVM_RandomizedSearchCV
 
     # RandomForestClassifier(n_estimators=100, max_depth=10, min_samples_leaf=1, min_samples_split=2)
-
     # log_wt = SRTWriteText(numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Temp\tmp.txt"))
 
     mlfc.log_wt.write("``` models")
     if is_fenceng == "nofc":
-        nofc_mod = MLFCModel("svm", city_name=city_name)
+        nofc_mod = model("svm", city_name=city_name)
         nofc_mod.clf = SVC()
         nofc_mod.x_keys = mlfc_feats.to_opt_as_de()
         nofc_mod.getRangeDict(city_name=city_name)
@@ -570,19 +604,19 @@ def SHHMLFC_main(city_name="qd", is_fenceng="nofc"):
         mlfc.no_fc.clf = nofc_mod
         mlfc.no_fc.initXKeys(nofc_mod.x_keys)
     else:
-        fc_vhl_mod = MLFCModel("svm", city_name=city_name)
+        fc_vhl_mod = model("svm", city_name=city_name)
         fc_vhl_mod.clf = SVC()
         fc_vhl_mod.x_keys = mlfc_feats.to_opt()
         fc_vhl_mod.getRangeDict(city_name=city_name)
         fc_vhl_mod.log(mlfc.log_wt, "FC_VHL_MOD")
 
-        fc_is_mod = MLFCModel("svm", city_name=city_name)
+        fc_is_mod = model("svm", city_name=city_name)
         fc_is_mod.clf = SVC()
         fc_is_mod.x_keys = mlfc_feats.to_opt_as_de()
         fc_is_mod.getRangeDict(city_name=city_name)
         fc_is_mod.log(mlfc.log_wt, "FC_IS_MOD")
 
-        fc_ws_mod = MLFCModel("svm", city_name=city_name)
+        fc_ws_mod = model("svm", city_name=city_name)
         fc_ws_mod.clf = SVC()
         fc_ws_mod.x_keys = mlfc_feats.to_opt_as_de()
         fc_ws_mod.getRangeDict(city_name=city_name)
@@ -604,7 +638,14 @@ def SHHMLFC_main(city_name="qd", is_fenceng="nofc"):
         mlfc.imdcTiles(r"G:\ImageData\SHH2ChengDuImages\cd_sh2_1_opt_sar_glcm")
 
     r"""
-python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHMLFengCeng import SHHMLFC_main; SHHMLFC_main('qd')"
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHMLFengCeng import SHHMLFC_main; SHHMLFC_main('qd', 'nofc')"
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHMLFengCeng import SHHMLFC_main; SHHMLFC_main('qd', 'fc')"
+
+
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHMLFengCeng import SHHMLFC_main; SHHMLFC_main('bj', 'nofc')"
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHMLFengCeng import SHHMLFC_main; SHHMLFC_main('bj', 'fc')"
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHMLFengCeng import SHHMLFC_main; SHHMLFC_main('cd', 'nofc')"
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHMLFengCeng import SHHMLFC_main; SHHMLFC_main('cd', 'fc')"
     """
 
 
@@ -913,61 +954,71 @@ def trainMLFC():
     # imdc_fns()
 
 
+class t_acc_samples:
+
+    def __init__(self, mod_dfn):
+        self.samples = []
+        self.sdf = SRTDFColumnCal()
+        self.mod_dfn = mod_dfn
+
+    def read_csv(self, csv_fn):
+        self.sdf = SRTDFColumnCal()
+        self.sdf.read_csv(csv_fn, is_auto_type=True)
+
+    def init_train_data(self):
+        csv_fn = self.mod_dfn.fn("train_data.csv")
+        self.read_csv(csv_fn)
+        return csv_fn
+
+    def filterEQ(self, field_name, *data):
+        self.sdf = self.sdf.filterEQ(field_name, *data)
+
+    def sampling(self, field_name, _imdc_fn, map_dict=None):
+        o_rasters_sampling = GDALRastersSampling(_imdc_fn)
+
+        def fit_func(line: dict):
+            if "TEST" in line:
+                if line["TEST"] != 0:
+                    return 0
+            x, y = line["X"], line["Y"]
+            d = o_rasters_sampling.sampling(x, y, 1, 1)
+            if d is None:
+                return 0
+            else:
+                d = d.ravel()
+            cate = int(d[0])
+            if map_dict is not None:
+                if cate in map_dict:
+                    cate = map_dict[cate]
+            return cate
+
+        return self.sdf.fit(field_name, fit_func)
+
+    def getCategory(self, c_name, map_dict=None):
+        cate = self.sdf[c_name]
+        if map_dict is not None:
+            cate = [map_dict[k] if k in map_dict else k for k in cate]
+        return cate
+
+
 def tAccMLFC():
     # python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHHMLFengCeng import tAccMLFC; tAccMLFC()"
     mod_dirname = r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240308H120328nofc"
     mod_dirname = r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240308H120401fc"
-    mod_dirname = r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240308H210341nofc"
+    # mod_dirname = r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240308H210341nofc"
     # mod_dirname = r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240308H215552fc"
+    mod_dirname = r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240521H154413nofc"
+    mod_dirname = r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240521H205325fc"
     print(mod_dirname)
     mod_dfn = DirFileName(mod_dirname)
 
-    class t_acc_samples:
-
-        def __init__(self):
-            self.samples = []
-            self.sdf = SRTDFColumnCal()
-
-        def read_csv(self, csv_fn):
-            self.sdf = SRTDFColumnCal()
-            self.sdf.read_csv(csv_fn, is_auto_type=True)
-
-        def init_train_data(self):
-            csv_fn = mod_dfn.fn("train_data.csv")
-            self.read_csv(csv_fn)
-            return csv_fn
-
-        def sampling(self, field_name, _imdc_fn, map_dict=None):
-            o_rasters_sampling = GDALRastersSampling(_imdc_fn)
-
-            def fit_func(line: dict):
-                if "TEST" in line:
-                    if line["TEST"] != 0:
-                        return 0
-                x, y = line["X"], line["Y"]
-                d = o_rasters_sampling.sampling(x, y, 1, 1)
-                if d is None:
-                    return 0
-                else:
-                    d = d.ravel()
-                cate = int(d[0])
-                if map_dict is not None:
-                    if cate in map_dict:
-                        cate = map_dict[cate]
-                return cate
-
-            return self.sdf.fit(field_name, fit_func)
-
-        def getCategory(self, c_name, map_dict=None):
-            cate = self.sdf[c_name]
-            if map_dict is not None:
-                cate = [map_dict[k] if k in map_dict else k for k in cate]
-            return cate
+    spls = t_acc_samples(mod_dfn)
+    # sample_fn = spls.init_train_data()
 
     sample_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\6\sh2_spl6_1_211.csv"
-    spls = t_acc_samples()
-    # spls.read_csv(sample_fn)
-    sample_fn = spls.init_train_data()
+    sample_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is74.csv"
+    spls.read_csv(sample_fn)
+    # spls.filterEQ("FT", "qd_random1000_1")
 
     fn = getfilenamewithoutext(sample_fn)
     to_wt_fn = mod_dfn.fn(fn + "_tacc2.txt")
@@ -977,18 +1028,19 @@ def tAccMLFC():
     to_wt.write("SAMPLE_FN: {0}\n".format(sample_fn))
 
     y1_map_dict = {1: 1, 2: 2, 3: 3, 4: 4, 5: 1, 6: 2, 7: 3, 8: 4}
-    y1_map_dict = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8}
+    # y1_map_dict = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8}
     to_wt.write("Y1_MAP_DICT: {0}\n".format(y1_map_dict))
+
     get_cname = "CATEGORY"
     to_wt.write("CNAME: {0}\n".format(get_cname))
     y0_map_dict = {11: 1, 21: 2, 31: 3, 41: 4, 12: 1, 22: 2, 32: 3, 42: 4}
-    y0_map_dict = {11: 1, 21: 2, 31: 3, 41: 4, 12: 5, 22: 6, 32: 7, 42: 8}
+    # y0_map_dict = {11: 1, 21: 2, 31: 3, 41: 4, 12: 5, 22: 6, 32: 7, 42: 8}
     to_wt.write("Y0_MAP_DICT: {0}\n".format(y0_map_dict))
     y0 = spls.getCategory(get_cname, map_dict=y0_map_dict)
 
     cnames = [
         "IS", "VEG", "SOIL", "WAT",
-        "IS_SH", "VEG_SH", "SOIL_SH", "WAT_SH",
+        # "IS_SH", "VEG_SH", "SOIL_SH", "WAT_SH",
     ]
     to_wt.write("CNAMES: {0}\n".format(cnames))
 
@@ -1012,6 +1064,7 @@ def tAccMLFC():
         print(cm.fmtCM())
 
     spls.sdf.toCSV(to_csv_fn)
+    print("to_csv_fn", to_csv_fn)
 
 
 def showFeatImp():
@@ -1042,7 +1095,255 @@ def showFeatImp():
     plt.show()
 
 
+def toDictLine(ml_dfn, city_name, clf_name, mod_dirname, model_name=None):
+    if model_name is None:
+        if "nofc" in mod_dirname:
+            model_name = "nofc"
+        else:
+            model_name = "fc"
+    to_mod_dirname = ml_dfn.fn(mod_dirname)
+    tif_fn = to_mod_dirname
+    for fn in os.listdir(to_mod_dirname):
+        if fn.endswith("_imdc.tif"):
+            tif_fn = os.path.join(to_mod_dirname, fn)
+    return {"CITY": city_name, "CLF": clf_name, "MODEL": model_name, "TIF_FN": tif_fn, }
+
+
+def get_class_oa_kappa(to_list, df, map_category=None, to_map_category=None,
+                       cm_cname="IS", category_field_name=None):
+    """ map_category={11: 1, 21: 2, 31: 2, 41: 2, 12: 1, 22: 2, 32: 2, 42: 2} """
+
+    if map_category is None:
+        map_category = {11: 1, 21: 2, 31: 2, 41: 2, 12: 1, 22: 2, 32: 2, 42: 2}
+    if to_map_category is None:
+        to_map_category = {1: 1, 2: 2, 3: 2, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2}
+
+    for i, line in enumerate(to_list):
+        categoryOAKappa(df, line, [cm_cname, "NO" + cm_cname], map_category, to_map_category, category_field_name,
+                        cm_cname=cm_cname)
+
+        to_list[i] = line
+
+        print(to_list[0].keys())
+        print(pd.DataFrame(to_list)[['CITY', 'CLF', 'MODEL', cm_cname + "_OA", cm_cname + "_Kappa", ]])
+    return pd.DataFrame(to_list)[['CITY', 'CLF', 'MODEL', cm_cname + "_OA", cm_cname + "_Kappa", "TIF_FN"]]
+
+
+def categoryOAKappa(df, line, cm_cnames, map_category, to_map_category, category_field_name,
+                    is_return_cm=False, cm_cname="",
+                    category_func=None, to_category_func=None,
+                    ):
+    tif_fn = line["TIF_FN"]
+    gica = GDALImdcAcc(tif_fn)
+    if category_field_name is not None:
+        gica.c_column_name = category_field_name
+    gica.addDataFrame(df)
+    gica.map_category = map_category
+    gica.to_map_category = to_map_category
+    if category_func is not None:
+        gica.category_func = category_func
+    if to_category_func is not None:
+        gica.to_category_func = to_category_func
+    gica.calCM(cm_cnames)
+    # print(gica.cm.fmtCM())
+    line[cm_cname + "_OA"] = gica.cm.OA()
+    line[cm_cname + "_Kappa"] = gica.cm.getKappa()
+    if is_return_cm:
+        return line, gica.cm
+    return line
+
+
+class TAcc_FC:
+
+    def __init__(self):
+        self.ml_dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\MLMods")
+        self.df = None
+        self.category_field_name = "CATEGORY"
+        self.to_list = []
+        self.df_list = []
+        self.log = None
+
+    def addTDL(self, city_name, clf_name, mod_dirname, model_name=None, df=None):
+        if df is None:
+            df = self.df
+        self.df_list.append(df)
+        to_line = toDictLine(self.ml_dfn, city_name, clf_name, mod_dirname, model_name)
+        to_line = {"NUMBER": len(self.to_list) + 1, **to_line}
+        self.logwl(to_line)
+        self.to_list.append(to_line)
+        return to_line["NUMBER"]
+
+    def logwl(self, line, end="\n", is_print=None):
+        if self.log is not None:
+            return self.log.wl(line, end=end, is_print=is_print)
+        return line
+
+    def categoryOAKappa(self, cm_cnames, map_category, to_map_category, cm_cname="",
+                        category_func=None, to_category_func=None, ):
+        for i, line in enumerate(self.to_list):
+            df = self.df_list[i]
+            self.to_list[i], cm = categoryOAKappa(
+                df, line, cm_cnames, map_category, to_map_category,
+                category_field_name=self.category_field_name,
+                is_return_cm=True, cm_cname=cm_cname,
+                category_func=category_func, to_category_func=to_category_func,
+            )
+
+            if self.log is not None:
+                self.log.kw("MAP_CATEGORY", map_category)
+                self.log.kw("TO_MAP_CATEGORY", to_map_category)
+                self.log.kw("{0} [{1}]".format(cm_cnames, line["NUMBER"]), cm.fmtCM(), sep=":\n", end="")
+
+    def categoryOAKappaIS(self, cm_cname="IS"):
+        self.categoryOAKappa(
+            cm_cnames=["IS", "NOIS"],
+            map_category={11: 1, 21: 2, 31: 2, 41: 2, 12: 1, 22: 2, 32: 2, 42: 2},
+            to_map_category={1: 1, 2: 2, 3: 2, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2},
+            cm_cname=cm_cname
+        )
+
+    def toDF(self):
+        return pd.DataFrame(self.to_list)
+
+    def categoryOAKappa_VHL(self, cm_cname="VHL"):
+        self.categoryOAKappa(
+            cm_cnames=["VEG", "HIGH", "LOW"],
+            map_category={11: 2, 21: 1, 31: 2, 41: 3, 12: 3, 22: 3, 32: 3, 42: 3},
+            to_map_category={1: 2, 2: 1, 3: 2, 4: 3, 5: 3, 6: 3, 7: 3, 8: 3},
+            cm_cname=cm_cname,
+            # to_category_func=to_category_func,
+        )
+
+    def categoryOAKappa_IS(self, cm_cname="ISSOIL"):
+        self.categoryOAKappa(
+            cm_cnames=["SOIL", "IS"],
+            map_category={11: 2, 21: 0, 31: 1, 41: 0, 12: 0, 22: 0, 32: 0, 42: 0},
+            to_map_category={1: 2, 2: 0, 3: 1, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0},
+            cm_cname=cm_cname,
+            # to_category_func=to_category_func,
+        )
+
+    def categoryOAKappa_SH(self, cm_cname="ISSH"):
+        self.categoryOAKappa(
+            cm_cnames=["IS_SH", "NOIS_SH"],
+            map_category={11: 0, 21: 0, 31: 0, 41: 0, 12: 1, 22: 2, 32: 2, 42: 2},
+            to_map_category={1: 1, 2: 2, 3: 2, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2},
+            cm_cname=cm_cname,
+            # to_category_func=to_category_func,
+        )
+
+    def imdcSampling(self, save_csv_fn, number_list=None):
+        if number_list is None:
+            number_list = []
+        x, y = self.df["X"].values, self.df["Y"].values,
+        to_dict = {**self.df.to_dict("list")}
+        for i in number_list:
+            line = self.to_list[i]
+            gsf = GDALSamplingFast(line["TIF_FN"])
+            tmp_dict = gsf.sampling(x, y)
+            to_dict["{0}_{1}_{2}_{3}".format(line["CITY"], line["CLF"], line["MODEL"], line["NUMBER"])] = \
+                list(tmp_dict.values())[0]
+        pd.DataFrame(to_dict).to_csv(save_csv_fn)
+
+
+class TAcc_FC_Main:
+
+    def __init__(self, init_dirname, name="TACCFC"):
+        self.init_dirname = timeDirName(init_dirname, is_mk=True)
+        self.init_dfn = DirFileName(self.init_dirname)
+        self.name = name
+        self.log = SRTLog(os.path.join(self.init_dirname, "log_{}.txt".format(self.name)), mode="w")
+        self.log.log("\n", "-" * 60, "\n", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        self.tacc_fc = TAcc_FC()
+        self.tacc_fc.log = self.log
+
+    def addTDL(self, city_name, clf_name, mod_dirname, model_name=None, df=None):
+        self.tacc_fc.addTDL(city_name, clf_name, mod_dirname, model_name, df)
+
+    def qd_df(self):
+        log = self.log
+
+        def func1():
+            csv_fn = log.kw("CSV_FN", r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is7.csv")
+            df = pd.read_csv(csv_fn)
+            df = df[df["TEST"] == 0]
+            map_dict = log.kw(
+                "MAP_DICT",
+                {"IS": 11, "VEG": 21, "SOIL": 31, "WAT": 41, "IS_SH": 12, "VEG_SH": 22, "SOIL_SH": 32, "WAT_SH": 42}
+            )
+            df["CATEGORY"] = categoryMap(df["CNAME"].tolist(), map_dict)
+            return df
+
+        return func1()
+
+    def bj_df(self):
+        log, tacc_fc = self.log, self.tacc_fc
+        csv_fn = log.kw("CSV_FN", r"F:\ProjectSet\Shadow\Hierarchical\MLMods\Analysis\1\sh2_bj_tspl1_spl.csv")
+        df = pd.read_csv(csv_fn)
+        # df = df[df["TEST"] == 0]
+        self.tacc_fc.category_field_name = "CATEGORY_CODE"
+        return df
+
+    def cd_df(self):
+        log, tacc_fc = self.log, self.tacc_fc
+        csv_fn = log.kw("CSV_FN", r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240420H000421nofc\train_data.csv")
+        df = pd.read_csv(csv_fn)
+        df = df[df["TEST"] == 0]
+        return df
+
+    def qd_addTDL(self):
+        log, tacc_fc = self.log, self.tacc_fc
+        tacc_fc.df = self.qd_df()
+        number_list = [
+            tacc_fc.addTDL("qd", "SVM", "20240420H145813nofc"),
+            tacc_fc.addTDL("qd", "SVM", "20240524H090841fc"),
+            tacc_fc.addTDL("qd", "RF", "20240419H234523nofc"),
+            tacc_fc.addTDL("qd", "RF", "20240419H222504fc"),
+        ]
+        tacc_fc.imdcSampling(self.init_dfn.fn("qd_imdcsampling.csv"), number_list=number_list)
+
+    def bj_addTDL(self):
+        log, tacc_fc = self.log, self.tacc_fc
+        tacc_fc.df = self.bj_df()
+        tacc_fc.addTDL("bj", "SVM", "20240420H160934nofc")
+        tacc_fc.addTDL("bj", "SVM", "20240420H123300fc")
+        tacc_fc.addTDL("bj", "RF", "20240419H235038nofc")
+        tacc_fc.addTDL("bj", "RF", "20240419H223557fc")
+        tacc_fc.imdcSampling(self.init_dfn.fn("bj_imdcsampling.csv"))
+
+    def cd_addTDL(self):
+        log, tacc_fc = self.log, self.tacc_fc
+        tacc_fc.df = self.cd_df()
+        tacc_fc.addTDL("cd", "SVM", "20240420H184703nofc")
+        tacc_fc.addTDL("cd", "SVM", "20240420H140735fc")
+        tacc_fc.addTDL("cd", "RF", "20240420H000421nofc")
+        tacc_fc.addTDL("cd", "RF", "20240419H230332fc")
+        tacc_fc.imdcSampling(self.init_dfn.fn("cd_imdcsampling.csv"))
+
+    def tacc_fc_run(self):
+        tacc_fc = self.tacc_fc
+        tacc_fc.categoryOAKappaIS()
+        tacc_fc.categoryOAKappa_VHL()
+        tacc_fc.categoryOAKappa_IS()
+        tacc_fc.categoryOAKappa_SH()
+        print(tacc_fc.toDF().drop("TIF_FN", axis=1))
+
+    def fit(self):
+        self.qd_addTDL()
+        self.bj_addTDL()
+        self.cd_addTDL()
+        self.tacc_fc_run()
+        self.tacc_fc.toDF().to_csv(to_csv_fn.format("cd"))
+
+        tacc_fc.imdcSampling(r"F:\ProjectSet\Shadow\Hierarchical\MLMods\Analysis\1\sh2_bj_tspl1.csv")
+        self.tacc_fc_run()
+
+        qd_df()
+
+
 def tAccMLFC2():
+    ml_dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\MLMods")
+
     def split_df(df, field_name, *datas):
         datas = datasCaiFen(datas)
         if len(datas) == 0:
@@ -1058,6 +1359,9 @@ def tAccMLFC2():
         df1, df2 = pd.concat(df_list1), pd.concat(df_list2)
 
         return df1, df2
+
+    def tdl(city_name, clf_name, mod_dirname, model_name=None):
+        return toDictLine(ml_dfn, city_name, clf_name, mod_dirname, model_name)
 
     def func1():
         df = pd.read_excel(r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\分层有效性实验测试样本.xlsx",
@@ -1121,7 +1425,6 @@ def tAccMLFC2():
             {"CITY": "qd", "CLF": "SVM", "MODEL": "nofc", },
         ]
 
-        ml_dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\MLMods")
         swt = SRTWriteText(r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\fc_acc_cm.txt")
 
         def swt_w1(line):
@@ -1234,14 +1537,92 @@ def tAccMLFC2():
         print(to_csv_fn)
         df_is_oa.to_csv(to_csv_fn, index=False)
 
-    func2()
+    def func3():
+        to_list = [tdl("qd", "SVM", "20240522H203233nofc"), tdl("qd", "SVM", "20240524H090841fc")]
+        df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is7.csv")
+        df = df[df["TEST"] == 0]
+        map_dict = {"IS": 11, "VEG": 21, "SOIL": 31, "WAT": 41, "IS_SH": 12, "VEG_SH": 22, "SOIL_SH": 32, "WAT_SH": 42}
+        df["CATEGORY"] = categoryMap(df["CNAME"].tolist(), map_dict)
+        get_class_oa_kappa(to_list, df)
+
+    def func4():
+
+        log = SRTLog(r"F:\ProjectSet\Shadow\Hierarchical\MLMods\Analysis\1\tAccMLFC2.txt", mode="a")
+        log.log("\n", "-" * 60, "\n", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        tacc_fc = TAcc_FC()
+        tacc_fc.log = log
+
+        def qd_df():
+            csv_fn = log.kw("CSV_FN", r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is7.csv")
+            df = pd.read_csv(csv_fn)
+            df = df[df["TEST"] == 0]
+            map_dict = log.kw(
+                "MAP_DICT",
+                {"IS": 11, "VEG": 21, "SOIL": 31, "WAT": 41, "IS_SH": 12, "VEG_SH": 22, "SOIL_SH": 32, "WAT_SH": 42}
+            )
+            df["CATEGORY"] = categoryMap(df["CNAME"].tolist(), map_dict)
+            tacc_fc.df = df
+            tacc_fc.addTDL("qd", "SVM", "20240420H145813nofc")
+            tacc_fc.addTDL("qd", "SVM", "20240524H090841fc")
+            tacc_fc.addTDL("qd", "RF", "20240419H234523nofc")
+            tacc_fc.addTDL("qd", "RF", "20240419H222504fc")
+            tacc_fc_run()
+            tacc_fc.toDF().to_csv(to_csv_fn.format("qd"))
+
+        def bj_df():
+            csv_fn = log.kw("CSV_FN", r"F:\ProjectSet\Shadow\Hierarchical\MLMods\Analysis\1\sh2_bj_tspl1_spl.csv")
+            df = pd.read_csv(csv_fn)
+            # df = df[df["TEST"] == 0]
+            tacc_fc.df = df
+            tacc_fc.category_field_name = "CATEGORY_CODE"
+            tacc_fc.addTDL("bj", "SVM", "20240420H160934nofc")
+            tacc_fc.addTDL("bj", "SVM", "20240420H123300fc")
+            tacc_fc.addTDL("bj", "RF", "20240419H235038nofc")
+            tacc_fc.addTDL("bj", "RF", "20240419H223557fc")
+            tacc_fc.imdcSampling(r"F:\ProjectSet\Shadow\Hierarchical\MLMods\Analysis\1\sh2_bj_tspl1.csv")
+            tacc_fc_run()
+            tacc_fc.toDF().to_csv(to_csv_fn.format("bj"))
+
+        def cd_df():
+            csv_fn = log.kw("CSV_FN", r"F:\ProjectSet\Shadow\Hierarchical\MLMods\20240420H000421nofc\train_data.csv")
+            df = pd.read_csv(csv_fn)
+            df = df[df["TEST"] == 0]
+            tacc_fc.df = df
+            tacc_fc.addTDL("cd", "SVM", "20240420H184703nofc")
+            tacc_fc.addTDL("cd", "SVM", "20240420H140735fc")
+            tacc_fc.addTDL("cd", "RF", "20240420H000421nofc")
+            tacc_fc.addTDL("cd", "RF", "20240419H230332fc")
+            tacc_fc_run()
+            tacc_fc.toDF().to_csv(to_csv_fn.format("cd"))
+
+        def tacc_fc_run():
+            tacc_fc.categoryOAKappaIS()
+            tacc_fc.categoryOAKappa_VHL()
+            tacc_fc.categoryOAKappa_IS()
+            tacc_fc.categoryOAKappa_SH()
+            print(tacc_fc.toDF().drop("TIF_FN", axis=1))
+
+        to_csv_fn = log.kw("TO_CSV_FN", r"F:\ProjectSet\Shadow\Hierarchical\MLMods\Analysis\1\sh2_ml1_{}.csv")
+
+        qd_df()
+
+    func4()
 
 
 def main():
     def sampling():
-        samplingSHH21OptSarGLCM(
-            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc1.csv",
-            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc2.csv",
+        # samplingSHH21OptSarGLCM(
+        #     csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc1.csv",
+        #     to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc2.csv",
+        # )
+        # samplingSHH21OptSarGLCM(
+        #     csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is6.csv",
+        #     to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is6_spl.csv",
+        # )
+        gsf = GDALSamplingFast(r"G:\ImageData\SHH2QingDaoImages\shh2_qd1_2.vrt")
+        gsf.csvfile(
+            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is7.csv",
+            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is7_spl.csv",
         )
 
     def func1():
@@ -1268,8 +1649,175 @@ def main():
             print(name)
             print(gica.cm.accuracyCategory(name).fmtCM())
 
-    # SHHMLFC_main(is_fenceng="fc")
-    func2()
+    def func3():
+        # "F:\ProjectSet\Shadow\Hierarchical\Samples\Release\qd_VHL_random2000_1"
+        # "F:\ProjectSet\Shadow\Hierarchical\Samples\Release\qd_roads_shouhua_tp1"
+        # "F:\ProjectSet\Shadow\Hierarchical\Samples\Release\qd_random1000_1"
+        # "F:\ProjectSet\Shadow\Hierarchical\Samples\Release\qd_is_random2000"
+        # r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc2.csv"
+
+        map_dict = {1: 2, 2: 1, 3: 3}
+        s2spl = SHH2_SPL(map_dict=map_dict, others=0, is_npy=True)
+        s2spl.add_qd_VHL_random2000(
+            category_field_name="CATEGORY_CODE", field_datas={"FT": "qd_VHL_random2000", "CITY": "qd"})
+        map_dict = {11: 11}
+        s2spl.add_qd_roads_shouhua_tp1(
+            category_field_name="CATEGORY", map_dict=map_dict, field_datas={"FT": "qd_roads_shouhua_tp1", "CITY": "qd"})
+        s2spl.add_qd_random1000_1(category_field_name="CATEGORY_CODE",
+                                  field_datas={"FT": "qd_random1000_1", "CITY": "qd"})
+        s2spl.add_qd_is_random2000(category_field_name="CATEGORY_CODE",
+                                   field_datas={"FT": "qd_is_random2000", "CITY": "qd"})
+        s2spl.shh2_spl.toCSV(
+            r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is4.csv",
+            category_field_name="CATEGORY_FC",
+            cname_field_name="CNAME_FC",
+        )
+        concatCSV(
+            r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is4.csv",
+            r"F:\ProjectSet\Shadow\Hierarchical\Samples\23\sh2_spl23_fc2.csv",
+            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is5.csv"
+        )
+        # s2spl.filterEq("IS_TAG", "TRUE")
+
+    def func4():
+        df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_sheet5.csv")
+        print(df.keys())
+        # df = df[["FCSRT", "X", "Y", "TEST", 'FT', 'CITY',]]
+        print(pd.unique(df["FT"]))
+        samples = []
+
+        def getsample(x=0.0, y=0.0, fc_cate=0, nofc_cate=0, fen_ceng=0, no_fen_ceng=1,
+                      ft="FT", test=1, cname="NOT_KNOW"):
+            return {"X": x, "Y": y, "FC": fc_cate, "NOFC": nofc_cate, "FEN_CENG": fen_ceng, "NO_FEN_CENG": no_fen_ceng,
+                    "FT": ft, "TEST": test, "CNAME": cname}
+
+        def map_category(map_dict, data, o_data=0):
+            if data in map_dict:
+                return map_dict[data]
+            else:
+                return o_data
+
+        print("qd_is_random2000")
+        df_qd = pd.DataFrame(df[df["FT"] == "qd_is_random2000"].to_dict("records"))
+        map_fc_cate = {11: 1}
+        map_nofc_cate = {11: 1, 21: 2, 31: 3, 41: 4, 12: 1, 22: 2, 32: 3, 42: 4}
+        map_cname = {11: "IS", 21: "VEG", 31: "SOIL", 41: "WAT", 12: "IS_SH", 22: "VEG_SH", 32: "SOIL_SH", 42: "WAT_SH"}
+        for i in range(len(df_qd)):
+            samples.append(getsample(
+                x=float(df_qd["X"][i]), y=float(df_qd["Y"][i]),
+                fc_cate=map_category(map_fc_cate, int(df_qd["CNAME_FC"][i]), 2),
+                nofc_cate=map_category(map_nofc_cate, int(df_qd["CNAME_FC"][i])),
+                fen_ceng=2,
+                no_fen_ceng=1,
+                ft="qd_is_random2000",
+                test=1,
+                cname=map_category(map_cname, df_qd["CNAME_FC"][i])
+            ))
+
+        print("qd_roads_shouhua_tp1")
+        df_qd = pd.DataFrame(df[df["FT"] == "qd_roads_shouhua_tp1"].to_dict("records"))
+        map_fc_cate = {11: 1, }
+        map_nofc_cate = {11: 1, 21: 2, 31: 3, 41: 4, 12: 1, 22: 2, 32: 3, 42: 4}
+        map_cname = {11: "IS", 21: "VEG", 31: "SOIL", 41: "WAT", 12: "IS_SH", 22: "VEG_SH", 32: "SOIL_SH", 42: "WAT_SH"}
+        for i in range(len(df_qd)):
+            if random.random() < 0.9:
+                test = 1
+            else:
+                test = 0
+            if random.random() < 0.5:
+                fen_ceng = 2
+            else:
+                fen_ceng = 1
+            if fen_ceng == 1:
+                fc_cate = 2
+            else:
+                fc_cate = 1
+
+            samples.append(getsample(
+                x=float(df_qd["X"][i]), y=float(df_qd["Y"][i]),
+                fc_cate=fc_cate,
+                nofc_cate=1,
+                fen_ceng=fen_ceng,
+                no_fen_ceng=1,
+                ft="qd_roads_shouhua_tp1",
+                test=test,
+                cname=map_category(map_cname, df_qd["CNAME_FC"][i])
+            ))
+
+        print("qd_random1000_1")
+        df_qd = pd.DataFrame(df[df["FT"] == "qd_random1000_1"].to_dict("records"))
+        map_fc_cate = {11: 1, 21: 2, 31: 3, 41: 4, 12: 5, 22: 6, 32: 7, 42: 8}
+        map_nofc_cate = {11: 1, 21: 2, 31: 3, 41: 4, 12: 1, 22: 2, 32: 3, 42: 4}
+        map_cname = {11: "IS", 21: "VEG", 31: "SOIL", 41: "WAT", 12: "IS_SH", 22: "VEG_SH", 32: "SOIL_SH", 42: "WAT_SH"}
+        for i in range(len(df_qd)):
+            samples.append(getsample(
+                x=float(df_qd["X"][i]), y=float(df_qd["Y"][i]),
+                fc_cate=map_category(map_fc_cate, int(df_qd["CNAME_FC"][i]), 2),
+                nofc_cate=map_category(map_nofc_cate, int(df_qd["CNAME_FC"][i])),
+                fen_ceng=0,
+                no_fen_ceng=1,
+                ft="qd_random1000_1",
+                test=0,
+                cname=map_category(map_cname, df_qd["CNAME_FC"][i])
+            ))
+
+        print("qd_VHL_random2000")
+        df_qd = pd.DataFrame(df[df["FT"] == "qd_VHL_random2000"].to_dict("records"))
+        map_cname = {2: "VEG", 1: "HIGH", 3: "LOW"}
+        map_fc_cate = {1: 2, 2: 1, 3: 3}
+        # map_fc_cate = {1: 1, 2: 2, 3: 3}
+        map_nofc_cate = {1: 2}
+
+        for i in range(len(df_qd)):
+            if int(df_qd["CATEGORY_CODE"][i]) == 2:
+                no_fen_ceng = 1
+            else:
+                no_fen_ceng = 0
+            samples.append(getsample(
+                x=float(df_qd["X"][i]), y=float(df_qd["Y"][i]),
+                fc_cate=map_category(map_fc_cate, int(df_qd["CATEGORY_CODE"][i])),
+                nofc_cate=2,
+                fen_ceng=1,
+                no_fen_ceng=no_fen_ceng,
+                ft="qd_VHL_random2000",
+                test=1,
+                cname=map_category(map_cname, df_qd["CATEGORY_CODE"][i])
+            ))
+
+        print("shadow1samples")
+        df_qd = pd.DataFrame(df[df["FT"] == "shadow1samples"].to_dict("records"))
+        map_nofc_cate = {11: 1, 21: 2, 31: 3, 41: 4, 12: 1, 22: 2, 32: 3, 42: 4}
+        map_cname = {11: "IS", 21: "VEG", 31: "SOIL", 41: "WAT", 12: "IS_SH", 22: "VEG_SH", 32: "SOIL_SH",
+                     42: "WAT_SH"}
+        for i in range(len(df_qd)):
+            samples.append(getsample(
+                x=float(df_qd["X"][i]), y=float(df_qd["Y"][i]),
+                fc_cate=int(df_qd["FC"][i]),
+                nofc_cate=map_category(map_nofc_cate, int(df_qd["CATEGORY"][i])),
+                fen_ceng=int(df_qd["FEN_CENG"][i]),
+                ft="shadow1samples",
+                test=int(df_qd["TEST"][i]),
+                cname=map_category(map_cname, df_qd["CATEGORY"][i])
+            ))
+
+        to_df = pd.DataFrame(samples)
+        print(to_df)
+        to_df.to_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is7.csv", index_label="SRT")
+
+        if True:
+            gsf = GDALSamplingFast(r"G:\ImageData\SHH2QingDaoImages\shh2_qd1_2.vrt")
+            gsf.csvfile(
+                csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is7.csv",
+                to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is7_spl.csv",
+            )
+
+    def func5():
+        data = readJson(r"F:\ProjectSet\Shadow\QingDao\Mods\20240510H224639\SPL_NOSH-SVM-TAG-OPT_args.json")
+        plt.plot(data["train"]["gamma"]["args"], data["train"]["gamma"]["accuracy"])
+        plt.show()
+
+    SHHMLFC_main('qd', 'fc')
+    # func4()
 
 
 def method_name2():
@@ -1298,4 +1846,4 @@ def method_name1():
 
 
 if __name__ == "__main__":
-    tAccMLFC2()
+    main()

@@ -179,10 +179,9 @@ def sampleSpaceUniform(coors: list, x_len: float, y_len: float, is_trans_jiaodu=
     out_index_list = []
     coors2 = []
     grid = []
+    jdt = Jdt(len(coors), "sampleSpaceUniform")
     if is_jdt:
-        jdt = Jdt(len(coors), "sampleSpaceUniform")
         jdt.start()
-
     for i in index_list:
         coor = coors[i]
         grid0 = (int((coor[0] - x0) / x_len), int((coor[1] - y0) / y_len))

@@ -22,7 +22,7 @@ from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import SRTGDALCategorySampleCollection, GDALRastersSampling
 from SRTCodes.NumpyUtils import NumpyDataCenter
 from SRTCodes.SRTSample import SRTSample
-from SRTCodes.Utils import ofn, SRTFilter, DirFileName, Jdt, changext, SRTDataFrame, numberfilename, FileName, mkdir, \
+from SRTCodes.Utils import ofn, SRTFilter, DirFileName, Jdt, changext, SRTDataFrame, numberfilename, FN, mkdir, \
     datasCaiFen, saveJson
 from Shadow.Hierarchical import SHHConfig
 
@@ -634,7 +634,7 @@ class SHH2_SPL:
 
     def csvToRelease(self, csv_fn, to_name=None, npy_fn=None, grs: GDALRastersSampling = None, win_size=(1, 1)):
         if to_name is None:
-            to_name = FileName(csv_fn).getfilenamewithoutext()
+            to_name = FN(csv_fn).getfilenamewithoutext()
         to_dict = {"csv_fn": csv_fn, "to_name": csv_fn, "win_size": win_size}
         print("To Name:", to_name)
         to_dirname = self.dfn_release.fn(to_name)
@@ -731,6 +731,11 @@ class SHH2_SPL:
     def add_cd_vhl_random2000(self, is_npy=None, field_datas: dict = None, category_field_name="CATEGORY_CODE",
                               map_dict: dict = None, others=None, **kwargs):
         return self.addRelease("cd_vhl_random2000", is_npy=is_npy, field_datas=field_datas,
+                               category_field_name=category_field_name, map_dict=map_dict, others=others, **kwargs)
+
+    def add_qd_is_random2000(self, is_npy=None, field_datas: dict = None, category_field_name="CATEGORY_CODE",
+                             map_dict: dict = None, others=None, **kwargs):
+        return self.addRelease("qd_is_random2000", is_npy=is_npy, field_datas=field_datas,
                                category_field_name=category_field_name, map_dict=map_dict, others=others, **kwargs)
 
     def filterCODEContain(self, *code):
@@ -967,8 +972,8 @@ def method_name():
 
     def func6():
         SHH2_SPL().csvToRelease(
-            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\17\sh2_spl17_cdvhl1_spl21.csv",
-            to_name="cd_vhl_random2000",
+            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\24\sh2_spl24_is_spl2.csv",
+            to_name="qd_is_random2000",
             grs=SHHConfig.GRS_SHH2_IMAGE1_FNS(),
             win_size=(21, 21),
         )

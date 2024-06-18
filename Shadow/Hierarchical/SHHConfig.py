@@ -11,7 +11,7 @@ r"""----------------------------------------------------------------------------
 
 from SRTCodes.GDALUtils import GDALRastersSampling
 from SRTCodes.NumpyUtils import categoryMap as categoryMap_nu
-from SRTCodes.Utils import DirFileName, FileName, numberfilename
+from SRTCodes.Utils import DirFileName, FN, numberfilename
 
 
 class SHHDfn:
@@ -47,18 +47,18 @@ class ImagesName3:
         self.qd = None
         self.bj = None
         self.cd = None
-        self.qd_fn = FileName()
-        self.bj_fn = FileName()
-        self.cd_fn = FileName()
+        self.qd_fn = FN()
+        self.bj_fn = FN()
+        self.cd_fn = FN()
         self.initFns(*fns)
 
     def initFns(self, *fns):
         self.qd = fns[0]
         self.bj = fns[1]
         self.cd = fns[2]
-        self.qd_fn = FileName(self.qd)
-        self.bj_fn = FileName(self.bj)
-        self.cd_fn = FileName(self.cd)
+        self.qd_fn = FN(self.qd)
+        self.bj_fn = FN(self.bj)
+        self.cd_fn = FN(self.cd)
 
     def iter(self):
         return iter([self.qd, self.bj, self.cd])
@@ -178,6 +178,17 @@ SHH2_IMAGE1_FNS2 = [
     r"G:\ImageData\SHH2BeiJingImages\bj_sh2_12.vrt",
     r"G:\ImageData\SHH2ChengDuImages\sh2_cd1_2.vrt",
 ]
+
+NAMES = ["Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2", "NDVI", "NDWI", "OPT_asm", "OPT_con", "OPT_cor", "OPT_dis",
+         "OPT_ent", "OPT_hom", "OPT_mean", "OPT_var", "AS_VV", "AS_VH", "AS_angle", "AS_VHDVV", "AS_C11", "AS_C12_imag",
+         "AS_C12_real", "AS_C22", "AS_Lambda1", "AS_Lambda2", "AS_SPAN", "AS_Epsilon", "AS_Mu", "AS_RVI", "AS_m",
+         "AS_Beta", "AS_H", "AS_A", "AS_Alpha", "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent",
+         "AS_VH_hom", "AS_VH_mean", "AS_VH_var", "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent",
+         "AS_VV_hom", "AS_VV_mean", "AS_VV_var", "DE_VV", "DE_VH", "DE_angle", "DE_VHDVV", "DE_C11", "DE_C12_imag",
+         "DE_C12_real", "DE_C22", "DE_SPAN", "DE_Lambda1", "DE_Lambda2", "DE_Epsilon", "DE_Mu", "DE_RVI", "DE_m",
+         "DE_Beta", "DE_H", "DE_A", "DE_Alpha", "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent",
+         "DE_VH_hom", "DE_VH_mean", "DE_VH_var", "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent",
+         "DE_VV_hom", "DE_VV_mean", "DE_VV_var"]
 
 
 def categoryMap(categorys, map_dict, is_notfind_to0=False):

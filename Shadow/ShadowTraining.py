@@ -299,7 +299,8 @@ def trainSvm_nocv(d_train, labels):
     return clf, ret_d
 
 
-def trainSVM_RandomizedSearchCV(x: np.ndarray, y: np.ndarray, find_grid: dict = None, n_iter=None, **kwargs, ):
+def trainSVM_RandomizedSearchCV(x: np.ndarray, y: np.ndarray, find_grid: dict = None, n_iter=None,
+                                is_return_model=False, **kwargs, ):
     if find_grid is None:
         find_grid = {}
     if len(kwargs) != 0:
@@ -315,11 +316,15 @@ def trainSVM_RandomizedSearchCV(x: np.ndarray, y: np.ndarray, find_grid: dict = 
     svm_rs_cv = RandomizedSearchCV(
         estimator=SVC(kernel="rbf", cache_size=5000),
         param_distributions=find_grid,
-        n_iter=n_iter
+        n_iter=n_iter,
+        cv=10,
+        n_jobs=-1
     )
     svm_rs_cv.fit(x, y)
     svm_canchu = svm_rs_cv.best_params_
     svm_mod = svm_rs_cv.best_estimator_
+    if is_return_model:
+        return svm_mod
     return svm_mod, svm_canchu
 
 

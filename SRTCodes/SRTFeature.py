@@ -7,6 +7,7 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : BaseCodes of SRTFeature
 -----------------------------------------------------------------------------"""
+import gc
 import warnings
 
 import numpy as np
@@ -88,6 +89,11 @@ class SRTFeatureCallBackList:
 
     def __contains__(self, item):
         return item in self._callback_list
+
+    def fit(self, x):
+        for callback in self._callback_list:
+            x = callback.fit(x)
+        return x
 
 
 class SRTFeatureCallBackCollection(SRTCollection):
@@ -349,29 +355,10 @@ class SRTFeatureDataCollection(SRTCollection):
         return self._collection.keys()
 
 
-class SRTFeatures(SRTCollection):
-
+class SRTFeaturesForwards:
     def __init__(self):
-        super(SRTFeatures, self).__init__()
-
-        self.features = {}
-        self.feature_forwards = {}
-        self.data_shape = None
         self._init_forward_name = "FORWARD"
-
-    def addFeature(self, feat_name: str, data: np.ndarray = None):
-        if len(self.features) != 0:
-            if feat_name in self.features:
-                raise Exception("Feature \"{0}\" have in features and change feature name.".format(feat_name))
-            if data is not None:
-                if self.data_shape is not None:
-                    if data.shape != self.data_shape:
-                        warnings.warn("data shape {0} can not equal this {1}".format(data.shape, self.data_shape))
-        self.features[feat_name] = data
-        if self.data_shape is None:
-            if data is not None:
-                self.data_shape = data.shape
-        self._n_next.append(feat_name)
+        self.feature_forwards = {}
 
     def addForwardCallBackObj(self, callback_obj: SRTFeatureCallBack, feat_name: str = None, forward_name: str = None):
         forward_name = self._getForwardName(forward_name)
@@ -381,7 +368,7 @@ class SRTFeatures(SRTCollection):
     def addForwardCallBack(self, feat_name: str, callback_func, forward_name=None):
         callback_ = SRTFeatureCallBack(callback_func=callback_func, is_trans=True, feat_name=feat_name)
         self.addForwardCallBackObj(callback_obj=callback_, feat_name=feat_name, forward_name=forward_name)
-        np.clip(callback_func)
+        # np.clip(callback_func)
 
     def addFCBScaleMinMax(self, feat_name: str, x_min: float = None, x_max: float = None, is_to_01: bool = False,
                           forward_name: str = None):
@@ -440,6 +427,46 @@ class SRTFeatures(SRTCollection):
                        feat_name_second=feat_name_second,
                        forward_name=forward_name)
 
+    def _getForwardName(self, forward_name):
+        is_find = False
+        init_fn = self._init_forward_name
+        if forward_name is None:
+            is_find = True
+        if forward_name in self.feature_forwards:
+            init_fn = forward_name
+            is_find = True
+        if is_find:
+            forward_ = 1
+            while True:
+                forward_name = "{0}_{1}".format(init_fn, forward_)
+                forward_ += 1
+                if forward_name not in self.feature_forwards:
+                    break
+        return forward_name
+
+
+class SRTFeatures(SRTFeaturesForwards):
+
+    def __init__(self):
+        super().__init__()
+        self.features = {}
+        self.data_shape = None
+        self._n_next = []
+
+    def addFeature(self, feat_name: str, data: np.ndarray = None):
+        if len(self.features) != 0:
+            if feat_name in self.features:
+                raise Exception("Feature \"{0}\" have in features and change feature name.".format(feat_name))
+            if data is not None:
+                if self.data_shape is not None:
+                    if data.shape != self.data_shape:
+                        warnings.warn("data shape {0} can not equal this {1}".format(data.shape, self.data_shape))
+        self.features[feat_name] = data
+        if self.data_shape is None:
+            if data is not None:
+                self.data_shape = data.shape
+        self._n_next.append(feat_name)
+
     def forward(self):
         for i, forward_name in self.feature_forwards:
             # self.feature_forwards[forward_name] = {"type": "callback", "callback_obj": callback_obj}
@@ -469,23 +496,6 @@ class SRTFeatures(SRTCollection):
             raise Exception("Feature \"{0}\" have not in features.".format(feat_name))
         return feat_name
 
-    def _getForwardName(self, forward_name):
-        is_find = False
-        init_fn = self._init_forward_name
-        if forward_name is None:
-            is_find = True
-        if forward_name in self.feature_forwards:
-            init_fn = forward_name
-            is_find = True
-        if is_find:
-            forward_ = 1
-            while True:
-                forward_name = "{0}_{1}".format(init_fn, forward_)
-                forward_ += 1
-                if forward_name not in self.feature_forwards:
-                    break
-        return forward_name
-
     def __getitem__(self, feat_name_or_number):
         if isinstance(feat_name_or_number, int):
             feat_name_or_number = self._n_next[feat_name_or_number]
@@ -495,6 +505,47 @@ class SRTFeatures(SRTCollection):
         if isinstance(feat_name_or_number, int):
             feat_name_or_number = self._n_next[feat_name_or_number]
         self.features[feat_name_or_number] = arr
+
+
+class SRTFeaturesMemory:
+
+    def __init__(self, length=None, names=None):
+        self.names = []
+        self._callbacks = []
+        self.length = length
+        if length is None:
+            if names is not None:
+                self.length = len(names)
+                self.names = names
+        else:
+            self.length = length
+            self.initNames()
+
+    def __len__(self):
+        return self.length
+
+    def initNames(self, names=None):
+        if names is None:
+            names = ["Name{}".format(i) for i in range(self.length)]
+        else:
+            if len(names) != self.length:
+                warnings.warn("length of names not eq data. {} not eq {}".format(len(names), self.length))
+        self.names = names
+        return self
+
+    def initCallBacks(self):
+        self._callbacks = [SRTFeatureCallBackList() for _ in range(self.length)]
+        return self
+
+    def callbacks(self, name_number) -> SRTFeatureCallBackList:
+        return self._callbacks[self._name_number(name_number)]
+
+    def _name_number(self, name_number):
+        if isinstance(name_number, str):
+            return self.names.index(name_number)
+        else:
+            return name_number
+
 
 
 def main():

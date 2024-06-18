@@ -78,9 +78,9 @@ class GDALDrawImages(GDALRasterCenterDatas):
         c_d = c_d / 255
         self.setData(n_row, n_column, c_d)
 
-    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, color_name=None, *args, **kwargs):
+    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, color_name=None,is_trans=False, *args, **kwargs):
         d = super(GDALDrawImages, self).addAxisDataXY(n_row=n_row, n_column=n_column, grcc_name=grcc_name, x=x, y=y,
-                                                      win_size=win_size, *args, **kwargs)
+                                                      win_size=win_size,is_trans=is_trans,  *args, **kwargs)
         if d.shape[2] == 1:
             to_d = np.zeros((d.shape[0], d.shape[1], 3))
             for i in range(3):
@@ -96,6 +96,67 @@ class GDALDrawImages(GDALRasterCenterDatas):
                                  select_columns=select_columns, not_rows=not_rows, not_columns=not_columns, **kwargs)
         return ell
 
+
+class _ColumnKey:
+
+    def __init__(self, name, grcc_name, win_size=None, color_name=None, *args, **kwargs):
+        self.name = name
+        self.grcc_name = grcc_name
+        self.color_name = color_name
+        self.args = args
+        self.kwargs = kwargs
+        self.win_size = win_size
+
+
+class _RowKey:
+
+    def __init__(self, name, x, y, win_size=None, *args, **kwargs):
+        self.name = name
+        self.x = x
+        self.y = y
+        self.args = args
+        self.kwargs = kwargs
+        self.win_size = win_size
+
+
+def catColumnRowArgs(*args, **kwargs):
+    return args, kwargs
+
+
+class GDALDrawImagesColumns(GDALDrawImages):
+
+    def __init__(self, win_size=None, is_min_max=True, is_01=True):
+        super().__init__(win_size, is_min_max, is_01)
+        self.columns = []
+        self.rows = []
+
+    def addColumn(self, name, grcc_name, win_size=None, color_name=None, *args, **kwargs):
+        self.columns.append(_ColumnKey(
+            name, grcc_name, win_size=win_size, color_name=color_name, *args, **kwargs))
+        return self.columns[-1]
+
+    def addRow(self, name, x, y, win_size=None, *args, **kwargs):
+        self.rows.append(_RowKey(name, x, y, win_size=win_size, *args, **kwargs))
+        return self.rows[-1]
+
+    def fitColumn(self, n_columns_ex=1.0, n_rows_ex=1.0, fontdict=None):
+        row_names, column_names = [], []
+        for column, column_key in enumerate(self.columns):
+            column_key: _ColumnKey
+            column_names.append(column_key.name)
+            for row, row_key in enumerate(self.rows):
+                if column == 0:
+                    row_names.append(row_key.name)
+                row_key: _RowKey
+                win_size = column_key.win_size
+                if row_key.win_size is not None:
+                    win_size = row_key.win_size
+                _args, _kwargs = catColumnRowArgs(*column_key.args, *row_key.args, **column_key.kwargs,
+                                                  **row_key.kwargs)
+                self.addAxisDataXY(n_row=row, n_column=column, grcc_name=column_key.grcc_name, x=row_key.x, y=row_key.y,
+                                   color_name=column_key.color_name, win_size=win_size, *_args, **_kwargs)
+        self.draw(n_columns_ex=n_columns_ex, n_rows_ex=n_rows_ex, row_names=row_names, column_names=column_names,
+                  fontdict=fontdict)
 
 def main():
     gdi = GDALDrawImages((100, 100))

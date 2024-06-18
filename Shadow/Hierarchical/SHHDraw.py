@@ -43,6 +43,49 @@ class SHHGDALDrawImages(GDALDrawImages):
         self.addRasterCenterCollection("AS_VH", bj_name, cd_name, qd_name, channel_list=["AS_VH"])
         self.addRasterCenterCollection("DE_VV", bj_name, cd_name, qd_name, channel_list=["DE_VV"])
         self.addRasterCenterCollection("DE_VH", bj_name, cd_name, qd_name, channel_list=["DE_VH"])
+        self.addRasterCenterCollection("AS_C11", bj_name, cd_name, qd_name, channel_list=["AS_C11"])
+        self.addRasterCenterCollection("AS_C22", bj_name, cd_name, qd_name, channel_list=["AS_C22"])
+        self.addRasterCenterCollection("DE_C11", bj_name, cd_name, qd_name, channel_list=["DE_C11"])
+        self.addRasterCenterCollection("DE_C22", bj_name, cd_name, qd_name, channel_list=["DE_C22"])
+        self.addRasterCenterCollection(
+            "NDVI",
+            imfn.qd_fn.changext("_ndvi.tif"), imfn.bj_fn.changext("_ndvi.tif"), imfn.cd_fn.changext("_ndvi.tif"),
+            channel_list=["NDVI"], min_list=[-0.53], max_list=[0.76]
+        )
+        self.addRasterCenterCollection(
+            "NDWI",
+            imfn.qd_fn.changext("_ndwi.tif"), imfn.bj_fn.changext("_ndwi.tif"), imfn.cd_fn.changext("_ndwi.tif"),
+            channel_list=["NDWI"], min_list=[-0.66], max_list=[0.76]
+        )
+
+        return self
+
+    def addRCC_Im2(self):
+        imfn = SHHFNImages.images1()
+        qd_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat"
+        bj_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_envi.dat"
+        cd_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_envi.dat"
+        qd_range_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_data.geonpy"
+        bj_range_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_data.geonpy"
+        cd_range_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_range.geonpy"
+        qd_name = self.addGeoRange(qd_fn, qd_range_fn)
+        bj_name = self.addGeoRange(bj_fn, bj_range_fn)
+        cd_name = self.addGeoRange(cd_fn, cd_range_fn)
+
+        # qd_name = self.addGeoRange(imfn.qd_fn.fn(), imfn.qd_fn.changext(".range"))
+        # bj_name = self.addGeoRange(imfn.bj_fn.fn(), imfn.bj_fn.changext(".range"))
+        # cd_name = self.addGeoRange(imfn.cd_fn.fn(), imfn.cd_fn.changext(".range"))
+
+        self.addRasterCenterCollection("RGB", bj_name, cd_name, qd_name, channel_list=["B4", "B3", "B2"])
+        self.addRasterCenterCollection("NRG", bj_name, cd_name, qd_name, channel_list=["B8", "B4", "B3"])
+        self.addRasterCenterCollection("AS_VV", bj_name, cd_name, qd_name, channel_list=["AS_VV"])
+        self.addRasterCenterCollection("AS_VH", bj_name, cd_name, qd_name, channel_list=["AS_VH"])
+        self.addRasterCenterCollection("DE_VV", bj_name, cd_name, qd_name, channel_list=["DE_VV"])
+        self.addRasterCenterCollection("DE_VH", bj_name, cd_name, qd_name, channel_list=["DE_VH"])
+        self.addRasterCenterCollection("AS_C11", bj_name, cd_name, qd_name, channel_list=["AS_C11"])
+        self.addRasterCenterCollection("AS_C22", bj_name, cd_name, qd_name, channel_list=["AS_C22"])
+        self.addRasterCenterCollection("DE_C11", bj_name, cd_name, qd_name, channel_list=["DE_C11"])
+        self.addRasterCenterCollection("DE_C22", bj_name, cd_name, qd_name, channel_list=["DE_C22"])
         self.addRasterCenterCollection(
             "NDVI",
             imfn.qd_fn.changext("_ndvi.tif"), imfn.bj_fn.changext("_ndvi.tif"), imfn.cd_fn.changext("_ndvi.tif"),
@@ -141,8 +184,47 @@ class SHHGDALDrawImagesColumn(SHHGDALDrawImages):
     def addColumnDEVH(self, name="DE_VH", win_size=None, *args, **kwargs):
         return self.addColumn(name, "DE_VH", win_size=win_size, *args, **kwargs)
 
+class SHH_GDIC:
+
+    def __init__(self, size):
+        self.sgdic = SHHGDALDrawImagesColumn(size)
+        self.sgdic.fontdict["size"] = 16
+        self.sgdic.addRCC_Im1()
+        printList("Image Keys: ", self.sgdic.keys())
+
+
+
 
 def main():
+    # 组会 2024年6月10日16:14:18
+    sgdic = SHHGDALDrawImagesColumn((120, 120))
+    sgdic.addRCC_Im1()
+    sgdic.fontdict["size"] = 16
+    column_names = ["RGB", "NRG", ]
+    row_names = []
+
+    def add1(name, x, y):
+        n_row = len(row_names)
+        row_names.append(name)
+        sgdic.addAxisDataXY(n_row, 0, "RGB", x, y, min_list=[100, 100, 100], max_list=[2000, 2000, 2000])
+        sgdic.addAxisDataXY(n_row, 1, "NRG", x, y, min_list=[100, 100, 100], max_list=[3000, 2000, 2000])
+
+    # add1("(1)    ", 120.373678,36.090352)
+    # add1("(2)    ", 120.195804,36.301010)
+
+    # add1("(1)    ",116.42322,39.86290)
+    # add1("(2)    ",116.70059,39.71306)
+
+    add1("(1)    ",104.04207,30.63972)
+    add1("(2)    ",103.84650,30.75215)
+
+    sgdic.draw(n_columns_ex=2.6, n_rows_ex=2.6, row_names=row_names, column_names=column_names)
+    plt.show()
+
+    return
+
+
+def method_name14():
     sgdic = SHHGDALDrawImagesColumn((60, 60))
     sgdic.fontdict["size"] = 16
     sgdic.addRCC_Im1()
@@ -175,16 +257,13 @@ def main():
         sgdic.addAxisDataXY(n_row, 4, "FC", x, y, color_name="color8")
         sgdic.addAxisDataXY(n_row, 5, "NOFC", x, y, color_name="color8")
 
-    add1("(1)    ", 120.297934,36.175996)
-    add1("(2)    ", 120.222028,36.266922)
-    add1("(3)    ", 120.304915,36.249621)
-    add1("(4)    ", 120.369167,36.244726)
-    add1("(5)    ", 120.028982,36.271066)
+    add1("(1)    ", 120.297934, 36.175996)
+    add1("(2)    ", 120.222028, 36.266922)
+    add1("(3)    ", 120.304915, 36.249621)
+    add1("(4)    ", 120.369167, 36.244726)
+    add1("(5)    ", 120.028982, 36.271066)
     sgdic.draw(n_columns_ex=1.6, n_rows_ex=1.6, row_names=row_names, column_names=column_names)
-
     plt.show()
-
-    pass
 
 
 def method_name13():
