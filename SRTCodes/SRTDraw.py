@@ -10,6 +10,7 @@ r"""----------------------------------------------------------------------------
 
 import matplotlib.patches as mpl_patches
 import numpy as np
+from PIL import Image
 from matplotlib import pyplot as plt
 
 from SRTCodes.SRTFeature import SRTFeatureDataCollection
@@ -59,7 +60,7 @@ class MplPatchesEllipseColl:
 
     def add(self, n_row, xy, width, height, angle=0, is_ratio=False, select_columns=None, **kwargs):
         ell = MplPatchesEllipse(xy=xy, width=width, height=height, angle=angle, is_ratio=is_ratio,
-                                   select_columns=select_columns, **kwargs)
+                                select_columns=select_columns, **kwargs)
         ell.initLoc(n_row=n_row, n_column=None)
         self.ells.append(ell)
         return ell
@@ -152,6 +153,86 @@ class SRTDrawHist(SRTDrawData):
         bin_edges = (bin_edges[1] - bin_edges[0]) / 2 + bin_edges
         bin_edges = bin_edges[:-1]
         return plt.plot(bin_edges, hist, label=name, *plot_args, scalex=scalex, scaley=scaley, **kwargs)
+
+
+class SRTDrawImages:
+
+    def __init__(self, fontdict=None):
+        self.name = ""
+        self.data = [[None]]
+        if fontdict is None:
+            fontdict = {
+                # 'family': 'Times New Roman',
+                'size': 16
+            }
+        self.fontdict = fontdict
+        self.ell_coll = MplPatchesEllipseColl()
+
+    def changeDataList(self, n_row, n_column):
+        if n_row >= len(self.data):
+            for i in range(n_row - len(self.data) + 1):
+                self.data.append([None for _ in range(len(self.data[0]))])
+        if n_column >= len(self.data[0]):
+            n_column_tmp = len(self.data[0])
+            for i in range(len(self.data)):
+                for j in range(n_column - n_column_tmp + 1):
+                    self.data[i].append(None)
+        return n_row, n_column
+
+    def addImage(self, n_row, n_column, image_fn, ):
+        n_row, n_column = self.changeDataList(n_row, n_column)
+        self.data[n_row][n_column] = image_fn
+
+    def shape(self, dim=None):
+        if dim is None:
+            return len(self.data), len(self.data[0])
+        else:
+            if dim == 0:
+                return len(self.data)
+            elif dim == 1:
+                return len(self.data[0])
+
+    def initFig(self, fontdict, n_columns_ex, n_rows_ex, *args, **kwargs):
+        if fontdict is None:
+            fontdict = self.fontdict
+        n_rows, n_columns = self.shape()
+        fig = plt.figure(figsize=(n_columns * n_columns_ex, n_rows * n_rows_ex), )
+        axes = fig.subplots(n_rows, n_columns)
+        fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.04, wspace=0.03)
+        return axes, fontdict, n_columns, n_rows
+
+    def draw(self, n_columns_ex=1.0, n_rows_ex=1.0, row_names=None, column_names=None, fontdict=None):
+        axes, fontdict, n_columns, n_rows = self.initFig(fontdict, n_columns_ex, n_rows_ex)
+
+        for i in range(n_rows):
+            for j in range(n_columns):
+                if n_rows == 1:
+                    ax = axes[j]
+                else:
+                    ax = axes[i, j]
+                if j == 0:
+                    if row_names is not None:
+                        ax.set_ylabel(row_names[i], rotation=0, fontdict=fontdict)
+                if i == 0:
+                    if column_names is not None:
+                        ax.set_title(column_names[j], fontdict=fontdict)
+                d = self.getData(i, j)
+                if d is not None:
+                    ax.imshow(d)
+                    self.ell_coll.fit(ax, i, j)
+                else:
+                    ax.spines['right'].set_visible(False)
+                    ax.spines['top'].set_visible(False)
+                    ax.spines['left'].set_visible(False)
+                    ax.spines['bottom'].set_visible(False)
+                ax.set_xticks([])
+                ax.set_yticks([])
+
+    def getData(self, row, column):
+        fn = self.data[row][column]
+        if fn is None:
+            return None
+        return Image.open(fn)
 
 
 def main():

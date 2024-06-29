@@ -9,13 +9,54 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 import numpy as np
 import pandas as pd
+from osgeo import gdal
 
 from SRTCodes.GDALRasterIO import GDALRaster
+from SRTCodes.GDALUtils import RasterToVRTS
 from SRTCodes.OGRUtils import sampleSpaceUniform
 from SRTCodes.Utils import FRW, DirFileName, FN
+from Shadow.Hierarchical import SHH2Config
 
 
 def main():
+    print('F:\\ProjectSet\\Shadow\\Hierarchical\\Images\\ChengDu\\SH22\\SHH2_CD2_range2.json')
+    dfn = DirFileName(r"E:\ImageData\GLCM")
+    is_save = True
+
+    def save(raster_fn, json_fn, city_name):
+        gr = GDALRaster(raster_fn)
+        range_dict = FRW(json_fn).readJson()
+        print(gr, range_dict)
+
+        def getdata(name):
+            _data = gr.readGDALBand(name)
+            x_min, x_max = range_dict[name]["min"], range_dict[name]["max"]
+            _data = np.clip(_data, x_min, x_max)
+            print(name, np.min(_data), np.max(_data))
+            _data = (_data - x_min) / (x_max - x_min)
+            if is_save:
+                to_fn = dfn.fn(city_name, "{}_{}".format(city_name, name))
+                print(to_fn)
+                gr.save(_data, to_fn, fmt="ENVI", dtype=gdal.GDT_Float32, descriptions=name)
+            return _data
+
+        as_vv_data = getdata("AS_VV")
+        as_vh_data = getdata("AS_VH")
+        de_vv_data = getdata("DE_VV")
+        de_vh_data = getdata("DE_VH")
+
+    save(SHH2Config.QD_ENVI_FN, SHH2Config.QD_RANGE_FN, "QD")
+    save(SHH2Config.BJ_ENVI_FN, SHH2Config.BJ_RANGE_FN, "BJ")
+    save(SHH2Config.CD_ENVI_FN, SHH2Config.CD_RANGE_FN, "CD")
+    return
+
+
+def method_name3():
+    rtv = RasterToVRTS(SHH2Config.BJ_ENVI_FN)
+    rtv.save(r"F:\ProjectSet\Shadow\Hierarchical\Images\temp\1\BJ")
+
+
+def method_name2():
     def func1(csv_fn):
         df = pd.read_csv(csv_fn)
         coors2, out_index_list = sampleSpaceUniform(df[["X", "Y"]].values.tolist(), x_len=500, y_len=500,
@@ -30,8 +71,6 @@ def main():
         return
 
     func1(r"F:\ProjectSet\Shadow\Hierarchical\Samples\26\2\sh2_spl27_2_cd_train1.csv")
-
-    return
 
 
 def method_name1():

@@ -424,6 +424,26 @@ class RumTime:
         return f"({int(hours)}:{int(minutes)}:{seconds:.2f})"
 
 
+def is_in_poly(p, poly):
+    px, py = p
+    is_in = False
+    for i, corner in enumerate(poly):
+        next_i = i + 1 if i + 1 < len(poly) else 0
+        x1, y1 = corner
+        x2, y2 = poly[next_i]
+        if (x1 == px and y1 == py) or (x2 == px and y2 == py):  # if point is on vertex
+            is_in = True
+            break
+        if min(y1, y2) < py <= max(y1, y2):  # find horizontal edges of polygon
+            x = x1 + (py - y1) * (x2 - x1) / (y2 - y1)
+            if x == px:  # if point is on edge
+                is_in = True
+                break
+            elif x > px:  # if point is on left-side of line
+                is_in = not is_in
+    return is_in
+
+
 class CoorInPoly:
 
     def __init__(self, coors=None):
@@ -468,6 +488,9 @@ class CoorInPoly:
                 sinsc += 1
         # print(sinsc)
         return sinsc % 2 == 1
+
+    def t2(self, x, y):
+        return is_in_poly([x, y], self.coors)
 
 
 def printList(front_str, to_list, max_line_width=60):
@@ -1130,18 +1153,22 @@ class DFN:
 class SRTLog:
 
     def __init__(self, log_fn=None, mode="w", is_print=True):
+        self.log_fn = log_fn
         if log_fn is None:
             return
-        self.log_fn = log_fn
         self.swt = SRTWriteText(text_fn=log_fn, mode=mode)
         self.is_print = is_print
 
     def _isPrint(self, is_print):
+        if self.log_fn is None:
+            return
         if is_print is None:
             is_print = self.is_print
         return is_print
 
     def log(self, *text, sep=" ", end="\n", is_print=None):
+        if self.log_fn is None:
+            return
         is_print = self._isPrint(is_print)
         if is_print:
             print(*text, sep=sep, end=end)
@@ -1149,12 +1176,16 @@ class SRTLog:
             self.swt.write(*text, sep=sep, end=end)
 
     def wl(self, line, end="\n", is_print=None):
+        if self.log_fn is None:
+            return line
         self.log(line, end=end, is_print=is_print)
         return line
 
     def kw(self, key, value, sep=": ", end="\n", is_print=None):
+        if self.log_fn is None:
+            return value
         if isinstance(value, list) or isinstance(value, tuple):
-            to_str = "\"" + "\", \"".join(str(value)) + "\""
+            to_str = "\"" + "\", \"".join([str(data) for data in value]) + "\""
         else:
             to_str = str(value)
         self.log(key, to_str, sep=sep, end=end, is_print=is_print)
@@ -1237,8 +1268,6 @@ class TimeName:
         fn = fmt.format(self.time_str)
         fn = os.path.join(dirname, fn)
         return fn
-
-
 
 
 class FRW:

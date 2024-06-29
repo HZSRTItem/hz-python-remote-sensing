@@ -18,11 +18,11 @@ from osgeo import osr, gdal, gdal_array
 
 from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel, GDALRasterRange, saveGTIFFImdc, NPYRaster
 from SRTCodes.ModelTraining import ConfusionMatrix
-from SRTCodes.NumpyUtils import categoryMap
+from SRTCodes.NumpyUtils import categoryMap, NumpySampling
 from SRTCodes.SRTFeature import SRTFeatureCallBack, SRTFeaturesMemory
 from SRTCodes.SRTSample import SRTCategorySampleCollection, SRTSample
 from SRTCodes.TrainingUtils import SRTAccuracyConfusionMatrix
-from SRTCodes.Utils import readcsv, Jdt, savecsv, changext, getfilenamewithoutext, SRTDataFrame, datasCaiFen
+from SRTCodes.Utils import readcsv, Jdt, savecsv, changext, getfilenamewithoutext, SRTDataFrame, datasCaiFen, getRandom
 
 RESOLUTION_ANGLE = 0.0000089831529294
 
@@ -649,6 +649,7 @@ class GDALRasterCenterDatas:
             min_list = kwargs["min_list"]
         if "max_list" in kwargs:
             max_list = kwargs["max_list"]
+
         d = grcc.getPatch(x, y, win_size=win_size, min_list=min_list, max_list=max_list, is_trans=is_trans)
 
         self.setData(n_row, n_column, d)
@@ -938,6 +939,7 @@ class GDALSamplingInit:
         win_spl[1] = 0 + round(win_row / 2 + 0.1)
         win_spl[2] = 0 - int(win_column / 2)
         win_spl[3] = 0 + round(win_column / 2 + 0.1)
+
         jdt = Jdt(len(x), "sampling2").start(is_jdt)
         to_data = np.zeros((len(x), self.n_channels, win_row, win_column))
         for i in range(len(x)):
@@ -1231,6 +1233,17 @@ def replaceCategoryImage(o_geo_fn, replace_geo_fn, to_geo_fn, o_map_dict=None, r
     saveGTIFFImdc(gr_replace, to_imdc, to_geo_fn, color_table=color_table)
 
 
+class GDALNumpySampling(NumpySampling):
+
+    def __init__(self, win_row, win_column, gr):
+        super().__init__(win_row, win_column)
+        self.gr = gr
+        self.data = gr.d
+
+    def getxy(self, x, y):
+        row, column = self.gr.coorGeo2Raster(x, y, is_int=True)
+        return self.get(row, column)
+
 class GDALAccuracyImage:
 
     def __init__(
@@ -1307,6 +1320,32 @@ class GDALAccuracyImage:
         return df
 
 
+class _RandomCoor:
+
+    def __init__(self, x_min=0.0, x_max=1.0, y_min=0.0, y_max=1.0):
+        self.x_min = x_min
+        self.x_max = x_max
+        self.y_min = y_min
+        self.y_max = y_max
+
+        self.coors = []
+
+    def generate(self, n, mode=None):
+        if mode is None:
+            self.coors = []
+        for i in range(n):
+            self.coors.append(self.randomXY())
+
+    def __getitem__(self, item):
+        return self.coors[item]
+
+    def __len__(self):
+        return len(self.coors)
+
+    def randomXY(self):
+        return [getRandom(self.x_min, self.x_max), getRandom(self.y_min, self.y_max), ]
+
+
 class GDALFeaturesMemory(SRTFeaturesMemory):
 
     def __init__(self, raster_fn):
@@ -1323,6 +1362,36 @@ class GDALFeaturesMemory(SRTFeaturesMemory):
     #         data
 
 
+class RasterRandomCoors:
+
+    def __init__(self, raster_fn):
+        self.gr = GDALRaster(raster_fn)
+        self.coors = []
+        self.random_coor = _RandomCoor(self.gr.x_min, self.gr.x_max, self.gr.y_min, self.gr.y_max)
+
+    def fit(self, category, n, is_jdt=True):
+        jdt = Jdt(n, "Raster Random Coors").start(is_jdt=is_jdt)
+        n_select = 0
+        for i in range(self.gr.n_rows):
+            for j in range(self.gr.n_columns):
+                x, y = self.random_coor.randomXY()
+                d = int(self.gr.readAsLine(x, y, is_geo=True)[0])
+                if d == category:
+                    self.add(x, y, category)
+                    jdt.add(is_jdt=is_jdt)
+                    n_select += 1
+                    if n_select >= n:
+                        return
+
+    def add(self, x, y, category, ):
+        to_dict = {"N": len(self.coors) + 1, "X": x, "Y": y, "CATEGORY": category}
+        self.coors.append(to_dict)
+        return to_dict
+
+    def saveToCSV(self, to_fn):
+        df = pd.DataFrame(self.coors)
+        print(df)
+        df.to_csv(to_fn, index=False)
 
 
 def main():

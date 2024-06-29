@@ -115,13 +115,13 @@ class SRTModelImageInit:
         if ("code_fn" in kwargs) and ("to_code_fn" in kwargs):
             copyfile(kwargs["code_fn"], kwargs["to_code_fn"])
 
-    def getToGeoFn(self, to_geo_fn):
+    def getToGeoFn(self, to_geo_fn, ext="_imdc.tif"):
         if to_geo_fn is None:
             if self.mod_fn is None:
                 if len(sys.argv) >= 2:
                     self.mod_fn = sys.argv[1]
             if self.mod_fn is not None:
-                to_geo_fn = changext(self.mod_fn, "_imdc.tif")
+                to_geo_fn = changext(self.mod_fn, ext)
                 to_geo_fn = numberfilename(to_geo_fn)
         if to_geo_fn is None:
             raise Exception("Can not get to geo filename.")
@@ -563,8 +563,15 @@ class SRTModImPytorch(SRTModelImageInit):
         optimizer = optimizer_class(self.pt.model.parameters(), *args, **kwargs)
         self.pt.addOptimizer(optimizer=optimizer)
 
-    def timeDirName(self):
-        self.model_dirname = timeDirName(self.model_dirname, is_mk=True)
+    def timeDirName(self, save_dirname=None):
+        if save_dirname is not None:
+            if self.model_dirname is not None:
+                save_dirname = os.path.join(self.model_dirname, save_dirname)
+            if not os.path.isdir(save_dirname):
+                os.mkdir(save_dirname)
+            self.model_dirname = save_dirname
+        else:
+            self.model_dirname = timeDirName(self.model_dirname, is_mk=True)
 
     def toCSVFN(self):
         return os.path.join(self.model_dirname, "train_data.csv")
@@ -623,6 +630,7 @@ class SRTModImPytorch(SRTModelImageInit):
 
     def imdcTiles(self, to_fn=None, tiles_dirname=None, tiles_fns=None, data_deal=None, is_jdt=True,
                   description="CATEGORY"):
+
         to_fn = self.getToGeoFn(to_fn)
         if tiles_fns is None:
             tiles_fns = []
@@ -632,17 +640,12 @@ class SRTModImPytorch(SRTModelImageInit):
         to_tiles_dirname = os.path.splitext(to_fn)[0] + "_imdctiles"
         if not os.path.isdir(to_tiles_dirname):
             os.mkdir(to_tiles_dirname)
-        to_fn_tmps = []
-        for fn in tiles_fns:
-            to_fn_tmp = changext(fn, "_imdc.tif")
-            to_fn_tmp = changefiledirname(to_fn_tmp, to_tiles_dirname)
-            to_fn_tmps.append(to_fn_tmp)
-            print("Image:", fn)
-            print("Imdc :", to_fn_tmp)
-            if os.path.isfile(to_fn_tmp):
-                print("Imdc 100%")
-                continue
-            self.imdcGDALFile(fn, to_fn_tmp, data_deal=data_deal, is_jdt=is_jdt, description=description)
+
+        to_fn_tmps = self.imdcGDALFiles(
+            to_dirname=to_tiles_dirname, fns=tiles_fns,
+            data_deal=data_deal, description=description, is_jdt=is_jdt
+        )
+
         print("Merge:", to_fn)
         gdal_merge_main(["gdal_merge_main",
                          "-of", "GTiff",
@@ -652,6 +655,20 @@ class SRTModImPytorch(SRTModelImageInit):
                          "-o", to_fn,
                          *to_fn_tmps, ])
         tiffAddColorTable(to_fn, code_colors=self.color_table)
+
+    def imdcGDALFiles(self, to_dirname, fns, data_deal=None, is_jdt=True, description="CATEGORY"):
+        to_fn_tmps = []
+        for fn in fns:
+            to_fn_tmp = changext(fn, "_imdc.tif")
+            to_fn_tmp = changefiledirname(to_fn_tmp, to_dirname)
+            to_fn_tmps.append(to_fn_tmp)
+            print("Image:", fn)
+            print("Imdc :", to_fn_tmp)
+            if os.path.isfile(to_fn_tmp):
+                print("Imdc 100%")
+                continue
+            self.imdcGDALFile(fn, to_fn_tmp, data_deal=data_deal, is_jdt=is_jdt, description=description)
+        return to_fn_tmps
 
     def predict(self, x, *args, **kwargs):
         return self.func_predict(self.model, x)
@@ -731,10 +748,11 @@ def imdc2(func_predict, data, win_size, to_geo_fn, gr, data_deal=None, is_jdt=Tr
 
 class GDALImdc:
 
-    def __init__(self, *raster_fns):
+    def __init__(self, *raster_fns, is_sfm=True):
         self.raster_fns = datasCaiFen(raster_fns)
         self.color_table = None
         self.sfm = SRTFeaturesMemory()
+        self.is_sfm = is_sfm
         if len(self.raster_fns) >= 1:
             self.sfm = SRTFeaturesMemory(names=GDALRaster(raster_fns[0]).names)
 
@@ -773,22 +791,26 @@ class GDALImdc:
     def _imdc1(self, model, raster_fn, to_geo_fn, fit_names, data_deal, is_jdt, color_table):
         gr = GDALRaster(raster_fn)
         data = np.zeros((len(fit_names), gr.n_rows, gr.n_columns))
+        self.readRaster(data, fit_names, gr, is_jdt)
+        imdc1(model, data, to_geo_fn, gr, data_deal=data_deal, is_jdt=is_jdt, color_table=color_table)
+        data = None
+
+    def readRaster(self, data, fit_names, gr, is_jdt):
         jdt = Jdt(len(fit_names), "Read Raster").start(is_jdt)
         for i, name in enumerate(fit_names):
             # data[i] = self.sfm.callbacks(name).fit(gr.readGDALBand(name))
-            data_i =  gr.readGDALBand(name)
+            data_i = gr.readGDALBand(name)
             data_i[np.isnan(data_i)] = 0
+            if self.is_sfm:
+                data_i = self.sfm.callbacks(name).fit(data_i)
             data[i] = data_i
             jdt.add(is_jdt)
         jdt.end(is_jdt)
-        imdc1(model, data, to_geo_fn, gr, data_deal=data_deal, is_jdt=is_jdt, color_table=color_table)
-        data = None
 
     def _imdc2(self, func_predict, raster_fn, win_size, to_geo_fn, fit_names, data_deal, is_jdt, color_table):
         gr = GDALRaster(raster_fn)
         data = np.zeros((len(fit_names), gr.n_rows, gr.n_columns))
-        for i, name in enumerate(fit_names):
-            data[i] = self.sfm.callbacks(name).fit(gr.readGDALBand(name))
+        self.readRaster(data, fit_names, gr, is_jdt)
         imdc2(func_predict, data, win_size=win_size, to_geo_fn=to_geo_fn, gr=gr, data_deal=data_deal, is_jdt=is_jdt,
               color_table=color_table)
         data = None

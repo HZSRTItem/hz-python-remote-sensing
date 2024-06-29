@@ -16,19 +16,17 @@ import pandas as pd
 from osgeo import gdal
 from osgeo_utils.gdal_merge import main as gdal_merge_main
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
 
 from SRTCodes.GDALRasterIO import GDALRaster, tiffAddColorTable
 from SRTCodes.GDALUtils import GDALSampling, RasterToVRTS, vrtAddDescriptions
 from SRTCodes.ModelTraining import TrainLog, ConfusionMatrix
-from SRTCodes.NumpyUtils import reHist
+from SRTCodes.NumpyUtils import reHist, update10EDivide10, eig2
 from SRTCodes.SRTFeature import SRTFeaturesMemory
 from SRTCodes.SRTModelImage import SRTModImSklearn, GDALImdc
 from SRTCodes.SRTTimeDirectory import TimeDirectory
-from SRTCodes.Utils import SRTLog, timeDirName, changext, changefiledirname, FRW, Jdt, DirFileName, printList
+from SRTCodes.Utils import SRTLog, timeDirName, changext, changefiledirname, FRW, DirFileName, printList
 from Shadow.Hierarchical import SHH2Config
 from Shadow.ShadowData import ShadowData
-from Shadow.ShadowImageDraw import _10log10
 
 
 class SHH2MLTrainImageClassification:
@@ -477,7 +475,7 @@ def SHH2ML_TST_main():
 
 def featExtHA():
     # init_dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\2\Temp")
-    init_dfn = DirFileName(r"G:\S1\BJ\2\SH2_BJ1")
+    init_dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Images\HA")
 
     # raster_dfn = DirFileName(r"F:\ProjectSet\Shadow\Release\BeiJingImages")
     # raster_fn = raster_dfn.fn("SH_BJ_envi.dat")
@@ -487,6 +485,9 @@ def featExtHA():
         gr = GDALRaster(raster_fn)
 
         def func1(name, dfn):
+            if not os.path.isdir(dfn.fn()):
+                os.mkdir(dfn.fn())
+
             print(dfn.fn("{}_H.dat".format(name)))
 
             c11_key = "{}_C11".format(name)
@@ -494,28 +495,44 @@ def featExtHA():
             c12_real_key = "{}_C12_real".format(name)
             c12_imag_key = "{}_C12_imag".format(name)
 
-            d_c11 = gr.readGDALBand(c11_key)
-            d_c22 = gr.readGDALBand(c22_key)
+            d_c11 = update10EDivide10(gr.readGDALBand(c11_key))
+            d_c22 = update10EDivide10(gr.readGDALBand(c22_key))
             d_c12_real = gr.readGDALBand(c12_real_key)
             d_c12_imag = gr.readGDALBand(c12_imag_key)
 
-            lamd1, lamd2 = np.zeros((gr.n_rows, gr.n_columns)), np.zeros((gr.n_rows, gr.n_columns))
-            alp1, alp2 = np.zeros((gr.n_rows, gr.n_columns)), np.zeros((gr.n_rows, gr.n_columns))
+            # lamd1, lamd2 = np.zeros((gr.n_rows, gr.n_columns)), np.zeros((gr.n_rows, gr.n_columns))
+            # alp1_1, alp2_1 = np.zeros((gr.n_rows, gr.n_columns)), np.zeros((gr.n_rows, gr.n_columns))
+            # vec1, vec2 = np.zeros((gr.n_rows, gr.n_columns)), np.zeros((gr.n_rows, gr.n_columns))
+            # jdt = Jdt(gr.n_rows, "{0} {1} featExtHA".format(city_name, name)).start()
+            # for i in range(gr.n_rows):
+            #     for j in range(gr.n_columns):
+            #         c2 = np.array([
+            #             [d_c11[i, j], 2*d_c12_real[i, j] + 2*(d_c12_imag[i, j] * 1j)],
+            #             [2*d_c12_real[i, j] - 2*(d_c12_imag[i, j] * 1j), 4*d_c22[i, j]],
+            #         ])
+            #         eigenvalue, featurevector = np.linalg.eig(c2)
+            #         lamd1[i, j] = np.abs(eigenvalue[0])
+            #         lamd2[i, j] = np.abs(eigenvalue[1])
+            #         vec1 = featurevector[0, 0]
+            #         vec2 = featurevector[0, 1]
+            #         alp1_1[i, j] = np.arccos(abs(featurevector[0, 0]))
+            #         alp2_1[i, j] = np.arccos(abs(featurevector[0, 1]))
+            #     jdt.add()
+            # jdt.end()
 
-            jdt = Jdt(gr.n_rows, "{0} {1} featExtHA".format(city_name, name)).start()
-            for i in range(gr.n_rows):
-                for j in range(gr.n_columns):
-                    c2 = np.array([
-                        [d_c11[i, j], d_c12_real[i, j] + (d_c12_imag[i, j] * 1j)],
-                        [d_c12_real[i, j] - (d_c12_imag[i, j] * 1j), d_c22[i, j]],
-                    ])
-                    eigenvalue, featurevector = np.linalg.eig(c2)
-                    lamd1[i, j] = np.abs(eigenvalue[0])
-                    lamd2[i, j] = np.abs(eigenvalue[1])
-                    alp1[i, j] = np.arccos(abs(featurevector[0, 0]))
-                    alp2[i, j] = np.arccos(abs(featurevector[0, 1]))
-                jdt.add()
-            jdt.end()
+            # lamd1, lamd2, vec1, vec2 = eig(d_c11, 2 * d_c12_real, 2 * d_c12_imag, 4 * d_c22, is_01=True)
+
+            # adb1 = np.imag(vec1) / (np.real(vec1) + 0.0000001)
+            # adb2 = np.real(vec1) / (np.imag(vec2) + 0.0000001)
+            # pusai1 = np.rad2deg(np.arctan(adb1))
+            # pusai2 = np.rad2deg(np.arctan(adb2))
+            # alp1 = np.abs(vec1)
+            # alp2 = np.abs(vec2)
+            # alp_max = np.max([np.max(alp1), np.max(alp2)])
+            # alp1 = alp1/alp_max
+            # alp2 = alp2/alp_max
+            # alp1 = np.rad2deg(np.arccos(alp1))
+            # alp2 = np.rad2deg(np.arccos(alp2))
 
             # dfn = DirFileName(r"F:\ProjectSet\Shadow\Analysis\14")
             # gr.save(lamd1, dfn.fn("lamd1.dat"))
@@ -523,10 +540,28 @@ def featExtHA():
             # gr.save(alp1, dfn.fn("alp1.dat"))
             # gr.save(alp2, dfn.fn("alp2.dat"))
 
-            p1 = lamd1 / (lamd1 + lamd2)
-            p2 = lamd2 / (lamd1 + lamd2)
-            d_h = p1 * (np.log(p1) / np.log(3)) + p2 * (np.log(p2) / np.log(3))
-            a = p1 - p2
+            e1, e2, v11, v12, v21, v22 = eig2(
+                d_c11,
+                2 * (d_c12_real + d_c12_imag * 1j),
+                2 * (d_c12_real - d_c12_imag * 1j),
+                4 * d_c22,
+            )
+
+            p1 = e1 / (e1 + e2)
+            p2 = e2 / (e1 + e2)
+            p1[p1 <= 0] = 0.0000001
+            p2[p2 <= 0] = 0.0000001
+            d_h = -(p1 * (np.log(p1) / np.log(2)) + p2 * (np.log(p2) / np.log(2)))
+            a = p2 - p1
+
+            d_v11 = np.clip(np.abs(v21), 0, 1)
+            print("np.min(d_v11), np.max(d_v11)", np.min(d_v11), np.max(d_v11))
+            alp1 = np.rad2deg(np.arccos(d_v11))
+
+            d_v12 = np.clip(np.abs(v22), 0, 1)
+            print("np.min(d_v11), np.max(d_v11)", np.min(d_v12), np.max(d_v12))
+            alp2 = np.rad2deg(np.arccos(d_v12))
+
             alp = p1 * alp1 + p2 * alp2
 
             gr.save(d_h, dfn.fn("{}_H.dat".format(name)), descriptions=["{}_H".format(name)])
@@ -539,7 +574,11 @@ def featExtHA():
     # func3("BJ", r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_envi.dat")
     # func3("CD", r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_envi.dat")
     # func3("QD", r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_envi.dat")
-    func3("BJ", r"G:\S1\BJ\2\bj_sh2_1_c2_2_envi.dat")
+    # func3("BJ", r"G:\S1\BJ\2\bj_sh2_1_c2_2_envi.dat")
+
+    func3("QD", r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat")
+    func3("BJ", r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_envi.dat")
+    func3("CD", r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_envi.dat")
 
     def func4(city_name, raster_fn):
         print(city_name, raster_fn)
@@ -783,7 +822,7 @@ def funcs():
             x = reHist(data, ratio=0.005)
             return float(x[0][0]), float(x[0][1])
 
-        gr = GDALRaster(SHH2Config.BJ_ENVI_FN)
+        gr = GDALRaster(SHH2Config.QD_ENVI_FN)
         to_dict = {}
 
         for fn in gr.names:
@@ -791,7 +830,7 @@ def funcs():
             to_dict[fn] = {"min": x_min, "max": x_max}
             print(fn, x_min, x_max)
 
-        FRW(r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_range2.json").saveJson(to_dict)
+        FRW(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_range2.json").saveJson(to_dict)
 
     def func8():
         json_dict = FRW(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_range.json").readJson()
@@ -849,7 +888,7 @@ def funcs():
         pd.concat(df_list, axis=1).T.to_csv(r"F:\Week\20240623\Data\spl_n.csv")
         print(pd.concat(df_list, axis=1))
 
-    func10()
+    func7()
     return
 
 
@@ -859,10 +898,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    featExtHA()
 
 r"""
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2ML import main; main()"
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2ML import featExtHA; featExtHA()"
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2ML import SHH2ML_TIC_mian; SHH2ML_TIC_mian()"
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2ML import SHH2ML_TST_main; SHH2ML_TST_main()"
 """

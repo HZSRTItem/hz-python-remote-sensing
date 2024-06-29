@@ -495,6 +495,11 @@ class GDALRasterIO(GEORaster):
         data = gdal_array.DatasetReadAsArray(self.raster_ds, y_column_off, x_row_off, win_xsize=1, win_ysize=1)
         return data.ravel()
 
+    def readAsDict(self, x_row_off=0.0, y_column_off=0.0, is_geo=False, is_trans=False, ):
+        data = self.readAsLine(
+            x_row_off=x_row_off, y_column_off=y_column_off, is_geo=is_geo, is_trans=is_trans, ).ravel()
+        return {self.names[i]: float(data[i]) for i in range(len(data))}
+
     def _GRRS(self, interleave, is_01, is_range):
         if interleave == "band":
             for i in range(self.d.shape[0]):
@@ -513,6 +518,10 @@ class GDALRasterIO(GEORaster):
     def coorWGS84ToThis(self, x, y):
         x1, y1, _ = self.wgs84_to_this.TransformPoint(x, y)
         return x1, y1
+
+    def updateData(self, name, data):
+        band: gdal.Band = self.getGDALBand(name)
+        band.WriteArray(data)
 
 
 class GDALRaster(GDALRasterIO, SRTCollection):

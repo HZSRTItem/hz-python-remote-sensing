@@ -65,9 +65,9 @@ class SHHGDALDrawImages(GDALDrawImages):
         qd_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat"
         bj_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_envi.dat"
         cd_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_envi.dat"
-        qd_range_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_data.geonpy"
-        bj_range_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_data.geonpy"
-        cd_range_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_range.geonpy"
+        qd_range_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_range2.json"
+        bj_range_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_range2.json"
+        cd_range_fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_range2.json"
         qd_name = self.addGeoRange(qd_fn, qd_range_fn)
         bj_name = self.addGeoRange(bj_fn, bj_range_fn)
         cd_name = self.addGeoRange(cd_fn, cd_range_fn)
@@ -76,8 +76,8 @@ class SHHGDALDrawImages(GDALDrawImages):
         # bj_name = self.addGeoRange(imfn.bj_fn.fn(), imfn.bj_fn.changext(".range"))
         # cd_name = self.addGeoRange(imfn.cd_fn.fn(), imfn.cd_fn.changext(".range"))
 
-        self.addRasterCenterCollection("RGB", bj_name, cd_name, qd_name, channel_list=["B4", "B3", "B2"])
-        self.addRasterCenterCollection("NRG", bj_name, cd_name, qd_name, channel_list=["B8", "B4", "B3"])
+        self.addRasterCenterCollection("RGB", bj_name, cd_name, qd_name, channel_list=["Red", "Green", "Blue"])
+        self.addRasterCenterCollection("NRG", bj_name, cd_name, qd_name, channel_list=["NIR", "Red", "Green"])
         self.addRasterCenterCollection("AS_VV", bj_name, cd_name, qd_name, channel_list=["AS_VV"])
         self.addRasterCenterCollection("AS_VH", bj_name, cd_name, qd_name, channel_list=["AS_VH"])
         self.addRasterCenterCollection("DE_VV", bj_name, cd_name, qd_name, channel_list=["DE_VV"])

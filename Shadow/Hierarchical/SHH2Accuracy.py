@@ -13,13 +13,13 @@ import random
 import numpy as np
 import pandas as pd
 
-from SRTCodes.GDALUtils import GDALSamplingImageClassification
+from SRTCodes.GDALUtils import GDALSamplingImageClassification, GDALSamplingFast, GDALSampling
 from SRTCodes.TrainingUtils import SRTAccuracy
 from SRTCodes.Utils import FN, TimeName, FRW
 from Shadow.ShadowUtils import readQJYTxt
 
 
-def sampleFC(y1, y2, category):
+def sampleFC(y1, y2, category, is_eq_number=True):
     if not (isinstance(category, list) or isinstance(category, tuple)):
         category = [category]
     category = list(category)
@@ -35,20 +35,24 @@ def sampleFC(y1, y2, category):
     random.shuffle(i_select_c1)
     random.shuffle(i_select_c2)
 
-    if len(i_select_c1) < len(i_select_c2):
-        i_select = i_select_c1 + i_select_c2[:len(i_select_c1)]
+    if is_eq_number:
+        if len(i_select_c1) < len(i_select_c2):
+            i_select = i_select_c1 + i_select_c2[:len(i_select_c1)]
+        else:
+            i_select = i_select_c1[:len(i_select_c2)] + i_select_c2
     else:
-        i_select = i_select_c1[:len(i_select_c2)] + i_select_c2
+        i_select = i_select_c1 + i_select_c2
 
     i_select.sort()
     y1_tmp, y2_tmp = [], []
     for i in i_select:
         y1_tmp.append(y1[i])
         y2_tmp.append(y2[i])
+
     return y1_tmp, y2_tmp
 
 
-def accuracyY12(y1, y2, y1_map_dict, y2_map_dict, cnames, fc_category=None):
+def accuracyY12(y1, y2, y1_map_dict, y2_map_dict, cnames, fc_category=None, is_eq_number=True):
     sa = SRTAccuracy()
     sa.y1 = y1
     sa.y1_map_dict = y1_map_dict
@@ -57,39 +61,32 @@ def accuracyY12(y1, y2, y1_map_dict, y2_map_dict, cnames, fc_category=None):
     if fc_category is not None:
         # _y1, _y2 = sa.categoryMap(sa.y1, sa.y1_map_dict), sa.categoryMap(sa.y2, sa.y2_map_dict)
         _y1, _y2 = sa.y1, sa.y2
-        sa.y1, sa.y2 = sampleFC(_y1, _y2, fc_category)
+        sa.y1, sa.y2 = sampleFC(_y1, _y2, fc_category, is_eq_number)
     sa.cnames = cnames
     cm = sa.cm()
     return cm
 
 
-class SHH2AccTiao:
+class SHH2SamplesManage:
 
-    def __init__(self, *csv_fns):
+    def __init__(self):
         self.spl_fns = []
-
+        self.df = None
+        self.x_list = []
+        self.y_list = []
+        self.c_list = []
         self.x_field_name = "X"
         self.y_field_name = "Y"
         self.c_field_name = "CNAME"
 
-        self.x_list = []
-        self.y_list = []
-        self.c_list = []
-
-        self.df = None
-        self.addCSVS(*csv_fns)
-        self.cnames = []
-        self.y2_map_dict = {}
-        self.y1_map_dict = {}
-        self.gsic = GDALSamplingImageClassification()
-
-    def addCSVS(self, *csv_fns):
-        for csv_fn in csv_fns:
-            df = pd.read_csv(csv_fn)
-            self.addDF(df)
-            self.spl_fns.append(csv_fn)
-
-    def addDF(self, df):
+    def addDF(self, df, fun_df=None, field_datas=None):
+        if field_datas is None:
+            field_datas = {}
+        df = df.copy()
+        for k in field_datas:
+            df[k] = [field_datas[k] for _ in range(len(df))]
+        if fun_df is not None:
+            df = fun_df(df)
         if self.df is None:
             self.df = df
         else:
@@ -101,10 +98,15 @@ class SHH2AccTiao:
         self.y_list.extend(df[self.y_field_name].tolist())
         self.c_list.extend(df[self.c_field_name].tolist())
 
-    def __len__(self):
-        return len(self.c_list)
+        return df
 
-    def addQJY(self, txt_fn):
+    def addCSVS(self, *csv_fns, fun_df=None, field_datas=None):
+        for csv_fn in csv_fns:
+            df = pd.read_csv(csv_fn)
+            self.addDF(df, fun_df=fun_df, field_datas=field_datas)
+            self.spl_fns.append(csv_fn)
+
+    def addQJY(self, txt_fn, fun_df=None, field_datas=None):
         df_dict = readQJYTxt(txt_fn)
         x = df_dict["__X"]
         y = df_dict["__Y"]
@@ -113,14 +115,53 @@ class SHH2AccTiao:
         df_dict[self.y_field_name] = y
         df_dict[self.c_field_name] = c_name
         df = pd.DataFrame(df_dict)
-        self.addDF(df)
+        df = self.addDF(df, fun_df=fun_df, field_datas=field_datas)
         self.spl_fns.append(txt_fn)
+        return df
 
-    def toCSV(self, csv_fn):
-        self.df[self.x_field_name] = self.x_list
-        self.df[self.y_field_name] = self.y_list
-        self.df[self.c_field_name] = self.c_list
-        self.df.to_csv(csv_fn, index=False)
+    def toDF(self, x_field_name=None, y_field_name=None, c_field_name=None) -> pd.DataFrame:
+        if x_field_name is None:
+            x_field_name = self.x_field_name
+        if y_field_name is None:
+            y_field_name = self.y_field_name
+        if c_field_name is None:
+            c_field_name = self.c_field_name
+        df = self.df.copy()
+        df[x_field_name] = self.x_list
+        df[y_field_name] = self.y_list
+        df[c_field_name] = self.c_list
+        return df
+
+    def toCSV(self, csv_fn, x_field_name=None, y_field_name=None, c_field_name=None):
+        self.toDF(x_field_name, y_field_name, c_field_name).to_csv(csv_fn, index=False)
+
+    def __len__(self):
+        return len(self.c_list)
+
+    def sampling(self, raster_fn, spl_type="fast", x_field_name=None, y_field_name=None, c_field_name=None):
+        if spl_type == "fast":
+            gs = GDALSamplingFast(raster_fn)
+        elif spl_type == "iter":
+            gs = GDALSampling(raster_fn)
+        elif spl_type == "npy":
+            gs = GDALSampling()
+            gs.initNPYRaster(raster_fn)
+        else:
+            raise Exception("Can not format sampling type of \"{}\"".format(spl_type))
+        to_df = self.toDF(x_field_name, y_field_name, c_field_name)
+        to_df = gs.samplingDF(to_df)
+        return to_df
+
+
+class SHH2AccTiao(SHH2SamplesManage):
+
+    def __init__(self, *csv_fns):
+        super().__init__()
+        self.addCSVS(*csv_fns)
+        self.cnames = []
+        self.y2_map_dict = {}
+        self.y1_map_dict = {}
+        self.gsic = GDALSamplingImageClassification()
 
     def addGSICDirectory(self, dirname, fns):
         for fn in fns:
@@ -130,7 +171,7 @@ class SHH2AccTiao:
     def addGSICRaster(self, fn, raster_fn):
         self.gsic.add(fn, raster_fn)
 
-    def accuracy(self, gsic_name, y1_map_dict=None, y2_map_dict=None, cnames=None, fc_category=None):
+    def accuracy(self, gsic_name, y1_map_dict=None, y2_map_dict=None, cnames=None, fc_category=None, is_eq_number=True):
         if cnames is None:
             cnames = self.cnames
         if y2_map_dict is None:
@@ -143,7 +184,7 @@ class SHH2AccTiao:
         x_list, y_list = self.x_list, self.y_list
         y2 = gsic.sampling(x_list, y_list)
 
-        cm = accuracyY12(y1, y2, y1_map_dict, y2_map_dict, cnames, fc_category)
+        cm = accuracyY12(y1, y2, y1_map_dict, y2_map_dict, cnames, fc_category,is_eq_number=is_eq_number)
 
         print(cm.fmtCM())
         is_cm = cm.accuracyCategory("IS")
@@ -154,10 +195,10 @@ class SHH2AccTiao:
             "OA": cm.OA(), "Kappa": cm.getKappa(),
         }
 
-    def tacc1(self,fc_category=None):
+    def tacc1(self, fc_category=None):
         to_list = []
         for k in self.gsic.keys():
-            to_list.append(self.accuracy(k,fc_category=fc_category))
+            to_list.append(self.accuracy(k, fc_category=fc_category))
         print(pd.DataFrame(to_list).sort_values("IS_OA", ascending=False))
         return to_list
 

@@ -25,7 +25,6 @@ class ShadowRasterGLCM:
         # "mean", "variance", "homogeneity", "contrast", "dissimilarity", "entropy", "second moment", "correlation"
         self.des = ["mean", "var", "hom", "con", "dis", "ent", "asm", "cor"]
         self.glcm_fn_ext = ["_01", "_10", "_11", "_1_1"]
-        ...
 
     def meanFourDirection(self, glcm_fn, front_str, dirname=None, to_fn=None):
         print(glcm_fn)

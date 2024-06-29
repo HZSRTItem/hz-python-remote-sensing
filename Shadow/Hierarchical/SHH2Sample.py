@@ -8,17 +8,17 @@ r"""----------------------------------------------------------------------------
 @Desc    : PyCodes of SHH2Sample
 -----------------------------------------------------------------------------"""
 import os
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from osgeo import gdal_array
 
 from SRTCodes.GDALRasterIO import GDALRaster
-from SRTCodes.GDALUtils import GDALSampling, GDALSamplingFast
+from SRTCodes.GDALUtils import GDALSampling, GDALSamplingFast, GDALNumpySampling
 from SRTCodes.OGRUtils import sampleSpaceUniform
 from SRTCodes.SRTSample import GEOJsonWriteWGS84
-from SRTCodes.Utils import getRandom, getfilenamewithoutext
+from SRTCodes.Utils import getRandom, getfilenamewithoutext, DirFileName, FN, Jdt
 from Shadow.Hierarchical import SHH2Config
 
 RESOLUTION_ANGLE = 0.000089831529294
@@ -43,15 +43,105 @@ def CD_GS_NPY():
 
 
 def sampling():
-    QD_GS_NPY().csvfile(
-        csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\2\sh2_spl252_4.csv",
-        to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\2\sh2_spl252_4_spl.csv",
-    )
-    # gs = GDALSampling(r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_envi.dat")
-    # gs.csvfile(
-    #     csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\27\sh2_spl27_1.csv",
-    #     to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\27\sh2_spl27_1_spl.csv",
-    # )
+    def qd():
+        GDALSamplingFast(SHH2Config.QD_ENVI_FN).csvfile(
+            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\vhl\sh2_spl25_vhl_2_spl.csv",
+            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\vhl\sh2_spl25_vhl_2_spl2.csv",
+        )
+
+    def bj():
+        GDALSamplingFast(SHH2Config.BJ_ENVI_FN).csvfile(
+            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\27\3\sh2_spl273_5_spl.csv",
+            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\27\3\sh2_spl273_5_spl2.csv",
+        )
+
+    def cd():
+        GDALSamplingFast(SHH2Config.CD_ENVI_FN).csvfile(
+            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\26\2\sh2_spl26_4_spl2.csv",
+            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\26\2\sh2_spl26_4_spl3.csv",
+        )
+
+    bj()
+    cd()
+
+
+class SHH2Sampling:
+
+    def __init__(self, csv_fn):
+        self.csv_fn = None
+        self.dirname1 = r"F:\ProjectSet\Shadow\Hierarchical\Samples\ML"
+        self.dirname2 = r"F:\ProjectSet\Shadow\Hierarchical\Samples\DL"
+
+    def get(self):
+
+        return
+
+    def get2(self, win_rows, win_columns):
+        csv_fn = self.csv_fn
+
+        def getFileName():
+            dfn = DirFileName(self.dirname2)
+            _to_fn = dfn.fn("{}-{}_{}.csv".format(FN(csv_fn).getfilenamewithoutext(), win_rows, win_columns))
+            _to_npy_fn = FN(to_fn).changext("-data.npy")
+            return to_fn, to_npy_fn
+
+        class sample:
+
+            def __init__(self, _line):
+                self.x = _line["X"]
+                self.y = _line["Y"]
+                self.city = None
+
+        to_fn, to_npy_fn = getFileName()
+
+        gr = {"qd": SHH2Config.QD_GR(), "bj": SHH2Config.BJ_GR(), "cd": SHH2Config.CD_GR(), }
+
+        n_channels = gr["qd"].n_channels
+
+        df = pd.read_csv(csv_fn)
+        samples = []
+        numbers = {"qd": 0, "bj": 0, "cd": 0}
+        data = np.zeros((len(df), n_channels, win_rows, win_columns))
+        data_shape = data[0].shape
+
+        jdt = Jdt(len(df), "SHH2Sampling Sampling").start()
+        for i in range(len(df)):
+            line = df.loc[i]
+            spl = sample(line)
+            for k in gr:
+                if gr[k].isGeoIn(spl.x, spl.y):
+                    spl.city = k
+                    break
+            if spl.city is None:
+                warnings.warn("{}, {} not in raster.".format(spl.x, spl.y))
+                jdt.add()
+            else:
+                numbers[spl.city] += 1
+            samples.append(spl)
+        print(numbers)
+        for k in numbers:
+            if numbers[k] != 0:
+                gr[k].readAsArray()
+                # gr[k].d = np.zeros((3, gr[k].n_rows, gr[k].n_columns))
+                gns = GDALNumpySampling(win_rows, win_columns, gr[k])
+                for i, spl in enumerate(samples):
+                    data_i = gns.getxy(spl.x, spl.y)
+                    if data_shape == data_i.shape:
+                        data[i] = gns.getxy(spl.x, spl.y)
+                    else:
+                        spl.city = None
+                        warnings.warn("{}, {} not in raster.".format(spl.x, spl.y))
+                    jdt.add()
+                gns.data = None
+                gr[k].d = None
+
+        jdt.end()
+        df["city"] = [str(spl.city) for spl in samples]
+        df.to_csv(to_fn, index=False)
+        print(to_fn)
+        np.save(to_npy_fn, data.astype("float16"))
+
+        return
 
 
 def samplingTest():
@@ -70,7 +160,39 @@ def randomSamples(n, x0, x1, y0, y1):
     }
 
 
+def samplingImdc(df, dirname, fns=None):
+    if fns is None:
+        fns = ['OPT', 'OPT+AS', 'OPT+DE', 'OPT+AS+DE', 'OPT+GLCM', 'OPT+BS', 'OPT+C2', 'OPT+HA', 'OPT+SARGLCM']
+    images = {fn: os.path.join(dirname, fn + "_imdc.tif") for fn in fns}
+    gss = {fn: GDALSampling(os.path.join(dirname, fn + "_imdc.tif")) for fn in fns}
+    for fn in images:
+        gs = gss[fn]
+        categorys = gs.sampling(df["X"].tolist(), df["Y"].tolist())
+        for name in categorys:
+            df[fn] = categorys[name]
+            break
+    return fns
+
+
 def main():
+    dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Samples\29")
+    raster_fn = r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240626H135521\Three_epoch88_imdc1.tif"
+    csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\vhl\sh2_spl25_vhl_2_spl.csv"
+    to_fn = dfn.fn("sh2_spl29_qd1.csv")
+    df = pd.read_csv(csv_fn)
+    df = GDALSampling(raster_fn).samplingDF(df)
+
+    map_dict = {}
+    for i in range(len(df)):
+        line = df.loc[i]
+        data1 = df["FEATURE_1"]
+
+    df.to_csv(to_fn, index=False)
+
+    return
+
+
+def method_name1():
     def func1():
         df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\27\2\sh2_spl27_1.csv")
         coors2, out_index_list = sampleSpaceUniform(df[["X", "Y"]].values.tolist(), x_len=1200, y_len=1200,
@@ -96,15 +218,8 @@ def main():
         to_csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\27\2\sh2_spl271_2.csv"
         dirname = r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240609H091804"
 
-        fns = ['OPT', 'OPT+AS', 'OPT+DE', 'OPT+AS+DE', 'OPT+GLCM', 'OPT+BS', 'OPT+C2', 'OPT+HA', 'OPT+SARGLCM']
-        images = {fn: os.path.join(dirname, fn + "_imdc.tif") for fn in fns}
-        gss = {fn: GDALSampling(os.path.join(dirname, fn + "_imdc.tif")) for fn in fns}
-        for fn in images:
-            gs = gss[fn]
-            categorys = gs.sampling(df["X"].tolist(), df["Y"].tolist())
-            for name in categorys:
-                df[fn] = categorys[name]
-                break
+        fns = samplingImdc(df, dirname)
+
         print(df.keys())
         data = df[fns].values
         category = []
@@ -114,6 +229,7 @@ def main():
             else:
                 category.append(0)
         df["CATEGORY"] = category
+
         df.to_csv(to_csv_fn, index=False)
         BJ_GS_NPY().csvfile(csv_fn=to_csv_fn, to_csv_fn=to_csv_fn, )
         print(df)
@@ -200,9 +316,7 @@ def main():
         pd.DataFrame(to_dict).to_csv(
             r"F:\ProjectSet\Shadow\Hierarchical\Samples\26\is_soil_test\sh2_spl26_ist_grids1.csv")
 
-
     func1()
-    return
 
 
 if __name__ == "__main__":

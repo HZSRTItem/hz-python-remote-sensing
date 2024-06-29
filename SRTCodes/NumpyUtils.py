@@ -469,6 +469,8 @@ class NumpyDataCenter:
                 self.spl_size = x.shape
             elif self.dim == 3:
                 self.spl_size = x.shape[1:]
+            elif self.dim == 4:
+                self.spl_size = x.shape[2:]
             self.initSampleSize(self.spl_size)
             self.initRange()
 
@@ -476,6 +478,8 @@ class NumpyDataCenter:
             out_x = x[self.range[0]:self.range[1], self.range[2]:self.range[3]]
         elif self.dim == 3:
             out_x = x[:, self.range[0]:self.range[1], self.range[2]:self.range[3]]
+        elif self.dim == 4:
+            out_x = x[:, :, self.range[0]:self.range[1], self.range[2]:self.range[3]]
         else:
             return x
 
@@ -632,6 +636,55 @@ class TensorSelectNames:
         if len(names) == 0:
             names = list(self.tsns.keys())
         return sum(list(self.tsns[name].length() for name in names))
+
+
+def eig(a, b, c, d, is_01=False):
+    k1 = np.sqrt(0.25 * a ** 2 - 0.5 * a * d + b ** 2 + c ** 2 + 0.25 * d ** 2)
+    k2 = (a + d) / 2.0
+    e1 = k2 + k1
+    e2 = k2 - k1
+    k3 = b - c * 1j
+    v11 = (e1 - d) / k3
+    v21 = (e2 - d) / k3
+    if is_01:
+        v11 = v11 / np.sqrt(1 + v11 ** 2)
+        v21 = v21 / np.sqrt(1 + v21 ** 2)
+    return e1, e2, v11, v21
+
+
+def eig2(a11, a12, a21, a22):
+    k1 = np.sqrt((a11 - a22) ** 2 + 4 * a12 * a21)
+    e1 = ((a11 + a22) - k1) / 2
+    e2 = ((a11 + a22) + k1) / 2
+    d1 = np.abs(a21) ** 2
+    d2 = np.abs((e1 - a11)) ** 2
+    norm1 = np.sqrt(d1 + d2)
+    d2 = np.abs((e2 - a11)) ** 2
+    norm2 = np.sqrt(d1 + d2)
+    v11 = a12 / norm1
+    v21 = (e1 - a11) / norm1
+    v12 = a12 / norm2
+    v22 = (e2 - a11) / norm2
+    return e1, e2, v11, v12, v21, v22
+
+
+def update10EDivide10(_data):
+    return np.power(10, _data / 10)
+
+
+class NumpySampling:
+
+    def __init__(self, win_row, win_column):
+        self.win_spl = [0, 0, 0, 0]
+        self.win_spl[0] = 0 - int(win_row / 2)
+        self.win_spl[1] = 0 + round(win_row / 2 + 0.1)
+        self.win_spl[2] = 0 - int(win_column / 2)
+        self.win_spl[3] = 0 + round(win_column / 2 + 0.1)
+        self.data = None
+
+    def get(self, row, column):
+        return self.data[:, row + self.win_spl[0]: row + self.win_spl[1],
+               column + self.win_spl[2]: column + self.win_spl[3]]
 
 
 def main():

@@ -12,7 +12,7 @@ from shutil import copyfile
 
 import joblib
 
-from SRTCodes.Utils import TimeName, SRTLog, SRTWriteText, DirFileName
+from SRTCodes.Utils import TimeName, SRTLog, SRTWriteText, DirFileName, saveJson, FRW
 
 
 class TimeDirectory:
@@ -36,6 +36,7 @@ class TimeDirectory:
     def saveDF(self, name, df, *args, **kwargs):
         to_fn = self.time_dfn.fn(name)
         df.to_csv(to_fn, *args, **kwargs)
+        return to_fn
 
     def saveSklearnModel(self, name, model):
         to_fn = self.time_dfn.fn(name)
@@ -52,6 +53,12 @@ class TimeDirectory:
         return self._log.wl(line, end=end, is_print=is_print)
 
     def kw(self, key, value, sep=": ", end="\n", is_print=None):
+        _key = key
+        n = 0
+        while _key in self.save_dict:
+            n += 1
+            _key = "{}_{}".format(_key, n)
+        self.save_dict[_key] = value
         return self._log.kw(key, value, sep=sep, end=end, is_print=is_print)
 
     def buildWriteText(self, name, mode="w"):
@@ -73,6 +80,13 @@ class TimeDirectory:
             if is_mkdir:
                 os.mkdir(dirname)
         return dirname
+
+    def saveJson(self, name, to_dict):
+        saveJson(to_dict, self.fn(name), )
+
+    def saveToJson(self, name):
+        to_fn = self.time_dfn.fn(name)
+        FRW(to_fn).saveJson(self.save_dict)
 
 
 def main():
