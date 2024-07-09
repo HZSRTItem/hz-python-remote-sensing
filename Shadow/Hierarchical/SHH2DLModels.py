@@ -314,7 +314,6 @@ class SHH2MOD_SpectralTextureDouble(SHH2DLModelInit):
 
     def forward(self, x):
         x_coll = self.xforward(x)
-
         x1 = self.spectral(x_coll[0])
 
         if self.is_texture:
@@ -324,10 +323,7 @@ class SHH2MOD_SpectralTextureDouble(SHH2DLModelInit):
             x4 = self.texture_c2(x_coll[3])
             x5 = self.texture_ha(x_coll[4])
 
-            x = torch.cat([
-                x1,
-                x2, x3, x4, x5
-            ], dim=1)
+            x = torch.cat([x1, x2, x3, x4, x5], dim=1)
         else:
             x = x1
 

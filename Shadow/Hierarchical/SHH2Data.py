@@ -20,7 +20,7 @@ from Shadow.ShadowRaster import ShadowRasterGLCM
 
 
 def main():
-    method_name2()
+    method_name5()
     return
 
 
@@ -57,7 +57,7 @@ def method_name5():
         # "BeiJing": SHH2Config.BJ_GR(),
         # "ChengDu": SHH2Config.CD_GR(),
 
-        "QingDao": GDALRaster(SHH2Config.QD_LOOK_FN),
+        # "QingDao": GDALRaster(SHH2Config.QD_LOOK_FN),
         "BeiJing": GDALRaster(SHH2Config.BJ_LOOK_FN),
         "ChengDu": GDALRaster(SHH2Config.CD_LOOK_FN),
     }

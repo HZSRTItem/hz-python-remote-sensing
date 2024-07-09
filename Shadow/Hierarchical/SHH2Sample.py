@@ -18,8 +18,9 @@ from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import GDALSampling, GDALSamplingFast, GDALNumpySampling
 from SRTCodes.OGRUtils import sampleSpaceUniform
 from SRTCodes.SRTSample import GEOJsonWriteWGS84
-from SRTCodes.Utils import getRandom, getfilenamewithoutext, DirFileName, FN, Jdt
+from SRTCodes.Utils import getRandom, getfilenamewithoutext, DirFileName, FN, Jdt, saveJson
 from Shadow.Hierarchical import SHH2Config
+from Shadow.ShadowUtils import readQJYTxt
 
 RESOLUTION_ANGLE = 0.000089831529294
 
@@ -45,23 +46,24 @@ def CD_GS_NPY():
 def sampling():
     def qd():
         GDALSamplingFast(SHH2Config.QD_ENVI_FN).csvfile(
-            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\vhl\sh2_spl25_vhl_2_spl.csv",
-            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\vhl\sh2_spl25_vhl_2_spl2.csv",
+            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\cd\sh2_spl30_cd2_random6000.csv",
+            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\cd\sh2_spl30_cd2_random6000_spl.csv",
         )
 
     def bj():
         GDALSamplingFast(SHH2Config.BJ_ENVI_FN).csvfile(
             csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\27\3\sh2_spl273_5_spl.csv",
-            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\27\3\sh2_spl273_5_spl2.csv",
+            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\bj\sh2_spl30_bj1.csv",
         )
 
     def cd():
         GDALSamplingFast(SHH2Config.CD_ENVI_FN).csvfile(
-            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\26\2\sh2_spl26_4_spl2.csv",
-            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\26\2\sh2_spl26_4_spl3.csv",
+            csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\cd\sh2_spl30_cd6.csv",
+            to_csv_fn=r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\cd\sh2_spl30_cd6_spl.csv",
         )
 
-    bj()
+    # qd()
+    # bj()
     cd()
 
 
@@ -142,6 +144,60 @@ class SHH2Sampling:
         np.save(to_npy_fn, data.astype("float16"))
 
         return
+
+
+def samplingCSVData(csv_fn, to_fn, to_npy_fn,names_fn, win_rows, win_columns):
+    gr = {"qd": SHH2Config.QD_GR(), "bj": SHH2Config.BJ_GR(), "cd": SHH2Config.CD_GR(), }
+    n_channels = gr["qd"].n_channels
+    df = pd.read_csv(csv_fn)
+    samples = []
+    numbers = {"qd": 0, "bj": 0, "cd": 0}
+    data = np.zeros((len(df), n_channels, win_rows, win_columns), dtype="float32")
+    data_shape = data[0].shape
+
+    class sample:
+
+        def __init__(self, _line):
+            self.x = _line["X"]
+            self.y = _line["Y"]
+            self.city = None
+
+    jdt = Jdt(len(df), "SHH2DL Sampling").start()
+    for i in range(len(df)):
+        line = df.loc[i]
+        spl = sample(line)
+        for k in gr:
+            if gr[k].isGeoIn(spl.x, spl.y):
+                spl.city = k
+                break
+        if spl.city is None:
+            warnings.warn("{}, {} not in raster.".format(spl.x, spl.y))
+            jdt.add()
+        else:
+            numbers[spl.city] += 1
+        samples.append(spl)
+    for k in numbers:
+        if numbers[k] != 0:
+            gr[k].readAsArray()
+            gns = GDALNumpySampling(win_rows, win_columns, gr[k])
+            for i, spl in enumerate(samples):
+                data_i = gns.getxy(spl.x, spl.y)
+                if data_shape == data_i.shape:
+                    data[i] = gns.getxy(spl.x, spl.y)
+                else:
+                    spl.city = None
+                    warnings.warn("{}, {} not in raster.".format(spl.x, spl.y))
+                jdt.add()
+            gns.data = None
+            gr[k].d = None
+    jdt.end()
+    df["city"] = [str(spl.city) for spl in samples]
+    df.to_csv(to_fn, index=False)
+    print(to_fn)
+    np.save(to_npy_fn, data)
+
+    saveJson(gr["qd"].names, names_fn)
+    return gr["qd"].names
 
 
 def samplingTest():
@@ -321,3 +377,89 @@ def method_name1():
 
 if __name__ == "__main__":
     sampling()
+
+
+class SHH2SamplesManage:
+
+    def __init__(self):
+        self.spl_fns = []
+        self.df = None
+        self.x_list = []
+        self.y_list = []
+        self.c_list = []
+        self.x_field_name = "X"
+        self.y_field_name = "Y"
+        self.c_field_name = "CNAME"
+
+    def addDF(self, df, fun_df=None, field_datas=None):
+        if field_datas is None:
+            field_datas = {}
+        df = df.copy()
+        for k in field_datas:
+            df[k] = [field_datas[k] for _ in range(len(df))]
+        if fun_df is not None:
+            df = fun_df(df)
+        if self.df is None:
+            self.df = df
+        else:
+            df_temp = self.df.to_dict("records")
+            df_temp.extend(df.to_dict("records"))
+            self.df = pd.DataFrame(df_temp)
+
+        self.x_list.extend(df[self.x_field_name].tolist())
+        self.y_list.extend(df[self.y_field_name].tolist())
+        self.c_list.extend(df[self.c_field_name].tolist())
+
+        return df
+
+    def addCSVS(self, *csv_fns, fun_df=None, field_datas=None):
+        for csv_fn in csv_fns:
+            df = pd.read_csv(csv_fn)
+            self.addDF(df, fun_df=fun_df, field_datas=field_datas)
+            self.spl_fns.append(csv_fn)
+
+    def addQJY(self, txt_fn, fun_df=None, field_datas=None):
+        df_dict = readQJYTxt(txt_fn)
+        x = df_dict["__X"]
+        y = df_dict["__Y"]
+        c_name = df_dict["__CNAME"]
+        df_dict[self.x_field_name] = x
+        df_dict[self.y_field_name] = y
+        df_dict[self.c_field_name] = c_name
+        df = pd.DataFrame(df_dict)
+        df = self.addDF(df, fun_df=fun_df, field_datas=field_datas)
+        self.spl_fns.append(txt_fn)
+        return df
+
+    def toDF(self, x_field_name=None, y_field_name=None, c_field_name=None) -> pd.DataFrame:
+        if x_field_name is None:
+            x_field_name = self.x_field_name
+        if y_field_name is None:
+            y_field_name = self.y_field_name
+        if c_field_name is None:
+            c_field_name = self.c_field_name
+        df = self.df.copy()
+        df[x_field_name] = self.x_list
+        df[y_field_name] = self.y_list
+        df[c_field_name] = self.c_list
+        return df
+
+    def toCSV(self, csv_fn, x_field_name=None, y_field_name=None, c_field_name=None):
+        self.toDF(x_field_name, y_field_name, c_field_name).to_csv(csv_fn, index=False)
+
+    def __len__(self):
+        return len(self.c_list)
+
+    def sampling(self, raster_fn, spl_type="fast", x_field_name=None, y_field_name=None, c_field_name=None):
+        if spl_type == "fast":
+            gs = GDALSamplingFast(raster_fn)
+        elif spl_type == "iter":
+            gs = GDALSampling(raster_fn)
+        elif spl_type == "npy":
+            gs = GDALSampling()
+            gs.initNPYRaster(raster_fn)
+        else:
+            raise Exception("Can not format sampling type of \"{}\"".format(spl_type))
+        to_df = self.toDF(x_field_name, y_field_name, c_field_name)
+        to_df = gs.samplingDF(to_df)
+        return to_df

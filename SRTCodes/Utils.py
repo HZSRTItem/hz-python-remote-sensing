@@ -340,12 +340,17 @@ class Jdt:
         self.n_print = 0
         self.is_run = False
 
+        self.current_time = time.time()
+        self.init_time = time.time()
+
     def start(self, is_jdt=True):
         """ 开始进度条 """
         if not is_jdt:
             return self
         self.is_run = True
         self._print()
+        self.current_time = time.time()
+        self.init_time = time.time()
         return self
 
     def add(self, n=1, is_jdt=True):
@@ -358,6 +363,7 @@ class Jdt:
             return
         if self.is_run:
             self.n_current += n
+            self.current_time = time.time()
             if self.n_current > self.n_print * self.n_split:
                 self.n_print += 1
                 if self.n_print > self.n_cols:
@@ -368,10 +374,38 @@ class Jdt:
         """ 添加打印信息 """
         self.desc = desc
 
+    def fmttime(self):
+        d_time = (self.current_time - self.init_time) / (self.n_current + 0.000001)
+
+        def timestr(_time):
+
+            tian = int(_time // (60 * 60 * 24))
+            _time = _time % (60 * 60 * 24)
+            shi = int(_time // (60 * 60))
+            _time = _time % (60 * 60)
+            fen = int(_time // 60)
+            miao = int(_time % 60)
+
+            if tian >= 1:
+                return "{}D {:02d}:{:02d}:{:02d}".format(tian, shi, fen, miao)
+            if shi >= 1:
+                return "{:02d}:{:02d}:{:02d}".format(shi, fen, miao)
+            return "{:02d}:{:02d}".format(fen, miao)
+
+        n = 1 / (d_time + 0.000001)
+        n_str = "{:.1f}".format(n)
+        if len(n_str) >= 6:
+            n_str = ">1000".format(n)
+
+        fmt = "[{}<{}, {}it/s]            ".format(timestr(
+            self.current_time - self.init_time), timestr(d_time * self.total), n_str)
+        return fmt
+
     def _print(self):
         des_info = "\r{0}: {1:>3d}% |".format(self.desc, int(self.n_current / self.total * 100))
         des_info += "*" * self.n_print + "-" * (self.n_cols - self.n_print)
         des_info += "| {0}/{1}".format(self.n_current, self.total)
+        des_info += " {}".format(self.fmttime())
         print(des_info, end="")
 
     def end(self, is_jdt=True):
@@ -1057,17 +1091,24 @@ class NONE_CLASS:
 
 class SRTWriteText:
 
-    def __init__(self, text_fn, mode="w"):
+    def __init__(self, text_fn, mode="w", is_show=False):
         self.text_fn = text_fn
+        self.is_show=is_show
         if self.text_fn is None:
             return
         if mode == "w":
             with open(self.text_fn, "w", encoding="utf-8") as f:
                 f.write("")
 
-    def write(self, *text, sep=" ", end="\n"):
+    def write(self, *text, sep=" ", end="\n", is_show=None):
         with open(self.text_fn, "a", encoding="utf-8") as f:
             print(*text, sep=sep, end=end, file=f)
+            if is_show is None:
+                if self.is_show:
+                    print(*text, sep=sep, end=end)
+            else:
+                if is_show:
+                    print(*text, sep=sep, end=end)
 
 
 class SRTDFColumnCal(SRTDataFrame):
@@ -1192,22 +1233,6 @@ class SRTLog:
         return value
 
 
-def main():
-    # dir_QDS2RGBN_gee_2_deal = DirFileName(r"G:\ImageData\QingDao\20211023\qd20211023\QDS2RGBN_gee_2_deal")
-    # print(dir_QDS2RGBN_gee_2_deal.fn("sdafsd", "sfsad", "dsfasd"))
-    #
-    # df = pd.read_csv(r"F:\Week\20231112\Temp\tmp1.csv")
-    # printListTable(df.values.tolist(), precision=2, rcl=">")
-
-    # sdf = SRTDataFrame().read_csv(r"F:\ProjectSet\Shadow\Analysis\11\qd\QJY_1\qd_qjy_1-back.csv", is_auto_type=True)
-
-    fn = numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Images\temp\tmp.txt")
-    with open(fn, "w", encoding="utf-8") as f:
-        f.write(fn)
-
-    pass
-
-
 class CheckLoc:
 
     def __init__(self, n_row=None, n_column=None, not_rows=None, not_columns=None, ):
@@ -1314,6 +1339,422 @@ class FRW:
 
     def writeLines(self, *lines, mode="w", sep="\n"):
         return writeLines(self.filename, *lines, mode=mode, sep=sep)
+
+
+class RunList:
+
+    def __init__(self):
+        self.sw = None
+        self.run_dict = None
+        self.n_run = None
+        self.run_list = []
+        self.dfn = None
+        self.run_func = None
+        self.name = None
+        self.cmd_line = None
+
+    def add(self, run_dict=None, run=False, *args, **kwargs):
+        if run_dict is None:
+            run_dict = {}
+        self.run_list.append({"run": run, **run_dict, "args": list(args), **kwargs})
+        return self.run_list[-1]
+
+    def fit(self, name, dirname, cmd_line=None, is_run=True, run_func=None):
+        self.name = name
+        self.cmd_line = cmd_line
+        if not os.path.isdir(dirname):
+            os.mkdir(dirname)
+        dirname = os.path.join(dirname, name)
+        if not os.path.isdir(dirname):
+            os.mkdir(dirname)
+        print("** RunList Dirname:", dirname)
+        self.dfn = DirFileName(dirname)
+        json_fn = self.dfn.fn("{}.json".format(name))
+        if os.path.isfile(json_fn):
+            self.run_list = readJson(json_fn)
+        else:
+            saveJson(self.run_list, json_fn)
+            runlist_fn = self.dfn.fn("{}_cmd.bat".format(name))
+            writeTexts(runlist_fn, "", mode="w")
+            if cmd_line is not None:
+                for _ in range(len(self.run_list)):
+                    writeTexts(runlist_fn, cmd_line, mode="a", end="\n")
+
+        if not is_run:
+            return
+
+        if run_func is None:
+            warnings.warn("Run function is None.")
+            return
+
+        to_json_fn = changext(json_fn, "_run.json")
+        if not os.path.isfile(to_json_fn):
+            shutil.copyfile(json_fn, to_json_fn)
+        self.run_list = readJson(to_json_fn)
+
+        n_run = -1
+        run_dict = {}
+        for i in range(len(self.run_list)):
+            if not self.run_list[i]["run"]:
+                n_run = i
+                run_dict = self.run_list[i]
+                break
+
+        if n_run == -1:
+            print("#", "-" * 10, "End Run", n_run + 1, "-" * 10, "#")
+            return
+
+        print("#", "-" * 10, "Run", n_run + 1, "->", len(self.run_list), "-" * 10, "#")
+        self.n_run = n_run
+        self.run_dict = run_dict
+        self.sw = SRTWriteText(self.dfn.fn("{}_save.txt".format(self.name)), mode="a")
+
+        run_func(self)
+
+        self.run_list[n_run]["run"] = True
+        saveJson(self.run_list, to_json_fn)
+
+    def show(self, i=-1):
+        def _show():
+            line = "[{}]".format(i + 1)
+            print(line)
+            for k in run_dict:
+                print(" " * len(line), "*", k, ":", run_dict[k])
+
+        if i == -1:
+            for i, run_dict in enumerate(self.run_list):
+                _show()
+        else:
+            run_dict = self.run_dict
+            _show()
+
+    def saveJsonData(self, name, data):
+        saveJson(data, self.dfn.fn(name))
+        return data
+
+    def readJsonData(self, name):
+        return readJson(self.dfn.fn(name))
+
+
+class _FieldRecord:
+
+    def __init__(self, name, n=0):
+        self.name = name
+        self.data = [None for _ in range(n)]
+        self.fmt = "{}"
+
+    def __getitem__(self, item):
+        return self.data[item]
+
+    def __setitem__(self, key, value):
+        self.data[key] = value
+
+    def __len__(self):
+        return len(self.data)
+
+    def toString(self, n, fmt=None):
+        if fmt is None:
+            fmt = "{}"
+        return fmt.format(self.data[n])
+
+    def add(self, data=None):
+        self.data.append(data)
+        return data
+
+
+class FieldRecords:
+
+    def __init__(self, *names, n=0):
+        self._data_dict = {}
+        self._name_n = []
+        self.line = {}
+        self._length = n
+
+        self.addFields(*names)
+
+        self.func_line_update = None
+
+    def __getitem__(self, item) -> _FieldRecord:
+        return self._data_dict[item]
+
+    def addFields(self, *names):
+        names = datasCaiFen(names)
+        for name in names:
+            self._data_dict[name] = _FieldRecord(name, self._length)
+            self._name_n.append(name)
+            self.line[name] = None
+        return names
+
+    def __setitem__(self, key, value):
+        if len(key) == 1:
+            self._data_dict[key][-1] = value
+        else:
+            self._data_dict[key[0]][key[1]] = value
+
+    def add(self, *data, dt=None, **kwargs):
+        for i, d in enumerate(data):
+            self.line[self._name_n[i]] = d
+        if dt is not None:
+            for k in dt:
+                if k in self.line:
+                    self.line[k] = dt[k]
+        for k in kwargs:
+            if k in self.line:
+                self.line[k] = kwargs[k]
+        return self.addLine()
+
+    def addLine(self, is_none=False):
+        for k in self._data_dict:
+            if is_none:
+                self._data_dict[k].add()
+            else:
+                self._data_dict[k].add(self.line[k])
+        if self.func_line_update is not None:
+            self.func_line_update(self.line)
+        return self.line
+
+    def clearLine(self):
+        for k in self.line:
+            self.line[k] = None
+
+
+class TimeRunning:
+
+    def __init__(self, total):
+        self.n = 0
+        self.total = total
+        self.init_time = time.time()
+        self.fmt = ""
+
+    def start(self):
+        self.init_time = time.time()
+        return self
+
+    def show(self, is_new_line=False):
+        fmt = self.fmt
+        if is_new_line:
+            print("\r", end="")
+        else:
+            print("\r{}".format(fmt), end="")
+        return fmt
+
+    def clearShow(self):
+        print("\r", end="")
+
+    def add(self, is_show=True, is_new_line=False):
+        time_tmp = time.time()
+        self.n += 1
+        d_time = (time_tmp - self.init_time) / (self.n + 0.000001)
+
+        def timestr(_time):
+
+            tian = int(_time // (60 * 60 * 24))
+            _time = _time % (60 * 60 * 24)
+            shi = int(_time // (60 * 60))
+            _time = _time % (60 * 60)
+            fen = int(_time // 60)
+            miao = int(_time % 60)
+
+            if tian >= 1:
+                return "{}D {:02d}:{:02d}:{:02d}".format(tian, shi, fen, miao)
+            if shi >= 1:
+                return "{:02d}:{:02d}:{:02d}".format(shi, fen, miao)
+            return "{:02d}:{:02d}".format(fen, miao)
+
+        n = 1 / (d_time + 0.000001)
+        n_str = "{:.1f}".format(n)
+        if len(n_str) >= 6:
+            n_str = ">1000".format(n)
+        fmt = "[{}<{}, {}it/s]".format(timestr(time_tmp - self.init_time), timestr(d_time * self.total), n_str)
+        self.fmt = fmt
+        if is_show:
+            self.show(is_new_line=is_new_line)
+        return fmt
+
+
+class TimeDeltaRecord:
+
+    def __init__(self, filename):
+        self.sw = SRTWriteText(filename, "a")
+        self.sw.write("TimeDeltaRecord")
+        self.times = {}
+        self.n = 0
+        self.delta_times = []
+        self.n_save = 1
+
+    def update(self, name):
+        self.times[name] = time.time()
+
+    def add(self, n_save=10):
+        keys = list(self.times.keys())
+        for i in range(len(keys) - 1):
+            d_time = self.times[keys[i + 1]] - self.times[keys[i]]
+            if i < len(self.delta_times):
+                self.delta_times[i][1] += d_time
+            else:
+                self.delta_times.append(["{}->{}".format(keys[i], keys[i + 1]), d_time])
+        self.n += 1
+        if self.n >= n_save:
+            self.sw.write("{:>2d}.".format(self.n_save), end=" ")
+            for i, (name, d_time) in enumerate(self.delta_times):
+                d_time = d_time / self.n
+                self.sw.write("{}:{:<10.6f}".format(name, d_time), end="  ")
+                self.delta_times[i][1] = 0
+            self.sw.write()
+            self.n_save += 1
+            self.n = 0
+
+
+def main():
+    def func1():
+        dir_QDS2RGBN_gee_2_deal = DirFileName(r"G:\ImageData\QingDao\20211023\qd20211023\QDS2RGBN_gee_2_deal")
+        print(dir_QDS2RGBN_gee_2_deal.fn("sdafsd", "sfsad", "dsfasd"))
+
+        # df = pd.read_csv(r"F:\Week\20231112\Temp\tmp1.csv")
+        # printListTable(df.values.tolist(), precision=2, rcl=">")
+
+        sdf = SRTDataFrame().read_csv(r"F:\ProjectSet\Shadow\Analysis\11\qd\QJY_1\qd_qjy_1-back.csv", is_auto_type=True)
+
+        fn = numberfilename(r"F:\ProjectSet\Shadow\Hierarchical\Images\temp\tmp.txt")
+        with open(fn, "w", encoding="utf-8") as f:
+            f.write(fn)
+
+    def func2():
+        rl = RunList()
+
+        for city_name in ["qd", "bj", "cd"]:
+            for train_type in [
+                {"spectral": "CNN", "texture": False},
+                {"spectral": "Transformer", "texture": False},
+                {"spectral": "CNN", "texture": True},
+                {"spectral": "Transformer", "texture": True},
+            ]:
+                rl.add({"type": "training", "city_name": city_name, "model": train_type})
+                for imdc_mod in [2, 10, 90]:
+                    rl.add({"type": "imdc", "city_name": city_name, "imdc": {"models": imdc_mod}})
+
+        rl.run_list.clear()
+        rl.add({"city_name": "bj", "model": {'spectral': 'CNN', 'texture': False},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H105741", "imdc": 89})
+        rl.add({"city_name": "bj", "model": {'spectral': 'Transformer', 'texture': False},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H110340", "imdc": 89})
+        rl.add({"city_name": "bj", "model": {'spectral': 'CNN', 'texture': True},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H111158", "imdc": 89})
+        rl.add({"city_name": "bj", "model": {'spectral': 'Transformer', 'texture': True},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H114524", "imdc": 89})
+
+        rl.add({"city_name": "cd", "model": {'spectral': 'CNN', 'texture': False},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H122133", "imdc": 89})
+        rl.add({"city_name": "cd", "model": {'spectral': 'Transformer', 'texture': False},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H122728", "imdc": 89})
+        rl.add({"city_name": "cd", "model": {'spectral': 'CNN', 'texture': True},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H123521", "imdc": 89})
+        rl.add({"city_name": "cd", "model": {'spectral': 'Transformer', 'texture': True},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H130543", "imdc": 89})
+
+        rl.add({"city_name": "qd", "model": {'spectral': 'CNN', 'texture': False},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H133802", "imdc": 89})
+        rl.add({"city_name": "qd", "model": {'spectral': 'Transformer', 'texture': False},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H134415", "imdc": 89})
+        rl.add({"city_name": "qd", "model": {'spectral': 'CNN', 'texture': True},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H135241", "imdc": 89})
+        rl.add({"city_name": "qd", "model": {'spectral': 'Transformer', 'texture': True},
+                "dirname": r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H142608", "imdc": 89})
+
+        rl.show()
+
+        model_dirname = r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods"
+        model_name = "VHL_ST"
+
+        class DeepLearning:
+
+            def __init__(self, *args, **kwargs):
+                self.name = "name"
+
+            def main(self, *args, **kwargs):
+                return
+
+            def train(self, *args, **kwargs):
+                print("training", *args)
+                return ""
+
+            def imdc(self, *args, **kwargs):
+                print("imdc", *args)
+                return
+
+        def run_func(_rl: RunList):
+            run_dict = _rl.run_dict
+            if run_dict["type"] == "training":
+                time.sleep(1)
+                current_time = datetime.now()
+                city_name = None
+                if run_dict["city_name"] == "qd":
+                    city_name = "QingDao"
+                elif run_dict["city_name"] == "bj":
+                    city_name = "BeiJing"
+                elif run_dict["city_name"] == "cd":
+                    city_name = "ChengDu"
+
+                dl = DeepLearning(city_name=run_dict["city_name"])
+                dl.main(
+                    model_name="VHL_ST",
+                    build_model_dict=run_dict,
+                    class_names=("NOT_KNOW", "IS", "VEG", "SOIL", "WAT"),
+                    win_size=(21, 21),
+                    model_dirname=model_dirname,
+                    epochs=100,
+                )
+                to_dirname = dl.train(run_dict)
+
+                sw = SRTWriteText(_rl.dfn.fn("{}_save.txt".format(_rl.name)), mode="a")
+
+                sw.write("{}\n{} DL VHL4 {} {}\n".format(
+                    current_time.strftime("%Y年%m月%d日%H:%M:%S"), city_name,
+                    run_dict["model"], to_dirname
+                ))
+
+                _rl.saveJsonData("build_model_dict", run_dict)
+                _rl.saveJsonData("to_dirname", to_dirname)
+
+            elif run_dict["type"] == "imdc":
+
+                build_model_dict = _rl.readJsonData("build_model_dict")
+                to_dirname = _rl.readJsonData("to_dirname")
+
+                dl = DeepLearning(city_name=run_dict["city_name"])
+                dl.main(
+                    model_name=model_name,
+                    build_model_dict=build_model_dict,
+                    class_names=("NOT_KNOW", "IS", "VEG", "SOIL", "WAT"),
+                    win_size=(21, 21),
+                    model_dirname=model_dirname,
+                    epochs=100,
+                )
+                mod_fn = os.path.join(to_dirname, "{}_epoch{}.pth".format(model_name, run_dict["imdc"]["models"]))
+                print("Imdc: ", mod_fn)
+                dl.imdc(mod_fn, run_dict)
+
+        rl.fit(
+            name="Test1",
+            dirname=r"F:\ProjectSet\Shadow\Hierarchical\Run\Temp",
+            cmd_line=r'''python -c "import sys; sys.path.append(r'F:\PyCodes'); from SRTCodes.Utils import main; main()" %* ''',
+            is_run=True,
+            run_func=run_func,
+        )
+
+    def func3():
+        jdt = Jdt(120, "Test").start()
+        for i in range(120):
+            time.sleep(0.1)
+            jdt.add()
+        jdt.end()
+
+    def func4():
+        fr = FieldRecords()
+        fr[1:2, 3] = 6
+
+    func4()
+    return
 
 
 if __name__ == "__main__":

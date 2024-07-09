@@ -22,6 +22,43 @@ def columnLoc(row, column, max_column):
     return [row, column]
 
 
+def getGDI(win_size, is_min_max=True, is_01=True, fontdict=None):
+    gdi = GDALDrawImages(win_size=win_size, is_min_max=is_min_max, is_01=is_01, fontdict=fontdict)
+    qd_name = gdi.addGeoRange(SHH2Config.QD_ENVI_FN, SHH2Config.QD_RANGE_FN)
+    bj_name = gdi.addGeoRange(SHH2Config.BJ_ENVI_FN, SHH2Config.BJ_RANGE_FN)
+    cd_name = gdi.addGeoRange(SHH2Config.CD_ENVI_FN, SHH2Config.CD_RANGE_FN)
+    gdi.addCategoryColor("color", {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)})
+
+    gdi.addRasterCenterCollection("RGB", bj_name, cd_name, qd_name, channel_list=["Red", "Green", "Blue"])
+    gdi.addRasterCenterCollection("NRG", bj_name, cd_name, qd_name, channel_list=["NIR", "Red", "Green"])
+    gdi.addRasterCenterCollection("NDVI", bj_name, cd_name, qd_name, channel_list=["NDVI"])
+    gdi.addRasterCenterCollection("NDWI", bj_name, cd_name, qd_name, channel_list=["NDWI"])
+
+    gdi.addRasterCenterCollection("AS_VV", bj_name, cd_name, qd_name, channel_list=["AS_VV"])
+    gdi.addRasterCenterCollection("AS_VH", bj_name, cd_name, qd_name, channel_list=["AS_VH"])
+    gdi.addRasterCenterCollection("DE_VV", bj_name, cd_name, qd_name, channel_list=["DE_VV"])
+    gdi.addRasterCenterCollection("DE_VH", bj_name, cd_name, qd_name, channel_list=["DE_VH"])
+
+    gdi.addRasterCenterCollection("AS_C11", bj_name, cd_name, qd_name, channel_list=["AS_C11"])
+    gdi.addRasterCenterCollection("AS_C22", bj_name, cd_name, qd_name, channel_list=["AS_C22"])
+    gdi.addRasterCenterCollection("DE_C11", bj_name, cd_name, qd_name, channel_list=["DE_C11"])
+    gdi.addRasterCenterCollection("DE_C22", bj_name, cd_name, qd_name, channel_list=["DE_C22"])
+
+    gdi.addRasterCenterCollection("AS_Lambda1", bj_name, cd_name, qd_name, channel_list=["AS_Lambda1"])
+    gdi.addRasterCenterCollection("AS_Lambda2", bj_name, cd_name, qd_name, channel_list=["AS_Lambda2"])
+    gdi.addRasterCenterCollection("DE_Lambda1", bj_name, cd_name, qd_name, channel_list=["DE_Lambda1"])
+    gdi.addRasterCenterCollection("DE_Lambda2", bj_name, cd_name, qd_name, channel_list=["DE_Lambda2"])
+
+    gdi.addRasterCenterCollection("AS_Epsilon", bj_name, cd_name, qd_name, channel_list=["AS_Epsilon"])
+    gdi.addRasterCenterCollection("DE_Epsilon", bj_name, cd_name, qd_name, channel_list=["DE_Epsilon"])
+    gdi.addRasterCenterCollection("AS_Mu", bj_name, cd_name, qd_name, channel_list=["AS_Mu"])
+    gdi.addRasterCenterCollection("DE_Mu", bj_name, cd_name, qd_name, channel_list=["DE_Mu"])
+    gdi.addRasterCenterCollection("AS_Beta", bj_name, cd_name, qd_name, channel_list=["AS_Beta"])
+    gdi.addRasterCenterCollection("DE_Beta", bj_name, cd_name, qd_name, channel_list=["DE_Beta"])
+
+    return gdi
+
+
 class SHH2DrawTR:
 
     def __init__(self, city_name):
@@ -32,15 +69,7 @@ class SHH2DrawTR:
         self.imdcs = {}
 
     def initGDI(self, win_size=None, is_min_max=True, is_01=True, fontdict=None):
-        gdi = GDALDrawImages(win_size=win_size, is_min_max=is_min_max, is_01=is_01, fontdict=fontdict)
-
-        qd_name = gdi.addGeoRange(SHH2Config.QD_ENVI_FN, SHH2Config.QD_RANGE_FN)
-        bj_name = gdi.addGeoRange(SHH2Config.BJ_ENVI_FN, SHH2Config.BJ_RANGE_FN)
-        cd_name = gdi.addGeoRange(SHH2Config.CD_ENVI_FN, SHH2Config.CD_RANGE_FN)
-
-        gdi.addCategoryColor("color", {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)})
-        gdi.addRasterCenterCollection("RGB", bj_name, cd_name, qd_name, channel_list=["Red", "Green", "Blue"])
-        gdi.addRasterCenterCollection("NRG", bj_name, cd_name, qd_name, channel_list=["NIR", "Red", "Green"])
+        gdi = getGDI(win_size, is_01, is_min_max, fontdict)
         self.gdi = gdi
         return gdi
 
@@ -111,7 +140,33 @@ class SHH2DrawTR:
 
 
 def main():
-    pass
+    def func1():
+        gdi = getGDI((200, 200))
+        row_names = []
+        column_names = ["NRG", "AS_VV", "AS_VH", "DE_VV", "DE_VH"]
+
+        def add_row(name, x, y):
+            gdi.addAxisDataXY(len(row_names), 0, "NRG", x, y, min_list=[0, 0, 0], max_list=[3000, 2000, 2000])
+            gdi.addAxisDataXY(len(row_names), 1, "AS_VV", x, y, min_list=[-23], max_list=[4])
+            gdi.addAxisDataXY(len(row_names), 2, "AS_VH", x, y, min_list=[-30], max_list=[-9])
+            gdi.addAxisDataXY(len(row_names), 3, "DE_VV", x, y, min_list=[-27], max_list=[1])
+            gdi.addAxisDataXY(len(row_names), 4, "DE_VH", x, y, min_list=[-35], max_list=[-8])
+            row_names.append(name)
+
+        add_row("qd(1)    ", 120.10256, 36.29804)
+        add_row("qd(2)    ", 120.28513, 36.33342)
+        add_row("qd(3)    ", 120.399169, 36.125422)
+        add_row("qd(4)    ", 120.471486, 36.139496)
+
+        add_row("bj(4)    ", 116.39246,39.64814)
+
+
+        gdi.draw(n_rows_ex=2, n_columns_ex=2, row_names=row_names, column_names=column_names)
+        plt.show()
+
+    func1()
+
+    return
 
 
 if __name__ == "__main__":

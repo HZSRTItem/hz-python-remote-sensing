@@ -12,9 +12,10 @@ import os
 import time
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 from SRTCodes.SRTCollection import SRTCollection, SRTCollectionDict
-from SRTCodes.Utils import Jdt
+from SRTCodes.Utils import Jdt, SRTWriteText
 
 eps = 0.000001
 
@@ -674,25 +675,142 @@ def dataModelPredict(data, data_deal, is_jdt, model):
     return data_c
 
 
-def dataPredictPatch(image_data, win_size, predict_func, is_jdt=True):
+# def dataPredictPatch(image_data, win_size, predict_func, is_jdt=True, **kwargs):
+#     n_rows_run = 2
+#
+#     imdc = np.zeros(image_data.shape[1:])
+#     win_row, win_column = win_size
+#
+#     image_data_view = sliding_window_view(image_data, (image_data.shape[0], win_row, win_column))
+#     n_rows, n_columns = image_data_view.shape[1], image_data_view.shape[2]
+#     row_start, column_start = int(win_row / 2), int(win_column / 2)
+#
+#     jdt = Jdt(int(image_data_view.shape[1] / n_rows_run), "Raster Predict Patch").start(is_jdt=is_jdt)
+#
+#     sw = SRTWriteText(r"F:\ProjectSet\Shadow\Hierarchical\Temp\time.txt", "a")
+#     sw.write("dataPredictPatch")
+#     time_del = [0, 0, 0]
+#     n_time = 0
+#
+#     for i in range(0, image_data_view.shape[1], n_rows_run):
+#
+#         time0 = time.time()
+#         x_data = image_data_view[0, i:i + n_rows_run]
+#         x_data = np.reshape(x_data, (-1, image_data.shape[0], win_row, win_column))
+#
+#         time1 = time.time()
+#         y = predict_func(x_data)
+#         y = np.reshape(y, (n_rows_run, n_columns))
+#         time2 = time.time()
+#         imdc[row_start + i:row_start + i + n_rows_run, column_start: column_start + n_columns] = y
+#
+#         time3 = time.time()
+#
+#         n_time += 1
+#         time_del[0] += time1 - time0
+#         time_del[1] += time2 - time1
+#         time_del[2] += time3 - time2
+#
+#         if n_time >= 10:
+#             sw.write("{:>10.6f} {:>10.6f} {:>10.6f}".format(
+#                 time_del[0] / n_time, time_del[1] / n_time, time_del[2] / n_time,
+#             ))
+#             time_del = [0, 0, 0]
+#             n_time = 0
+#
+#         jdt.add(is_jdt=is_jdt)
+#     jdt.end(is_jdt=is_jdt)
+#
+#     return imdc
+#
+
+
+def dataPredictPatch(image_data, win_size, predict_func, is_jdt=True, **kwargs):
     imdc = np.zeros(image_data.shape[1:])
     win_row, win_column = win_size
-    row_start, row_end, = int(win_row / 2 + 2), imdc.shape[0] - int(win_row / 2 + 2)
-    column_start, column_end, = int(win_column / 2 + 2), imdc.shape[1] - int(win_column / 2 + 2)
-    win_row_2, win_column_2 = int(win_row / 2), int(win_column / 2)
-    row_01, column_01 = win_row % 2, win_column % 2
-    col_imdc = np.zeros((column_end - column_start, image_data.shape[0], win_row, win_column))
-    jdt = Jdt(row_end - row_start, "dataPredictPatch").start(is_jdt=is_jdt)
-    for i in range(row_start, row_end):
-        j_select = 0
-        for j in range(column_start, column_end):
-            r, c = i, j
-            col_imdc[j_select] = image_data[:, r - win_row_2:r + win_row_2 + row_01,
-                                 c - win_column_2:c + win_column_2 + column_01]
-            j_select += 1
-        y = predict_func(col_imdc)
-        imdc[i, column_start: column_end] = y
+    image_data_view = sliding_window_view(image_data, (image_data.shape[0], win_row, win_column), writeable=True)
+    n_rows, n_columns = image_data_view.shape[1], image_data_view.shape[2]
+    row_start, column_start = int(win_row / 2), int(win_column / 2)
+    jdt = Jdt(int(image_data_view.shape[1]), "Raster Predict Patch").start(is_jdt=is_jdt)
+    for i in range(0, image_data_view.shape[1]):
+        x_data = image_data_view[0, i]
+        y = predict_func(x_data)
+        imdc[row_start + i, column_start: column_start + n_columns] = y
         jdt.add(is_jdt=is_jdt)
+    jdt.end(is_jdt=is_jdt)
+    return imdc
+
+
+def dataPredictPatch2(image_data, win_size, predict_func, n=1000, is_jdt=True, **kwargs):
+    imdc = np.zeros(image_data.shape[1:])
+    win_row, win_column = win_size
+
+    image_data_view = sliding_window_view(image_data, (image_data.shape[0], win_row, win_column), writeable=True)
+    n_rows, n_columns = image_data_view.shape[1], image_data_view.shape[2]
+    # image_data_view = np.reshape(image_data_view, (n_rows * n_columns, image_data.shape[0], win_row, win_column))
+
+    row_start, column_start = int(win_row / 2), int(win_column / 2)
+
+    rows, columns = [], []
+    rows_run, columns_run = [], []
+
+    jdt = Jdt(int(n_rows * n_columns / n), "Raster Predict Patch").start(is_jdt=is_jdt)
+
+    sw = SRTWriteText(r"F:\ProjectSet\Shadow\Hierarchical\Temp\time.txt", "a")
+
+    class _time_save:
+
+        def __init__(self):
+            self.time_del = [0, 0, 0]
+            self.n_time = 0
+
+    _time_save_data = _time_save()
+
+    def calculate():
+        time1 = time.time()
+        x_data = image_data_view[n_select_start:n_select_end].copy()
+        time2 = time.time()
+        y = predict_func(x_data)
+        imdc[rows, columns] = y
+        time3 = time.time()
+
+        rows.clear()
+        columns.clear()
+        rows_run.clear()
+        columns_run.clear()
+
+        _time_save_data.n_time += 1
+        _time_save_data.time_del[0] += time10
+        _time_save_data.time_del[1] += time2 - time1
+        _time_save_data.time_del[2] += time3 - time2
+
+        if _time_save_data.n_time >= 10:
+            sw.write("{:>10.6f} {:>10.6f} {:>10.6f}".format(
+                _time_save_data.time_del[0] / _time_save_data.n_time,
+                _time_save_data.time_del[1] / _time_save_data.n_time,
+                _time_save_data.time_del[2] / _time_save_data.n_time,
+            ))
+            _time_save_data.time_del = [0, 0, 0]
+            _time_save_data.n_time = 0
+
+    time_0 = time.time()
+    n_select_start, n_select_end = 0, 0
+    n_select = 0
+    for i in range(row_start, row_start + n_rows):
+        for j in range(column_start, row_start + n_columns):
+            rows.append(i)
+            columns.append(j)
+            n_select += 1
+            if n_select >= n:
+                time10 = time.time() - time_0
+                n_select_end = n_select
+                calculate()
+                time_0 = time.time()
+                n_select = 0
+                n_select_start = n_select_end
+                jdt.add(is_jdt=is_jdt)
+    n_select_end = n_select
+    calculate()
     jdt.end(is_jdt=is_jdt)
     return imdc
 

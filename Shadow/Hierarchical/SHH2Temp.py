@@ -14,27 +14,84 @@ from shutil import copyfile
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from PIL import Image, ImageChops
 from osgeo import gdal
 
 from SRTCodes.GDALDraw import GDALDrawImages
 from SRTCodes.GDALRasterIO import GDALRaster
+from SRTCodes.GDALUtils import RasterRandomCoors, GDALSamplingFast
 from SRTCodes.SRTDraw import SRTDrawImages
 from SRTCodes.Utils import changext, DirFileName, FRW, saveJson, readJson, SRTWriteText, writeTexts
 from Shadow.Hierarchical import SHH2Config
+from Shadow.Hierarchical.SHH2ML2 import mapDict
+
 
 # plt.rcParams['font.sans-serif'] = ['SimHei']
 
-config = {
-    "font.family": 'serif',
-    "font.size": 18,
-    "mathtext.fontset": 'stix',
-    "font.serif": ['SimSun'],
-}
-plt.rcParams.update(config)
-
+# config = {
+#     "font.family": 'serif',
+#     "font.size": 18,
+#     "mathtext.fontset": 'stix',
+#     "font.serif": ['SimSun'],
+# }
+# plt.rcParams.update(config)
+#
 
 def main():
+    dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods")
+    raster_fn = dfn.fn("20240703H125230", "VHL3_ML_imdc.tif")
+
+    def func1():
+        print("raster_fn", raster_fn)
+        gr = GDALRaster(raster_fn)
+        data = gr.readAsArray()
+        data_unique, data_counts = np.unique(data, return_counts=True)
+        data_counts = data_counts / data.size
+        print("ChengDu", data_unique, data_counts * 6000)
+
+    def func2():
+        df = RasterRandomCoors(raster_fn).random(4000)
+        df = GDALSamplingFast(raster_fn).samplingDF(df)
+        df = df.rename(columns={"FEATURE_1": "VHL3_ML"})
+        print(df)
+        print(df["VHL3_ML"].value_counts())
+        df.to_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\cd\sh2_spl30_cd2_random4000.csv", index=False)
+
+    r"""
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2Temp import main; main()"
+    """
+    func2()
+    return
+
+
+def method_name5():
+    # VHL scatter
+    config = {"font.size": 12, }
+    plt.rcParams.update(config)
+    fig = plt.figure(figsize=(6, 6))
+    fig.subplots_adjust(top=0.85, bottom=0.15, left=0.15, right=0.85)
+    df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\qd\VHL3_ML_accuracy_data2_spl.csv")
+    df["VHL_C"] = mapDict(df["CNAME"].tolist(), {
+        "IS": 1, "VEG": 2, "SOIL": 1, "WAT": 3,
+        "IS_SH": 3, "VEG_SH": 3, "SOIL_SH": 3, "WAT_SH": 3
+    })
+
+    def scatter(n, color, label):
+        print(n, len(df[df["VHL_C"] == n]))
+        plt.scatter(df[df["VHL_C"] == n][x_key], df[df["VHL_C"] == n][y_key], color=color, alpha=0.5, label=label)
+
+    x_key, y_key = "Red", "NIR"
+    scatter(1, "red", "IS SOIL")
+    scatter(2, "green", "VEG")
+    scatter(3, "black", "WATER SHADOW")
+    plt.xlabel(x_key)
+    plt.ylabel(y_key)
+    plt.legend()
+    plt.show()
+
+
+def method_name4():
     def run(is_run=False):
         if not is_run:
             run_dict = [
@@ -137,12 +194,6 @@ def main():
             saveJson(json_dict, to_json_fn)
 
     run(False)
-
-    r"""
-python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2Temp import main; main()" 
-    """
-
-    return
 
 
 def method_name3():

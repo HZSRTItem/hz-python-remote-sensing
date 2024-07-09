@@ -9,14 +9,19 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 import os.path
 import random
+import time
 
 import numpy as np
 import pandas as pd
 
-from SRTCodes.GDALUtils import GDALSamplingImageClassification, GDALSamplingFast, GDALSampling
+from SRTCodes.GDALUtils import GDALSamplingImageClassification
+from SRTCodes.ModelTraining import ConfusionMatrix
+from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.TrainingUtils import SRTAccuracy
-from SRTCodes.Utils import FN, TimeName, FRW
-from Shadow.ShadowUtils import readQJYTxt
+from SRTCodes.Utils import FN, TimeName, FRW, DirFileName
+from Shadow.Hierarchical.SHH2ML2 import SHH2ML_TrainImdc
+from Shadow.Hierarchical.SHH2MLModel import mapDict
+from Shadow.Hierarchical.SHH2Sample import SHH2SamplesManage
 
 
 def sampleFC(y1, y2, category, is_eq_number=True):
@@ -67,92 +72,6 @@ def accuracyY12(y1, y2, y1_map_dict, y2_map_dict, cnames, fc_category=None, is_e
     return cm
 
 
-class SHH2SamplesManage:
-
-    def __init__(self):
-        self.spl_fns = []
-        self.df = None
-        self.x_list = []
-        self.y_list = []
-        self.c_list = []
-        self.x_field_name = "X"
-        self.y_field_name = "Y"
-        self.c_field_name = "CNAME"
-
-    def addDF(self, df, fun_df=None, field_datas=None):
-        if field_datas is None:
-            field_datas = {}
-        df = df.copy()
-        for k in field_datas:
-            df[k] = [field_datas[k] for _ in range(len(df))]
-        if fun_df is not None:
-            df = fun_df(df)
-        if self.df is None:
-            self.df = df
-        else:
-            df_temp = self.df.to_dict("records")
-            df_temp.extend(df.to_dict("records"))
-            self.df = pd.DataFrame(df_temp)
-
-        self.x_list.extend(df[self.x_field_name].tolist())
-        self.y_list.extend(df[self.y_field_name].tolist())
-        self.c_list.extend(df[self.c_field_name].tolist())
-
-        return df
-
-    def addCSVS(self, *csv_fns, fun_df=None, field_datas=None):
-        for csv_fn in csv_fns:
-            df = pd.read_csv(csv_fn)
-            self.addDF(df, fun_df=fun_df, field_datas=field_datas)
-            self.spl_fns.append(csv_fn)
-
-    def addQJY(self, txt_fn, fun_df=None, field_datas=None):
-        df_dict = readQJYTxt(txt_fn)
-        x = df_dict["__X"]
-        y = df_dict["__Y"]
-        c_name = df_dict["__CNAME"]
-        df_dict[self.x_field_name] = x
-        df_dict[self.y_field_name] = y
-        df_dict[self.c_field_name] = c_name
-        df = pd.DataFrame(df_dict)
-        df = self.addDF(df, fun_df=fun_df, field_datas=field_datas)
-        self.spl_fns.append(txt_fn)
-        return df
-
-    def toDF(self, x_field_name=None, y_field_name=None, c_field_name=None) -> pd.DataFrame:
-        if x_field_name is None:
-            x_field_name = self.x_field_name
-        if y_field_name is None:
-            y_field_name = self.y_field_name
-        if c_field_name is None:
-            c_field_name = self.c_field_name
-        df = self.df.copy()
-        df[x_field_name] = self.x_list
-        df[y_field_name] = self.y_list
-        df[c_field_name] = self.c_list
-        return df
-
-    def toCSV(self, csv_fn, x_field_name=None, y_field_name=None, c_field_name=None):
-        self.toDF(x_field_name, y_field_name, c_field_name).to_csv(csv_fn, index=False)
-
-    def __len__(self):
-        return len(self.c_list)
-
-    def sampling(self, raster_fn, spl_type="fast", x_field_name=None, y_field_name=None, c_field_name=None):
-        if spl_type == "fast":
-            gs = GDALSamplingFast(raster_fn)
-        elif spl_type == "iter":
-            gs = GDALSampling(raster_fn)
-        elif spl_type == "npy":
-            gs = GDALSampling()
-            gs.initNPYRaster(raster_fn)
-        else:
-            raise Exception("Can not format sampling type of \"{}\"".format(spl_type))
-        to_df = self.toDF(x_field_name, y_field_name, c_field_name)
-        to_df = gs.samplingDF(to_df)
-        return to_df
-
-
 class SHH2AccTiao(SHH2SamplesManage):
 
     def __init__(self, *csv_fns):
@@ -184,7 +103,7 @@ class SHH2AccTiao(SHH2SamplesManage):
         x_list, y_list = self.x_list, self.y_list
         y2 = gsic.sampling(x_list, y_list)
 
-        cm = accuracyY12(y1, y2, y1_map_dict, y2_map_dict, cnames, fc_category,is_eq_number=is_eq_number)
+        cm = accuracyY12(y1, y2, y1_map_dict, y2_map_dict, cnames, fc_category, is_eq_number=is_eq_number)
 
         print(cm.fmtCM())
         is_cm = cm.accuracyCategory("IS")
@@ -227,6 +146,325 @@ class SHH2AccTiao(SHH2SamplesManage):
             "c_list": self.c_list,
         }
         FRW(to_json_fn).saveJson(to_dict)
+
+
+class Citys:
+
+    def __init__(self):
+        self.qd = None
+        self.bj = None
+        self.cd = None
+
+        self._next_qd = False
+        self._next_bj = False
+        self._next_cd = False
+
+    def __len__(self):
+        return 3
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if not self._next_qd:
+            self._next_qd = True
+            return self.qd
+        elif not self._next_bj:
+            self._next_bj = True
+            return self.bj
+        elif not self._next_cd:
+            self._next_cd = True
+            return self.cd
+        else:
+            self._next_qd = False
+            self._next_bj = False
+            self._next_cd = False
+            raise StopIteration()
+
+    def __contains__(self, item):
+        return item in [self.qd, self.bj, self.cd]
+
+
+class SHH2ML_TST_Three_Main:
+
+    def __init__(self):
+        self.csv_fn = ""
+        self.td = None
+        self.dfn = None
+        self.sh2_tsts = Citys()
+        self.dfns = Citys()
+        self.oa_kappa_cms = Citys()
+        self.oa_kappa_IO_cms = Citys()
+        self.oa_kappa_IS_cms = Citys()
+        self.oa_kappa_SH_cms = Citys()
+        self.accuracy_list = []
+
+    def sh2Tst(self, city_name):
+        if city_name == "qd":
+            self.sh2_tsts.qd = SHH2ML_TrainImdc("qd")
+            self.sh2_tsts.qd.csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\25\2\sh2_spl252_4_spl2.csv"
+            self.sh2_tsts.qd.main()
+            self.sh2_tsts.qd.train()
+            self.sh2_tsts.qd.toToJson()
+            fn = self.sh2_tsts.qd.td.time_dfn.fn()
+            return os.path.split(fn)[1]
+        elif city_name == "bj":
+            self.sh2_tsts.bj = SHH2ML_TrainImdc("bj")
+            self.sh2_tsts.bj.csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\27\3\sh2_spl273_5_spl.csv"
+            self.sh2_tsts.bj.main()
+            self.sh2_tsts.bj.train()
+            self.sh2_tsts.bj.toToJson()
+            fn = self.sh2_tsts.bj.td.time_dfn.fn()
+            return os.path.split(fn)[1]
+        elif city_name == "cd":
+            self.sh2_tsts.cd = SHH2ML_TrainImdc("cd")
+            self.sh2_tsts.cd.csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\26\2\sh2_spl26_4_spl2.csv"
+            self.sh2_tsts.cd.main()
+            self.sh2_tsts.cd.train()
+            self.sh2_tsts.cd.toToJson()
+            fn = self.sh2_tsts.cd.td.time_dfn.fn()
+            return os.path.split(fn)[1]
+
+    def accuracyCM(self, accuracy_name, city_name, citys, map_dict1, map_dict2, cnames):
+        self.td.kw("{} {}".format(accuracy_name, "MAP_DICT1"), map_dict1)
+        self.td.kw("{} {}".format(accuracy_name, "MAP_DICT2"), map_dict2)
+        self.td.kw("{} {}".format(accuracy_name, "CNAMES"), cnames)
+
+        def _oa_kappa_cm(_json_fn):
+            json_dict = FRW(_json_fn).readJson()
+            to_dict = {}
+            for k in json_dict:
+                data = json_dict[k]
+                y1 = mapDict(data["CNAME"], map_dict1)
+                y2 = mapDict(data["y2"], map_dict2)
+                if len(y1) != len(y2):
+                    data_tmp = 1
+                cm = ConfusionMatrix(class_names=cnames)
+                cm.addData(y1, y2)
+                to_dict[k] = cm
+            return to_dict
+
+        def _oa_kappa_files(dirname):
+            to_list = []
+            n = 1
+            while True:
+                fn = os.path.join(dirname, "categorys{}.json".format(n))
+                if os.path.isfile(fn):
+                    to_list.append(_oa_kappa_cm(fn))
+                else:
+                    return to_list
+                n += 1
+
+        if city_name == "qd":
+            citys.qd = _oa_kappa_files(self.dfns.qd.fn())
+
+        elif city_name == "bj":
+            citys.bj = _oa_kappa_files(self.dfns.bj.fn())
+
+        elif city_name == "cd":
+            citys.cd = _oa_kappa_files(self.dfns.cd.fn())
+
+    def accuracyOAKappa(self, city_name):
+        map_dict1 = {
+            "IS": 1, "VEG": 2, "SOIL": 3, "WAT": 4,
+            "IS_SH": 1, "VEG_SH": 2, "SOIL_SH": 3, "WAT_SH": 4
+        }
+        map_dict2 = {1: 1, 2: 2, 3: 3, 4: 4}
+        cnames = ["IS", "VEG", "SOIL", "WAT"]
+        citys = self.oa_kappa_cms
+        accuracy_name = "ACCURACY OA KAPPA"
+        self.accuracyCM(accuracy_name, city_name, citys, map_dict1, map_dict2, cnames)
+
+    def accuracyOAKappaISO(self, city_name):
+        map_dict1 = {
+            "IS": 1, "VEG": 0, "SOIL": 2, "WAT": 0,
+            "IS_SH": 0, "VEG_SH": 0, "SOIL_SH": 0, "WAT_SH": 0
+        }
+        map_dict2 = {1: 1, 2: 2, 3: 2, 4: 2}
+        cnames = ["IS", "SOIL"]
+        citys = self.oa_kappa_IO_cms
+        accuracy_name = "ACCURACY OA KAPPA IS SOIL"
+        self.accuracyCM(accuracy_name, city_name, citys, map_dict1, map_dict2, cnames)
+
+    def accuracyOAKappaSH(self, city_name):
+        map_dict1 = {
+            "IS": 0, "VEG": 0, "SOIL": 0, "WAT": 0,
+            "IS_SH": 1, "VEG_SH": 2, "SOIL_SH": 3, "WAT_SH": 4
+        }
+        map_dict2 = {1: 1, 2: 2, 3: 3, 4: 4}
+        cnames = ["IS_SH", "VEG_SH", "SOIL_SH", "WAT_SH"]
+        accuracy_name = "ACCURACY OA KAPPA SHADOW"
+        citys = self.oa_kappa_SH_cms
+        self.accuracyCM(accuracy_name, city_name, citys, map_dict1, map_dict2, cnames)
+
+    def accuracyOAKappaIS(self, city_name):
+        map_dict1 = {
+            "IS": 1, "VEG": 2, "SOIL": 2, "WAT": 2,
+            "IS_SH": 2, "VEG_SH": 2, "SOIL_SH": 2, "WAT_SH": 2
+        }
+        map_dict2 = {1: 1, 2: 2, 3: 2, 4: 2}
+        cnames = ["IS", "NOIS"]
+        accuracy_name = "ACCURACY OA KAPPA IS"
+        citys = self.oa_kappa_IS_cms
+        self.accuracyCM(accuracy_name, city_name, citys, map_dict1, map_dict2, cnames)
+
+    def accuracy(self):
+
+        def calculate_city_cm(name, citys_cms, ):
+
+            def calculate(cm_list):
+                df_list = []
+                for cm_dict in cm_list:
+                    df_dict = {}
+                    for k in cm_dict:
+                        cm = cm_dict[k]
+                        df_dict[k] = {"{}OA".format(name): cm.OA(), "{}Kappa".format(name): cm.getKappa(), }
+                    df_list.append(df_dict)
+                df = pd.DataFrame(df_list[0])
+                for df_dict in df_list[1:]:
+                    df += pd.DataFrame(df_dict)
+                df /= len(df_list)
+                return df
+
+            def add_df(df, city_name):
+                _to_dict = {"City": [city_name, city_name], "Accuracy": list(df.index), **(df.to_dict("list"))}
+                to_list.append({k: _to_dict[k][0] for k in _to_dict})
+                to_list.append({k: _to_dict[k][1] for k in _to_dict})
+
+            qd_df = calculate(citys_cms.qd)
+            add_df(qd_df, "QingDao")
+
+            bj_df = calculate(citys_cms.bj)
+            add_df(bj_df, "BeiJing")
+
+            cd_df = calculate(citys_cms.cd)
+            add_df(cd_df, "ChengDu")
+
+        to_list = []
+        calculate_city_cm("", self.oa_kappa_cms)
+        calculate_city_cm("IS_", self.oa_kappa_IS_cms)
+        calculate_city_cm("IO_", self.oa_kappa_IO_cms)
+        calculate_city_cm("SH_", self.oa_kappa_SH_cms)
+        return pd.DataFrame(to_list)
+
+    def saveCM(self):
+        sw = self.td.buildWriteText("cm.md")
+
+        def calculate_city_cm(name, citys_cms, ):
+            sw.write("# {}\n".format(name))
+
+            def calculate(cm_list, city_name):
+                sw.write("## {}\n".format(city_name))
+                df_list = []
+                for i, cm_dict in enumerate(cm_list):
+                    df_dict = {}
+                    sw.write("### {}\n".format(i + 1))
+                    for k in cm_dict:
+                        sw.write("#### {}\n".format(k))
+                        cm = cm_dict[k]
+                        df_dict[k] = cm.fmtCM()
+                        sw.write(df_dict[k])
+                    df_list.append(df_dict)
+                return {city_name: df_list}
+
+            return {name: {
+                **calculate(citys_cms.qd, "QingDao"),
+                **calculate(citys_cms.bj, "BeiJing"),
+                **calculate(citys_cms.cd, "ChengDu"),
+            }}
+
+        to_dict = {
+            **calculate_city_cm("oa_kappa_cms", self.oa_kappa_cms),
+            **calculate_city_cm("oa_kappa_IS_cms", self.oa_kappa_IS_cms),
+            **calculate_city_cm("oa_kappa_IO_cms", self.oa_kappa_IO_cms),
+            **calculate_city_cm("oa_kappa_SH_cms", self.oa_kappa_SH_cms),
+        }
+
+        self.td.saveJson("cm.json", to_dict)
+
+    def main(self):
+        self.dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods")
+        self.td = TimeDirectory(self.dfn.fn())
+        self.td.initLog()
+        self.td.log("#", "-" * 34, "SHH2ML Three Accuracy", "-" * 34, "#")
+        self.td.log(self.td.time_dfn.dirname)
+        time.sleep(2)
+
+        # QingDao
+        self.td.log("#", "-" * 30, "SHH2ML Three Accuracy QingDao", "-" * 30, "#")
+        # dirname = self.td.kw("QingDao Dirname", self.dfn.fn(self.sh2Tst("qd")))
+        dirname = self.td.kw("QingDao Dirname", self.dfn.fn("20240620H100549"))
+        self.dfns.qd = DirFileName(dirname)
+        self.accuracyOAKappa("qd")
+        self.accuracyOAKappaIS("qd")
+        self.accuracyOAKappaSH("qd")
+        self.accuracyOAKappaISO("qd")
+
+        # BeiJing
+        self.td.log("#", "-" * 30, "SHH2ML Three Accuracy BeiJing", "-" * 30, "#")
+        # dirname = self.td.kw("BeiJing Dirname", self.dfn.fn(self.sh2Tst("bj")))
+        dirname = self.td.kw("BeiJing Dirname", self.dfn.fn("20240620H100627"))
+        self.dfns.bj = DirFileName(dirname)
+        self.accuracyOAKappa("bj")
+        self.accuracyOAKappaIS("bj")
+        self.accuracyOAKappaSH("bj")
+        self.accuracyOAKappaISO("bj")
+
+        # ChengDu
+        self.td.log("#", "-" * 30, "SHH2ML Three Accuracy ChengDu", "-" * 30, "#")
+        # dirname = self.td.kw("ChengDu Dirname", self.dfn.fn(self.sh2Tst("cd")))
+        dirname = self.td.kw("ChengDu Dirname", self.dfn.fn("20240704H113806"))
+        self.dfns.cd = DirFileName(dirname)
+        self.accuracyOAKappa("cd")
+        self.accuracyOAKappaIS("cd")
+        self.accuracyOAKappaSH("cd")
+        self.accuracyOAKappaISO("cd")
+
+        df = self.accuracy()
+        print(self.td.saveDF("accuracy.csv", df))
+        print(df)
+        self.saveCM()
+        return
+
+
+def shh2ml_tst_three_main():
+    def func1():
+        sh2_tst_three = SHH2ML_TST_Three_Main()
+        sh2_tst_three.main()
+
+    def func2():
+        df = pd.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240704H121321\accuracy.csv")
+
+        class df_filter:
+
+            def __init__(self, _df):
+                self.df = _df
+
+            def eq(self, field_name, data):
+                if not isinstance(data, list):
+                    data = [data]
+                self.df = self.df[self.df[field_name].isin(data)]
+                return self
+
+            def datain(self, field_name, data):
+                self.df = self.df[self.df[field_name].apply(lambda x: data in x)]
+                return self
+
+        city_name = "ChengDu"
+        df = df_filter(df) \
+            .datain("Accuracy", "OA") \
+            .df.reset_index(drop=True)
+        #             .eq("City", city_name) \
+
+        print(df, "\n")
+        fns = ['OPT', 'OPT+AS', 'OPT+DE', 'OPT+AS+DE', 'OPT+GLCM', 'OPT+BS', 'OPT+C2', 'OPT+HA', 'OPT+SARGLCM']
+        df2 = df[fns]
+        df2 = df2.reset_index(drop=True)
+        df2.index = ["{} {}".format(df["City"][i], df["Accuracy"][i], ) for i in range(len(df))]
+        print(df2, "\n")
+        print(df2.T.sort_values("{} IS_OA".format(city_name), ascending=False), "\n")
+
+    func2()
 
 
 def main():

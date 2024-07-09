@@ -21,7 +21,8 @@ from sklearn.model_selection import train_test_split
 
 from SRTCodes.GDALRasterClassification import GDALModelDataCategory
 from SRTCodes.GDALRasterIO import GDALRasterChannel, saveGTIFFImdc, GDALRaster, tiffAddColorTable
-from SRTCodes.ModelTraining import ConfusionMatrix, TrainLog, ConfusionMatrixLog, dataPredictPatch, dataModelPredict
+from SRTCodes.ModelTraining import ConfusionMatrix, TrainLog, ConfusionMatrixLog, dataPredictPatch, dataModelPredict, \
+    dataPredictPatch2
 from SRTCodes.NumpyUtils import categoryMap
 from SRTCodes.PytorchModelTraining import PytorchTraining, pytorchModelCodeString
 from SRTCodes.SRTFeature import SRTFeaturesMemory
@@ -458,6 +459,7 @@ class SRTModImPytorch(SRTModelImageInit):
     ):
         super().__init__()
 
+        self.n = None
         self.model_dirname = model_dir
         self.model_name = model_name
         self.epochs = epochs
@@ -619,14 +621,21 @@ class SRTModImPytorch(SRTModelImageInit):
             y = y.cpu().numpy()
             return y
 
-        imdc = dataPredictPatch(data, self.win_size, predict_func=func_predict, is_jdt=is_jdt)
+        imdc = dataPredictPatch2(data, self.win_size, n=self.n, predict_func=func_predict, is_jdt=is_jdt)
         return imdc
 
-    def imdcGDALFile(self, fn, to_fn, data_deal=None, is_jdt=True, description="CATEGORY"):
+    def imdcGDALFile(self, fn, to_fn=None, data_deal=None, is_jdt=True, description="CATEGORY", is_print=False):
+        to_fn = self.getToGeoFn(to_fn)
+        if is_print:
+            print("to_fn", to_fn)
+            print("read data ... ", end="")
         gr = GDALRaster(fn)
         data = gr.readAsArray()
+        if is_print:
+            print("end")
         imdc = self.imdcData(data, data_deal=data_deal, is_jdt=is_jdt)
         self.saveImdc(to_fn, gr, imdc, description=description)
+        return to_fn
 
     def imdcTiles(self, to_fn=None, tiles_dirname=None, tiles_fns=None, data_deal=None, is_jdt=True,
                   description="CATEGORY"):
@@ -655,6 +664,8 @@ class SRTModImPytorch(SRTModelImageInit):
                          "-o", to_fn,
                          *to_fn_tmps, ])
         tiffAddColorTable(to_fn, code_colors=self.color_table)
+
+        return to_fn
 
     def imdcGDALFiles(self, to_dirname, fns, data_deal=None, is_jdt=True, description="CATEGORY"):
         to_fn_tmps = []
@@ -737,10 +748,13 @@ def imdc1(model, data, to_geo_fn, gr, data_deal=None, is_jdt=True, color_table=N
         tiffAddColorTable(to_geo_fn, 1, color_table)
 
 
-def imdc2(func_predict, data, win_size, to_geo_fn, gr, data_deal=None, is_jdt=True, color_table=None):
-    if data is not None:
+def imdc2(func_predict, data, win_size, to_geo_fn, gr, data_deal=None, is_jdt=True, color_table=None, func_run=None,
+          n=1000, ):
+    if data_deal is not None:
         data = data_deal(data)
-    imdc = dataPredictPatch(data, win_size, func_predict, is_jdt=is_jdt)
+    if func_run is None:
+        func_run = dataPredictPatch
+    imdc = func_run(data, win_size, func_predict, n=n, is_jdt=is_jdt)
     gr.save(imdc.astype("int8"), to_geo_fn, fmt="GTiff", dtype=gdal.GDT_Byte, options=["COMPRESS=PACKBITS"])
     if color_table is not None:
         tiffAddColorTable(to_geo_fn, 1, color_table)
@@ -807,19 +821,23 @@ class GDALImdc:
             jdt.add(is_jdt)
         jdt.end(is_jdt)
 
-    def _imdc2(self, func_predict, raster_fn, win_size, to_geo_fn, fit_names, data_deal, is_jdt, color_table):
+    def _imdc2(self, func_predict, raster_fn, win_size, to_geo_fn, fit_names, data_deal, is_jdt, color_table, n=1000):
         gr = GDALRaster(raster_fn)
-        data = np.zeros((len(fit_names), gr.n_rows, gr.n_columns))
+        data = np.zeros((len(fit_names), gr.n_rows, gr.n_columns), dtype="float32")
         self.readRaster(data, fit_names, gr, is_jdt)
+        func_run = dataPredictPatch
+        if n != -1:
+            func_run = dataPredictPatch2
         imdc2(func_predict, data, win_size=win_size, to_geo_fn=to_geo_fn, gr=gr, data_deal=data_deal, is_jdt=is_jdt,
-              color_table=color_table)
+              color_table=color_table, func_run=func_run, n=n)
         data = None
 
-    def imdc2(self, func_predict, win_size, to_imdc_fn, fit_names, data_deal=None, is_jdt=True, color_table=None):
+    def imdc2(self, func_predict, win_size, to_imdc_fn, fit_names, data_deal=None, is_jdt=True, color_table=None, n=-1):
         color_table, fit_names = self._initImdc(color_table, fit_names)
+
         if len(self.raster_fns) == 1:
             raster_fn = self.raster_fns[0]
-            self._imdc2(func_predict, raster_fn, win_size, to_imdc_fn, fit_names, data_deal, is_jdt, color_table)
+            self._imdc2(func_predict, raster_fn, win_size, to_imdc_fn, fit_names, data_deal, is_jdt, color_table,n=n)
         else:
             to_imdc_dirname = changext(to_imdc_fn, "_tiles")
             if not os.path.isdir(to_imdc_dirname):
@@ -829,7 +847,7 @@ class GDALImdc:
             for fn in self.raster_fns:
                 to_imdc_fn_tmp = os.path.join(to_imdc_dirname, changext(os.path.split(fn)[1], "_imdc.tif"))
                 to_fn_tmps.append(to_imdc_fn_tmp)
-                self._imdc2(func_predict, fn, win_size, to_imdc_fn, fit_names, data_deal, is_jdt, color_table)
+                self._imdc2(func_predict, fn, win_size, to_imdc_fn_tmp, fit_names, data_deal, is_jdt, color_table, n=n)
 
             gdal_merge_main(["gdal_merge_main", "-of", "GTiff", "-n", "0", "-ot", "Byte", "-co", "COMPRESS=PACKBITS",
                              "-o", to_imdc_fn, *to_fn_tmps, ])

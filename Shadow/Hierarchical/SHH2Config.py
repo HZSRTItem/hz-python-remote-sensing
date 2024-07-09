@@ -46,6 +46,27 @@ NAMES = [
 ]
 
 
+class FEAT_NAMES:
+    OPT = ["Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2", "NDVI", "NDWI", ]
+    OPT_GLCM = ["OPT_asm", "OPT_con", "OPT_cor", "OPT_dis", "OPT_ent", "OPT_hom", "OPT_mean", "OPT_var", ]
+    AS_BS = ["AS_VV", "AS_VH", "AS_VHDVV", ]
+    AS_C2 = ["AS_C11", "AS_C22", "AS_SPAN", ]
+    AS_HA = ["AS_H", "AS_Alpha", ]
+    AS_GLCM = [
+        "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+        "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
+    ]
+    DE_BS = ["DE_VV", "DE_VH", "DE_VHDVV", ]
+    DE_C2 = ["DE_C11", "DE_C22", "DE_SPAN", ]
+    DE_HA = ["DE_H", "DE_Alpha", ]
+    DE_GLCM = [
+        "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+        "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
+    ]
+
+    ALL = OPT + OPT_GLCM + AS_BS + AS_C2 + AS_HA + AS_GLCM + DE_BS + DE_C2 + DE_HA + DE_GLCM
+
+
 def GET_RASTER_FN(city_name):
     if city_name == "qd":
         return QD_ENVI_FN
@@ -198,8 +219,8 @@ def samplesDescription(df):
         "Testing": df[df["TEST"] == 0].groupby("CNAME").count()["TEST"].to_dict()
     })
     df_des[pd.isna(df_des)] = 0
-    df_des["SUM"] = df_des.apply(lambda x:x.sum(),axis =1)
-    df_des.loc["SUM"] = df_des.apply(lambda x:x.sum())
+    df_des["SUM"] = df_des.apply(lambda x: x.sum(), axis=1)
+    df_des.loc["SUM"] = df_des.apply(lambda x: x.sum())
     return df_des
 
 

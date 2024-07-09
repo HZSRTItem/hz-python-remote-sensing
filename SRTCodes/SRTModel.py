@@ -88,7 +88,7 @@ class SRTHierarchicalModel(SRTModelInit):
     def train(self, *args, **kwargs):
         for name in self.models:
             x, y = self.train_data[name]
-            self.models[name].train(x, y)
+            self.models[name].train()
 
     def save(self, *args, **kwargs):
         for name in self.models:

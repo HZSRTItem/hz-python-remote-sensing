@@ -1244,6 +1244,7 @@ class GDALNumpySampling(NumpySampling):
         row, column = self.gr.coorGeo2Raster(x, y, is_int=True)
         return self.get(row, column)
 
+
 class GDALAccuracyImage:
 
     def __init__(
@@ -1335,6 +1336,7 @@ class _RandomCoor:
             self.coors = []
         for i in range(n):
             self.coors.append(self.randomXY())
+        return self.coors
 
     def __getitem__(self, item):
         return self.coors[item]
@@ -1392,6 +1394,41 @@ class RasterRandomCoors:
         df = pd.DataFrame(self.coors)
         print(df)
         df.to_csv(to_fn, index=False)
+
+    def random(self, n):
+        xy = np.array(self.random_coor.generate(n))
+        df = pd.DataFrame({
+            "SRT": [i + 1 for i in range(n)],
+            "X": xy[:, 0],
+            "Y": xy[:, 1],
+        })
+        return df
+
+
+class GDALRasterClip:
+
+    def __init__(self, raster_fn):
+        self.gr = GDALRaster(raster_fn)
+
+    def coorCenter(self, to_fn, x, y, rows, columns, ):
+        gr = self.gr
+        row, column = gr.coorGeo2Raster(x, y, is_int=True)
+        data = gr.readAsArrayCenter(x, y, rows, columns, is_geo=True)
+
+        x0, y0 = gr.coorRaster2Geo(row - int(rows / 2), column - int(columns / 2))
+        x1, y1 = gr.coorRaster2Geo(row + int(rows / 2), column + int(columns / 2))
+
+        if x0 > x1:
+            x0, x1 = x1, x0
+        if y0 > y1:
+            y0, y1 = y1, y0
+        geo_transform = (x0, gr.geo_transform[1], 0, y1, 0, gr.geo_transform[5])
+
+        gr.save(
+            d=data, save_geo_raster_fn=to_fn, fmt="GTiff", dtype=gdal.GDT_Float32,
+            start_xy=None, descriptions=gr.names, geo_transform=geo_transform
+        )
+        return to_fn
 
 
 def main():

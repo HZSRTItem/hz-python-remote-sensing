@@ -11,6 +11,7 @@ import csv
 import os
 
 import pandas as pd
+from tabulate import tabulate
 
 from SRTCodes.SRTReadWrite import SRTInfoFileRW
 from SRTCodes.Utils import concatCSV
@@ -195,10 +196,10 @@ def fmtLinesCSV(lines):
 
 
 def main():
-    spl_txt_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\13\sh2_spl13_12_spl2.txt"
-    to_csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\13\sh2_spl13_12_spl2_3.csv"
-
-    splTxt2Csv(spl_txt_fn, to_csv_fn)
+    # spl_txt_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\13\sh2_spl13_12_spl2.txt"
+    # to_csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\13\sh2_spl13_12_spl2_3.csv"
+    #
+    # splTxt2Csv(spl_txt_fn, to_csv_fn)
 
     return
 
@@ -264,6 +265,7 @@ class DFColumnCount_main:
               "@Des: {1}\n"
               "    filename: excel or csv filename\n"
               "    -sheet_name: excel sheet name default:Sheet1"
+              "    -gn: group field name"
               "".format(self.name, self.description))
 
     def run(self, argv):
@@ -275,11 +277,15 @@ class DFColumnCount_main:
         filename = None
         sheet_name = "Sheet1"
         name = None
+        gn = None
 
         i = 1
         while i < len(argv):
             if "-sheet_name" == argv[i] and i < len(argv) - 1:
                 sheet_name = argv[i + 1]
+                i += 1
+            elif "-gn" == argv[i] and i < len(argv) - 1:
+                gn = argv[i + 1]
                 i += 1
             elif filename is None:
                 filename = os.path.abspath(argv[i])
@@ -295,25 +301,39 @@ class DFColumnCount_main:
         else:
             return
 
-        data_list = df[name].tolist()
-        counts_dict = {}
-        for data in data_list:
-            data = str(data)
-            if data not in counts_dict:
-                counts_dict[data] = 0
-            counts_dict[data] += 1
+        if gn is None:
+            data_list = df[name].tolist()
+            counts_dict = {}
+            for data in data_list:
+                data = str(data)
+                if data not in counts_dict:
+                    counts_dict[data] = 0
+                counts_dict[data] += 1
 
-        len_max = max([len(k) for k in counts_dict])
-        if len_max < 5:
-            len_max = 5
-        n = sum([k for k in counts_dict.values()])
-        fmt = "{0:" + str(len_max) + "} {1}"
-        print(fmt.format("NAME", "COUTS"))
-        print("-" * len_max, "-" * 6)
-        for k, data in counts_dict.items():
-            print(fmt.format(k, data))
-        print("-" * len_max, "-" * 6)
-        print(fmt.format("ALL", n))
+            len_max = max([len(k) for k in counts_dict])
+            if len_max < 5:
+                len_max = 5
+            n = sum([k for k in counts_dict.values()])
+            fmt = "{0:" + str(len_max) + "} {1}"
+            print(fmt.format("NAME", "COUTS"))
+            print("-" * len_max, "-" * 6)
+            for k, data in counts_dict.items():
+                print(fmt.format(k, data))
+            print("-" * len_max, "-" * 6)
+            print(fmt.format("ALL", n))
+
+        else:
+            data = df.groupby(gn)[name].value_counts()
+            data_dict = {}
+            for k in data.index:
+                if k[0] not in data_dict:
+                    data_dict[k[0]] = {}
+                data_dict[k[0]][k[1]] = data[k]
+            df_des = pd.DataFrame(data_dict)
+            df_des[pd.isna(df_des)] = 0
+            df_des["SUM"] = df_des.apply(lambda x: x.sum(), axis=1)
+            df_des.loc["SUM"] = df_des.apply(lambda x: x.sum())
+            print(tabulate(df_des, headers="keys"))
 
 
 class ConcatCSV_main:
@@ -385,7 +405,7 @@ class ConcatCSV_main:
             print("Not find to csv file")
             return
 
-        if len(csv_fns) ==0:
+        if len(csv_fns) == 0:
             print("Not find csv files")
             return
 

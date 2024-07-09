@@ -9,9 +9,11 @@ from torch.utils.data import Dataset
 
 from SRTCodes.GDALUtils import GDALSamplingInit, GDALSamplingFast, GDALSampling
 from SRTCodes.NumpyUtils import connectedComponent, categoryMap, NumpyDataCenter
+from SRTCodes.PytorchUtils import printTorchModel
 from SRTCodes.SRTModelImage import SRTModImPytorch
 from SRTCodes.Utils import readText, printList
 from Shadow.Hierarchical import SHHConfig
+from Shadow.Hierarchical.SHH2DL import buildModel
 
 sys.path.append(r"F:\PyCodes")
 # _*_ coding:utf-8 _*_
@@ -51,6 +53,17 @@ class TNet(nn.Module):
 
 
 def main():
+    model = buildModel(None)
+    x = torch.rand(10, 86, 21, 21)
+    out_x = model(x)
+
+    print(model)
+    # printTorchModel(model, (86, 21, 21), batch_size=10, device="cpu")
+
+    return
+
+
+def method_name5():
     gsf = GDALSampling()
     gsf.initNPYRaster(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\2\SHH2_QD2_data.npy")
     data = gsf.sampling2DF(
@@ -67,7 +80,6 @@ def main():
     # # data2 = np.load(r"F:\Week\20240609\Data\spl1_data2.npy")
     # # print(np.sum(data1-data2))
     # input(">")
-    pass
 
 
 def method_name4():

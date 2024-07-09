@@ -844,7 +844,7 @@ class ShadowHierarchicalTrainImdcOne(ShadowMain):
 
         if is_train:
             print("Start Training ...... ", end="")
-            mod_args = self.model.train(x_train, y_train, x_test, y_test)
+            mod_args = self.model.train()
             print("End")
             # Save
             self.mod_args = mod_args

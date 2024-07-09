@@ -24,11 +24,12 @@ from SRTCodes.GDALUtils import GDALNumpySampling
 from SRTCodes.NumpyUtils import NumpyDataCenter, TensorSelectNames
 from SRTCodes.SRTModelImage import SRTModImPytorch
 from SRTCodes.Utils import SRTLog, DirFileName, FN, Jdt, filterFileEndWith, writeTexts, saveJson, SRTWriteText, \
-    changext, readJson
+    changext, readJson, RunList
 from Shadow.Hierarchical import SHH2Config
 from Shadow.Hierarchical.SHH2Config import samplesDescription
 from Shadow.Hierarchical.SHH2DLModels import Model, SHH2MOD_SpectralTextureDouble
 from Shadow.Hierarchical.SHH2Draw import SHH2DrawTR
+from Shadow.Hierarchical.SHH2Sample import samplingCSVData
 
 LOG = SRTLog()
 CITY_NAME = "qd"
@@ -63,59 +64,10 @@ def data_deal(x, y=None):
 
 
 def sampling(csv_fn, win_rows, win_columns):
-    class sample:
-
-        def __init__(self, _line):
-            self.x = _line["X"]
-            self.y = _line["Y"]
-            self.city = None
 
     to_fn, to_npy_fn = getFileName(csv_fn, win_columns, win_rows)
 
-    gr = {"qd": SHH2Config.QD_GR(), "bj": SHH2Config.BJ_GR(), "cd": SHH2Config.CD_GR(), }
-    n_channels = gr["qd"].n_channels
-
-    df = pd.read_csv(csv_fn)
-    samples = []
-    numbers = {"qd": 0, "bj": 0, "cd": 0}
-    data = np.zeros((len(df), n_channels, win_rows, win_columns))
-    data_shape = data[0].shape
-
-    jdt = Jdt(len(df), "SHH2DL Sampling").start()
-    for i in range(len(df)):
-        line = df.loc[i]
-        spl = sample(line)
-        for k in gr:
-            if gr[k].isGeoIn(spl.x, spl.y):
-                spl.city = k
-                break
-        if spl.city is None:
-            warnings.warn("{}, {} not in raster.".format(spl.x, spl.y))
-            jdt.add()
-        else:
-            numbers[spl.city] += 1
-        samples.append(spl)
-    print(numbers)
-    for k in numbers:
-        if numbers[k] != 0:
-            gr[k].readAsArray()
-            # gr[k].d = np.zeros((3, gr[k].n_rows, gr[k].n_columns))
-            gns = GDALNumpySampling(win_rows, win_columns, gr[k])
-            for i, spl in enumerate(samples):
-                data_i = gns.getxy(spl.x, spl.y)
-                if data_shape == data_i.shape:
-                    data[i] = gns.getxy(spl.x, spl.y)
-                else:
-                    spl.city = None
-                    warnings.warn("{}, {} not in raster.".format(spl.x, spl.y))
-                jdt.add()
-            gns.data = None
-            gr[k].d = None
-    jdt.end()
-    df["city"] = [str(spl.city) for spl in samples]
-    df.to_csv(to_fn, index=False)
-    print(to_fn)
-    np.save(to_npy_fn, data.astype("float16"))
+    samplingCSVData(csv_fn, to_fn, to_npy_fn, win_rows, win_columns)
 
 
 def getFileName(csv_fn, win_columns, win_rows):
@@ -142,6 +94,7 @@ def loadDS(win_size, to_csv_fn=None, city_name=None):
         city_name = LOG.kw("CITY_NAME", CITY_NAME)
     else:
         city_name = LOG.kw("CITY_NAME", city_name)
+
     csv_fn = LOG.kw("CSV_FN", csvFN(city_name))
     read_size = 21, 21
     csv_fn_spl, npy_fn = getFileName(csv_fn, *read_size)
@@ -149,6 +102,7 @@ def loadDS(win_size, to_csv_fn=None, city_name=None):
     if not os.path.isfile(csv_fn_spl):
         sampling(csv_fn, *read_size)
     df = pd.read_csv(csv_fn_spl)
+
     print(samplesDescription(df))
 
     if to_csv_fn is not None:
@@ -171,7 +125,7 @@ def loadDS(win_size, to_csv_fn=None, city_name=None):
         "IS_SH": 0, "VEG_SH": 1, "SOIL_SH": 2, "WAT_SH": 3
     }
 
-    map_dict = map_dict_4
+    map_dict = vhl_map_dict
 
     def map_category(_category):
         if _category in map_dict:
@@ -197,6 +151,7 @@ def loadDS(win_size, to_csv_fn=None, city_name=None):
             if category is not None:
                 test_ds.data_list.append(data[i])
                 test_ds.y_list.append(category)
+
     return train_ds, test_ds
 
 
@@ -259,7 +214,7 @@ def buildModel(build_model_dict):
             x0 = ndc3.fit(torch.cat([x_opt, x_bs, x_c2, x_ha], dim=1))
             return x0, x_opt[:, [2, 3], :, :], to_3d(x_bs), to_3d(x_c2), to_3d(x_ha)
 
-        model = SHH2MOD_SpectralTextureDouble(tsn.length(), 4)
+        model = SHH2MOD_SpectralTextureDouble(tsn.length(), 4, blocks_type="Transformer", is_texture=True)
         model.xforward = xforward
 
         return model
@@ -298,7 +253,7 @@ def buildModel(build_model_dict):
 
         return model
 
-    return func3()
+    return func2()
 
 
 class DeepLearning:
@@ -320,8 +275,9 @@ class DeepLearning:
             color_table = {1: (0, 0, 0), 2: (255, 0, 0)}
             color_table = {1: (128, 0, 0), 2: (0, 128, 0), 3: (128, 128, 0), 4: (0, 0, 128), }
             color_table = {1: (255, 0, 0), 2: (0, 255, 0), 3: (0, 0, 0), 4: (0, 0, 255), }
-            color_table = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255), }
             color_table = {1: (255, 0, 0), 2: (0, 255, 0), 3: (0, 0, 0), 4: (0, 0, 255), }
+            # color_table = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255), }
+
         self.name = "SHH2DL"
         self.smip = SRTModImPytorch()
 
@@ -351,6 +307,7 @@ class DeepLearning:
     ):
         self.smip.model_name = model_name
         self.smip.class_names = list(class_names)
+
         self.smip.win_size = win_size
         self.smip.model = buildModel(build_model_dict).to(self.smip.device)
 
@@ -363,6 +320,7 @@ class DeepLearning:
         self.smip.func_predict = self.func_predict
         self.smip.func_y_deal = lambda y: y
         self.smip.initColorTable(self.color_table)
+        self.smip.n = 12000
         return
 
     def train(self):
@@ -395,27 +353,43 @@ class DeepLearning:
         # grc.addGDALDatas("")
         # self.smip.imdc(grc=grc, is_jdt=True, data_deal=data_deal)
 
-        if self.city_name == "qd":
-            self.smip.imdcTiles(
-                tiles_dirname=r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\Tiles",
-                data_deal=data_deal,
-            )
-        elif self.city_name == "bj":
-            self.smip.imdcTiles(
-                tiles_dirname=r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\Tiles",
-                data_deal=data_deal,
-            )
-        elif self.city_name == "cd":
-            self.smip.imdcTiles(
-                tiles_dirname=r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\Tiles",
-                data_deal=data_deal,
-            )
+        def tiles():
+            _to_fn = None
+            if self.city_name == "qd":
+                _to_fn = self.smip.imdcTiles(
+                    tiles_dirname=r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\Tiles",
+                    data_deal=data_deal,
+                )
+            elif self.city_name == "bj":
+                _to_fn = self.smip.imdcTiles(
+                    tiles_dirname=r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\Tiles",
+                    data_deal=data_deal,
+                )
+            elif self.city_name == "cd":
+                _to_fn = self.smip.imdcTiles(
+                    tiles_dirname=r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\Tiles",
+                    data_deal=data_deal,
+                )
+            return _to_fn
+
+        def raster():
+            _to_fn = None
+            if self.city_name == "qd":
+                _to_fn = self.smip.imdcGDALFile(fn=SHH2Config.QD_ENVI_FN, data_deal=data_deal, is_print=True, )
+            elif self.city_name == "bj":
+                _to_fn = self.smip.imdcGDALFile(fn=SHH2Config.BJ_ENVI_FN, data_deal=data_deal, is_print=True, )
+            elif self.city_name == "cd":
+                _to_fn = self.smip.imdcGDALFile(fn=SHH2Config.CD_ENVI_FN, data_deal=data_deal, is_print=True, )
+            return _to_fn
 
         # self.smip.imdcTiles(
         #     # to_fn=r"F:\Week\20240331\Data\20240329H185618\Net2_epoch2_imdc5.tif",
         #     tiles_dirname=r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\cd_sh2_1_retile",
         #     data_deal=data_deal,
         # )
+
+        to_fn = raster()
+        return to_fn
 
     def imdc2(self, mod_fn=None):
         if mod_fn is None:
@@ -436,6 +410,14 @@ class DeepLearning:
 
         self.smip.imdcGDALFiles(to_dirname=to_dirname, fns=fns, data_deal=data_deal, )
         return to_dirname
+
+    def imdc3(self, mod_fn=None):
+        if mod_fn is None:
+            mod_fn = sys.argv[2]
+        self.smip.loadPTH(mod_fn)
+        print("mod_fn", mod_fn)
+        self.smip.imdcGDALFile(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\Tiles\SHH2_QD2_envi_3_4.tif",
+                               is_print=True)
 
 
 def DeepLearning_main(is_train=False):
@@ -506,6 +488,7 @@ def run(is_run=False):
         saveJson(run_dict, json_fn)
 
     else:
+
         model_dirname = r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods"
 
         dfn = DirFileName(os.path.split(json_fn)[0])
@@ -549,7 +532,7 @@ def run(is_run=False):
                 class_names=("NOT_KNOW", "IS", "VEG", "SOIL", "WAT"),
                 win_size=(21, 21),
                 model_dirname=model_dirname,
-                epochs=2,
+                epochs=100,
             )
             to_dirname = dl.train()
 
@@ -577,18 +560,182 @@ def run(is_run=False):
                 class_names=("NOT_KNOW", "IS", "VEG", "SOIL", "WAT"),
                 win_size=(21, 21),
                 model_dirname=model_dirname,
-                epochs=2,
+                epochs=100,
             )
-            mod_fn = os.path.join(to_dirname, "{}_epoch{}.pth".format(model_name,run_dict["imdc"]["models"]))
+            mod_fn = os.path.join(to_dirname, "{}_epoch{}.pth".format(model_name, run_dict["imdc"]["models"]))
             print("Imdc: ", mod_fn)
-            # dl.imdc(mod_fn)
+            dl.imdc(mod_fn)
 
         json_dict[n_run]["run"] = True
         saveJson(json_dict, to_json_fn)
 
 
+def imdc(is_run=False):
+    rl = RunList()
+    dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods")
+
+    rl.add({"city_name": "bj", "model": {'spectral': 'CNN', 'texture': False}, "dirname": dfn.fn("20240630H105741"),
+            "imdc": 89})
+    rl.add({"city_name": "bj", "model": {'spectral': 'Transformer', 'texture': False},
+            "dirname": dfn.fn("20240630H110340"), "imdc": 89})
+    rl.add({"city_name": "bj", "model": {'spectral': 'CNN', 'texture': True}, "dirname": dfn.fn("20240630H111158"),
+            "imdc": 89})
+    rl.add(
+        {"city_name": "bj", "model": {'spectral': 'Transformer', 'texture': True}, "dirname": dfn.fn("20240630H114524"),
+         "imdc": 89})
+
+    rl.add({"city_name": "cd", "model": {'spectral': 'CNN', 'texture': False}, "dirname": dfn.fn("20240630H122133"),
+            "imdc": 89})
+    rl.add({"city_name": "cd", "model": {'spectral': 'Transformer', 'texture': False},
+            "dirname": dfn.fn("20240630H122728"), "imdc": 89})
+    rl.add({"city_name": "cd", "model": {'spectral': 'CNN', 'texture': True}, "dirname": dfn.fn("20240630H123521"),
+            "imdc": 89})
+    rl.add(
+        {"city_name": "cd", "model": {'spectral': 'Transformer', 'texture': True}, "dirname": dfn.fn("20240630H130543"),
+         "imdc": 89})
+
+    rl.add({"city_name": "qd", "model": {'spectral': 'CNN', 'texture': False}, "dirname": dfn.fn("20240630H133802"),
+            "imdc": 89})
+    rl.add({"city_name": "qd", "model": {'spectral': 'Transformer', 'texture': False},
+            "dirname": dfn.fn("20240630H134415"), "imdc": 89})
+    rl.add({"city_name": "qd", "model": {'spectral': 'CNN', 'texture': True}, "dirname": dfn.fn("20240630H135241"),
+            "imdc": 89})
+    rl.add(
+        {"city_name": "qd", "model": {'spectral': 'Transformer', 'texture': True}, "dirname": dfn.fn("20240630H142608"),
+         "imdc": 89})
+
+    # rl.show()
+
+    model_dirname = r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods"
+    model_name = "VHL_ST"
+
+    def run_func(_rl: RunList):
+        run_dict = _rl.run_dict
+
+        dl = DeepLearning(city_name=run_dict["city_name"])
+        dl.main(
+            model_name=model_name,
+            build_model_dict=run_dict,
+            class_names=("NOT_KNOW", "IS", "VEG", "SOIL", "WAT"),
+            win_size=(21, 21),
+            model_dirname=model_dirname,
+            epochs=100,
+        )
+        mod_fn = os.path.join(run_dict["dirname"], "{}_epoch{}.pth".format(model_name, run_dict["imdc"]))
+        print("Model   :", run_dict["model"])
+        print("Imdc    :", mod_fn)
+        print("Is Exist:", os.path.exists(mod_fn))
+        _rl.sw.write("mod_fn:", mod_fn)
+        to_fn = dl.imdc(mod_fn)
+        _rl.sw.write("imdc:", to_fn)
+
+    rl.fit(
+        name="{}_imdc".format(model_name),
+        dirname=r"F:\ProjectSet\Shadow\Hierarchical\Run",
+        cmd_line=r'''python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2DL import imdc; imdc(True)" %* ''',
+        is_run=is_run,
+        run_func=run_func,
+    )
+
+
+def imdc2():
+    dl = DeepLearning()
+    dl.main(build_model_dict={"model": {'spectral': 'Transformer', 'texture': True}, })
+    dl.imdc3(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240630H142608\VHL_ST_epoch61.pth")
+
+
+def trainimdc(is_run=False):
+    rl = RunList()
+    dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods")
+
+    def rl_add_CNN_Transformer_texture():
+        for city_name in ["qd", "bj", "cd"]:
+            for model in [
+                {"spectral": "CNN", "texture": False},
+                {"spectral": "Transformer", "texture": False},
+                {"spectral": "CNN", "texture": True},
+                {"spectral": "Transformer", "texture": True},
+            ]:
+                rl.add({"type": "training", "city_name": city_name, "model": model})
+                for imdc_mod in [1, 90]:
+                    rl.add({"type": "imdc", "city_name": city_name, "model": model, "imdc": {"models": imdc_mod}})
+
+    rl_add_CNN_Transformer_texture()
+    if not is_run:
+        rl.show()
+    # sys.exit()
+
+    model_dirname = r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods"
+    model_name = "VHL4_ST"
+
+    def run_func(_rl: RunList):
+        run_dict = _rl.run_dict
+        _rl.show(_rl.n_run)
+        time.sleep(1)
+        if run_dict["type"] == "training":
+            dl = DeepLearning(city_name=run_dict["city_name"])
+            dl.main(
+                model_name=model_name,
+                build_model_dict=run_dict,
+                class_names=("NOT_KNOW", "IS", "VEG", "SH", "WAT"),
+                win_size=(21, 21),
+                model_dirname=model_dirname,
+                epochs=100,
+            )
+            to_dirname = None
+            to_dirname = dl.train()
+
+            city_name = None
+            if run_dict["city_name"] == "qd":
+                city_name = "QingDao"
+            elif run_dict["city_name"] == "bj":
+                city_name = "BeiJing"
+            elif run_dict["city_name"] == "cd":
+                city_name = "ChengDu"
+            current_time = datetime.now()
+            _rl.sw.write("{}\n{} DL VHL4 {} {}\n".format(
+                current_time.strftime("%Y年%m月%d日%H:%M:%S"), city_name,
+                run_dict["model"], to_dirname
+            ))
+
+            _rl.saveJsonData("build_model_dict", run_dict)
+            _rl.saveJsonData("to_dirname", to_dirname)
+
+        elif run_dict["type"] == "imdc":
+
+            build_model_dict = _rl.readJsonData("build_model_dict")
+            to_dirname = _rl.readJsonData("to_dirname")
+
+            dl = DeepLearning(city_name=run_dict["city_name"])
+            dl.main(
+                model_name=model_name,
+                build_model_dict=build_model_dict,
+                class_names=("NOT_KNOW", "IS", "VEG", "SH", "WAT"),
+                win_size=(21, 21),
+                model_dirname=model_dirname,
+                epochs=100,
+            )
+            mod_fn = os.path.join(to_dirname, "{}_epoch{}.pth".format(model_name, run_dict["imdc"]["models"]))
+            print("Model   :", run_dict["model"])
+            print("Imdc    :", mod_fn)
+            print("Is Exist:", os.path.exists(mod_fn))
+            _rl.sw.write("mod_fn:", mod_fn)
+            to_fn = None
+            to_fn = dl.imdc(mod_fn)
+            _rl.sw.write("imdc:", to_fn)
+            _rl.sw.write()
+
+    rl.fit(
+        name="{}_trainimdc".format(model_name),
+        dirname=r"F:\ProjectSet\Shadow\Hierarchical\Run",
+        cmd_line=r'''python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2DL import trainimdc; trainimdc(True)" %* ''',
+        is_run=is_run,
+        run_func=run_func,
+    )
+
+
 if __name__ == "__main__":
-    run(False)
+    trainimdc()
     r"""
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2DL import DeepLearning_main; DeepLearning_main(True)" 
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2DL import DeepLearning_main; DeepLearning_main(False)"
