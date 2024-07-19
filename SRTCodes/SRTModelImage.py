@@ -809,7 +809,7 @@ class GDALImdc:
         imdc1(model, data, to_geo_fn, gr, data_deal=data_deal, is_jdt=is_jdt, color_table=color_table)
         data = None
 
-    def readRaster(self, data, fit_names, gr, is_jdt):
+    def readRaster(self, data, fit_names, gr, is_jdt, *args, **kwargs):
         jdt = Jdt(len(fit_names), "Read Raster").start(is_jdt)
         for i, name in enumerate(fit_names):
             # data[i] = self.sfm.callbacks(name).fit(gr.readGDALBand(name))

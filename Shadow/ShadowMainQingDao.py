@@ -33,6 +33,7 @@ def qdFeatureDeal(obj_feat):
     obj_feat.featureCallBack("DE_Lambda2", cal_10log10)
     obj_feat.featureCallBack("DE_SPAN", cal_10log10)
     obj_feat.featureCallBack("DE_Epsilon", cal_10log10)
+
     obj_feat.featureScaleMinMax("Blue", 0.908081, 3433.637207)
     obj_feat.featureScaleMinMax("Green", 0.762482, 3698.388428)
     obj_feat.featureScaleMinMax("Red", 0.996323, 3894.453857)

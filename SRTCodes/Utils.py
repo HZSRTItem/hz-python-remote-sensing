@@ -555,10 +555,11 @@ def catIterToStr(_iterable: Iterable[str], sep=" ", ) -> str:
     return sep.join(str(data) for data in _iterable)
 
 
-def printDict(front_str, d):
-    print(front_str)
-    for k in d:
-        print("  \"{0}\": {1}".format(k, d[k]))
+def printDict(front_str, d, print_func=print, end=""):
+    print_func(front_str)
+    for i, k in enumerate(d):
+        print_func("{:>2}. \"{}\": {}".format(i + 1, k, d[k]))
+    print_func(end=end)
 
 
 def printKeyValue(key, value, fs=""):
@@ -789,6 +790,52 @@ def isStringFloat(_str: str):
         return False
 
 
+def listAutoType(_list):
+    d_type = "int"
+
+    for data in _list:
+        if not isinstance(data, str):
+            d_type = "none"
+            break
+        if data == "":
+            d_type = "string"
+            break
+
+        if isStringFloat(data):
+            if d_type == "float":
+                continue
+            d_type = "float"
+        elif isStringInt(data):
+            if d_type == "float":
+                continue
+            d_type = "int"
+        else:
+            d_type = "string"
+            break
+
+    def as_column_type(_type):
+        def func(_str):
+            if _str == "":
+                return None
+            else:
+                return _type(_str)
+
+        return list(map(func, _list))
+
+    if d_type == "int":
+        return as_column_type(int)
+    elif d_type == "float":
+        return as_column_type(float)
+
+    return _list
+
+
+def dictAutoType(_dict):
+    for k in _dict:
+        _dict[k] = listAutoType(_dict[k])
+    return _dict
+
+
 class SRTDataFrame:
 
     def __init__(self):
@@ -854,30 +901,7 @@ class SRTDataFrame:
         return new_name
 
     def autoColumnType(self, column_name):
-        d_type = "int"
-        for data in self._data[column_name]:
-            if not isinstance(data, str):
-                d_type = "none"
-                break
-            if data == "":
-                d_type = "string"
-                break
-
-            if isStringFloat(data):
-                if d_type == "float":
-                    continue
-                d_type = "float"
-            elif isStringInt(data):
-                if d_type == "float":
-                    continue
-                d_type = "int"
-            else:
-                d_type = "string"
-                break
-        if d_type == "int":
-            self.asColumnType(column_name, int)
-        elif d_type == "float":
-            self.asColumnType(column_name, float)
+        self._data[column_name] = listAutoType(self._data[column_name])
 
     def asColumnType(self, column_name, _type):
         def func(_str):
@@ -1093,7 +1117,7 @@ class SRTWriteText:
 
     def __init__(self, text_fn, mode="w", is_show=False):
         self.text_fn = text_fn
-        self.is_show=is_show
+        self.is_show = is_show
         if self.text_fn is None:
             return
         if mode == "w":
@@ -1603,6 +1627,19 @@ class TimeDeltaRecord:
             self.sw.write()
             self.n_save += 1
             self.n = 0
+
+
+def printLinesStringTable(lines, loc="<", is_fist_line=True, print_func=print):
+    fmt_n = [0 for i in range(len(lines[0]))]
+    for line in lines:
+        for i, d in enumerate(line):
+            if fmt_n[i] < len(d):
+                fmt_n[i] = len(d)
+    fmts = ["{:" + loc + str(n) + "}" for n in fmt_n]
+    for i, line in enumerate(lines):
+        print_func(*[fmts[j].format(line[j]) for j in range(len(fmts))], sep=" | ")
+        if is_fist_line and (i == 0):
+            print_func(*["-" * n for n in fmt_n], sep="-+-")
 
 
 def main():

@@ -9,6 +9,7 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 import os.path
 import random
+import warnings
 import xml.etree.ElementTree as ElementTree
 
 import numpy as np
@@ -22,7 +23,8 @@ from SRTCodes.NumpyUtils import categoryMap, NumpySampling
 from SRTCodes.SRTFeature import SRTFeatureCallBack, SRTFeaturesMemory
 from SRTCodes.SRTSample import SRTCategorySampleCollection, SRTSample
 from SRTCodes.TrainingUtils import SRTAccuracyConfusionMatrix
-from SRTCodes.Utils import readcsv, Jdt, savecsv, changext, getfilenamewithoutext, SRTDataFrame, datasCaiFen, getRandom
+from SRTCodes.Utils import readcsv, Jdt, savecsv, changext, getfilenamewithoutext, SRTDataFrame, datasCaiFen, getRandom, \
+    saveJson
 
 RESOLUTION_ANGLE = 0.0000089831529294
 
@@ -1429,6 +1431,60 @@ class GDALRasterClip:
             start_xy=None, descriptions=gr.names, geo_transform=geo_transform
         )
         return to_fn
+
+
+def samplingCSVData(csv_fn, to_fn, to_npy_fn, names_fn, win_rows, win_columns, gr):
+    k0 = list(gr.keys())[0]
+    n_channels = gr[k0].n_channels
+    df = pd.read_csv(csv_fn)
+    samples = []
+    numbers = {name: 0 for name in gr}
+    data = np.zeros((len(df), n_channels, win_rows, win_columns), dtype="float32")
+    data_shape = data[0].shape
+
+    class sample:
+
+        def __init__(self, _line):
+            self.x = _line["X"]
+            self.y = _line["Y"]
+            self.city = None
+
+    jdt = Jdt(len(df), "SHH2DL Sampling").start()
+    for i in range(len(df)):
+        line = df.loc[i]
+        spl = sample(line)
+        for k in gr:
+            if gr[k].isGeoIn(spl.x, spl.y):
+                spl.city = k
+                break
+        if spl.city is None:
+            warnings.warn("{}, {} not in raster.".format(spl.x, spl.y))
+            jdt.add()
+        else:
+            numbers[spl.city] += 1
+        samples.append(spl)
+    for k in numbers:
+        if numbers[k] != 0:
+            gr[k].readAsArray()
+            gns = GDALNumpySampling(win_rows, win_columns, gr[k])
+            for i, spl in enumerate(samples):
+                data_i = gns.getxy(spl.x, spl.y)
+                if data_shape == data_i.shape:
+                    data[i] = gns.getxy(spl.x, spl.y)
+                else:
+                    spl.city = None
+                    warnings.warn("{}, {} not in raster.".format(spl.x, spl.y))
+                jdt.add()
+            gns.data = None
+            gr[k].d = None
+    jdt.end()
+    df["city"] = [str(spl.city) for spl in samples]
+    df.to_csv(to_fn, index=False)
+    print(to_fn)
+    np.save(to_npy_fn, data)
+
+    saveJson(gr[k0].names, names_fn)
+    return gr[k0].names
 
 
 def main():

@@ -23,6 +23,124 @@ def checkDFKeys(df, k, filename=""):
     return k in df
 
 
+CATEGORY_DICT = {
+    "shadow": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
+               {"code": 11, "color": (255, 0, 0), "name": "IS"},
+               {"code": 12, "color": (125, 0, 0), "name": "IS_SH"},
+               {"code": 21, "color": (0, 255, 0), "name": "VEG"},
+               {"code": 22, "color": (0, 125, 0), "name": "VEG_SH"},
+               {"code": 31, "color": (255, 255, 0), "name": "SOIL"},
+               {"code": 32, "color": (125, 125, 0), "name": "SOIL_SH"},
+               {"code": 41, "color": (0, 0, 255), "name": "WAT"},
+               {"code": 42, "color": (0, 0, 125), "name": "WAT_SH"}],
+    "shadow2": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
+                {"code": 11, "color": (255, 0, 0), "name": "IS"},
+                {"code": 12, "color": (125, 0, 0), "name": "IS_SH"},
+                {"code": 13, "color": (125, 0, 0), "name": "IS_AS_SH"},
+                {"code": 14, "color": (125, 0, 0), "name": "IS_DE_SH"},
+                {"code": 21, "color": (0, 255, 0), "name": "VEG"},
+                {"code": 22, "color": (0, 125, 0), "name": "VEG_SH"},
+                {"code": 23, "color": (0, 125, 0), "name": "VEG_AS_SH"},
+                {"code": 24, "color": (0, 125, 0), "name": "VEG_DE_SH"},
+                {"code": 31, "color": (255, 255, 0), "name": "SOIL"},
+                {"code": 32, "color": (125, 125, 0), "name": "SOIL_SH"},
+                {"code": 33, "color": (125, 125, 0), "name": "SOIL_AS_SH"},
+                {"code": 34, "color": (125, 125, 0), "name": "SOIL_DE_SH"},
+                {"code": 41, "color": (0, 0, 255), "name": "WAT"},
+                {"code": 42, "color": (0, 0, 125), "name": "WAT_SH"},
+                {"code": 43, "color": (0, 0, 125), "name": "WAT_AS_SH"},
+                {"code": 44, "color": (0, 0, 125), "name": "WAT_DE_SH"}, ],
+    "is": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
+           {"code": 1, "color": (255, 0, 0), "name": "IS"},
+           {"code": 2, "color": (0, 255, 0), "name": "NOIS"}],
+    # 1: (0, 255, 0), 2: (200, 200, 200), 3: (36, 36, 36),
+    "vhl": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
+            {"code": 1, "color": (0, 255, 0), "name": "VEG"},
+            {"code": 2, "color": (200, 200, 200), "name": "HIGH"},
+            {"code": 3, "color": (36, 36, 36), "name": "LOW"}],
+    "is_fc": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
+              {"code": 1, "color": (255, 255, 0), "name": "SOIL"},
+              {"code": 2, "color": (255, 0, 0), "name": "IS"}, ],
+}
+
+
+def df2SplTxt(df, category, to_filename, ):
+    if isinstance(category, str):
+        category = CATEGORY_DICT[category]
+
+    with open(to_filename, "w", encoding="utf-8") as f:
+        f.write("# QGIS SAMPLE (C)Copyright 2023, ZhengHan. All rights reserved.\n"
+                "# If this file is generated for the first time, Please modify as follows\n"
+                "\n"
+                "> CATEGORY\n"
+                "\n"
+                "# Each category is on one line, with the following format\n"
+                "#  - CODE: (R,G,B) | NAME\n"
+                "# Example: `0: (  0,   0,   0) | NOT_KNOW`\n"
+                "# The available colors are as follows:\n"
+                "#   (  0,   0,   0, ) (  0, 255,   0, ) (255,   0,   0, ) \n"
+                "#   (255, 255,   0, ) (  0,   0, 255, ) (255, 226, 148, ) \n"
+                "#   (132, 150, 176, ) (165, 165, 165, ) (255, 102, 255, ) \n"
+                "#   (  0, 102, 255, ) \n"
+                "\n")
+        category_code = {}
+        for cate in category:
+            f.write("{0:>3d}: ({1:>3d},{2:>3d},{3:>3d}) | {4}\n".format(
+                cate["code"], cate["color"][0], cate["color"][1], cate["color"][2], cate["name"]))
+            category_code[cate["code"]] = cate["name"]
+        f.write("\n"
+                "> FIELDS\n"
+                "\n"
+                "# Some fields for each sample. \n"
+                "# Each field is on one line\n"
+                "\n")
+        is_write_data = True
+        while df is not None:
+
+            if df is None:
+                break
+
+            if not checkDFKeys(df, "X", "df"):
+                break
+            if not checkDFKeys(df, "Y", "df"):
+                break
+            if not checkDFKeys(df, "CATEGORY", "df"):
+                break
+
+            for k in df:
+                if k not in ["X", "Y", "CATEGORY"]:
+                    f.write(str(k))
+                    f.write("\n")
+
+            f.write("\n")
+            f.write("> DATA\n"
+                    "\n"
+                    "# Please do not change\n"
+                    "\n")
+            is_write_data = False
+
+            for i in range(len(df)):
+                f.write(str(i + 1))
+                f.write(",")
+                f.write(str(category_code[int(df["CATEGORY"][i])]))
+                f.write(",False,")
+                f.write(str(float(df["X"][i])))
+                f.write(",")
+                f.write(str(float(df["Y"][i])))
+                for k in df:
+                    if k not in ["X", "Y", "CATEGORY"]:
+                        f.write(",")
+                        f.write(str(df[k][i]))
+                f.write("\n")
+            break
+
+        if is_write_data:
+            f.write("> DATA\n"
+                    "\n"
+                    "# Please do not change\n"
+                    "\n")
+
+
 class QJYTxt_main:
 
     def __init__(self):
@@ -30,28 +148,7 @@ class QJYTxt_main:
         self.description = "Build QJY txt file from excel or csv file"
         self.argv = []
 
-        self.category_dict = {
-            "shadow": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
-                       {"code": 11, "color": (255, 0, 0), "name": "IS"},
-                       {"code": 12, "color": (125, 0, 0), "name": "IS_SH"},
-                       {"code": 21, "color": (0, 255, 0), "name": "VEG"},
-                       {"code": 22, "color": (0, 125, 0), "name": "VEG_SH"},
-                       {"code": 31, "color": (255, 255, 0), "name": "SOIL"},
-                       {"code": 32, "color": (125, 125, 0), "name": "SOIL_SH"},
-                       {"code": 41, "color": (0, 0, 255), "name": "WAT"},
-                       {"code": 42, "color": (0, 0, 125), "name": "WAT_SH"}],
-            "is": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
-                   {"code": 1, "color": (255, 0, 0), "name": "IS"},
-                   {"code": 2, "color": (0, 255, 0), "name": "NOIS"}],
-            # 1: (0, 255, 0), 2: (200, 200, 200), 3: (36, 36, 36),
-            "vhl": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
-                    {"code": 1, "color": (0, 255, 0), "name": "VEG"},
-                    {"code": 2, "color": (200, 200, 200), "name": "HIGH"},
-                    {"code": 3, "color": (36, 36, 36), "name": "LOW"}],
-            "is_fc": [{"code": 0, "color": (0, 0, 0), "name": "NOT_KNOW"},
-                      {"code": 1, "color": (255, 255, 0), "name": "SOIL"},
-                      {"code": 2, "color": (255, 0, 0), "name": "IS"}, ],
-        }
+        self.category_dict = CATEGORY_DICT
 
     def usage(self):
         print("{0} [filename] [-o] [-sheet_name] [-ccn code|color|name]\n"
@@ -110,6 +207,13 @@ class QJYTxt_main:
         elif ext == ".csv" or ext == ".txt":
             to_tishi_line = "{0}".format(filename)
 
+        ext = os.path.splitext(filename)[1]
+        df = None
+        if ext == ".xlsx" or ext == ".xls":
+            df = pd.read_excel(filename, sheet_name=sheet_name)
+        elif ext == ".csv" or ext == ".txt":
+            df = pd.read_csv(filename)
+
         with open(to_filename, "w", encoding="utf-8") as f:
             f.write("# QGIS SAMPLE (C)Copyright 2023, ZhengHan. All rights reserved.\n"
                     "# If this file is generated for the first time, Please modify as follows\n"
@@ -139,12 +243,6 @@ class QJYTxt_main:
                     "\n")
             is_write_data = True
             while filename is not None:
-                ext = os.path.splitext(filename)[1]
-                df = None
-                if ext == ".xlsx" or ext == ".xls":
-                    df = pd.read_excel(filename, sheet_name=sheet_name)
-                elif ext == ".csv" or ext == ".txt":
-                    df = pd.read_csv(filename)
 
                 if df is None:
                     break

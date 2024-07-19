@@ -119,6 +119,8 @@ class TimeDirectory:
         to_fn = self.time_dfn.fn(name)
         FRW(to_fn).saveJson(self.save_dict)
 
+    def time_dirname(self):
+        return self.time_dfn.fn()
 
 def main():
     pass
