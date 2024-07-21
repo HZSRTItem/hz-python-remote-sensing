@@ -669,7 +669,11 @@ def eig2(a11, a12, a21, a22):
 
 
 def update10EDivide10(_data):
-    return np.power(10, _data / 10)
+    return np.power(10.0, _data / 10.0)
+
+
+def update10Log10(_data):
+    return 10 * np.log10(_data + 0.0001)
 
 
 class NumpySampling:

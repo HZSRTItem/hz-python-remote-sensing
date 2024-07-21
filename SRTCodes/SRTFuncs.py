@@ -1,5 +1,7 @@
 import gc
+import random
 import sys
+import time
 
 import pandas as pd
 import torch
@@ -7,9 +9,11 @@ from osgeo import gdal
 from torch import nn
 from torch.utils.data import Dataset
 
+from SRTCodes.GDALRasterClassification import tilesRasterImdc
 from SRTCodes.GDALUtils import GDALSamplingInit, GDALSamplingFast, GDALSampling
 from SRTCodes.NumpyUtils import connectedComponent, categoryMap, NumpyDataCenter
-from SRTCodes.PytorchUtils import printTorchModel
+from SRTCodes.PytorchModelTraining import torchDataPredict
+# from SRTCodes.PytorchUtils import printTorchModel
 from SRTCodes.SRTModelImage import SRTModImPytorch
 from SRTCodes.Utils import readText, printList
 from Shadow.Hierarchical import SHHConfig
@@ -53,14 +57,35 @@ class TNet(nn.Module):
 
 
 def main():
+    def predict_func(data):
+        ndvi = (data[1] - data[0]) / (data[1] + data[0])
+        time.sleep(random.random())
+        return (ndvi < 0) + 1
+
+    def func_predict(data):
+        return torch.ones(data.shape[0])+1
+
+    def tilesRasterImdc_predict_func(data):
+        data = torch.from_numpy(data)
+        return torchDataPredict(data, (21, 21), func_predict, None, "cuda", True)
+
+    tilesRasterImdc(
+        raster_fn=r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat",
+        to_imdc_fn=r"F:\Week\20240721\Data\imdc.tif", predict_func=tilesRasterImdc_predict_func,
+        read_size=(1600, 1600), interval_size=(-60, -60),
+        channels=["Red", "NIR"], tiles_dirname="", dtype="float32",
+        color_table={1: (255, 255, 255), 2: (0, 255, 0)},
+    )
+
+    return
+
+
+def method_name6():
     model = buildModel(None)
     x = torch.rand(10, 86, 21, 21)
     out_x = model(x)
-
     print(model)
     # printTorchModel(model, (86, 21, 21), batch_size=10, device="cpu")
-
-    return
 
 
 def method_name5():

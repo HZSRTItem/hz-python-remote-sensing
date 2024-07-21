@@ -17,7 +17,7 @@ from torch import optim, nn
 from torch.utils.data import Dataset, DataLoader
 
 from SRTCodes.ModelTraining import CategoryTraining, RegressionTraining, Training, ConfusionMatrix
-from SRTCodes.Utils import FieldRecords, TimeRunning
+from SRTCodes.Utils import FieldRecords, TimeRunning, Jdt
 
 
 def pytorchModelCodeString(model):
@@ -294,6 +294,7 @@ class TorchTraining:
         self.epoch_save = True
         self.save_model_fmt = None
         self.n_epoch_save = 1
+        self.win_size = None
 
         self._optimizer = None
         self._scheduler = None
@@ -372,6 +373,9 @@ class TorchTraining:
 
             for batch, (x, y) in enumerate(self.train_loader):
                 # x, y = x.to(self.device), y.to(self.device)
+                if self.win_size is None:
+                    self.win_size = int(x.shape[2]), int(x.shape[3])
+
                 if self.func_xy_deal is not None:
                     x, y = self.func_xy_deal(x, y)
 
@@ -425,11 +429,14 @@ class TorchTraining:
                         torch.save(self.model.state_dict(), mod_fn)
                         self.func_print("- MODEL: {}".format(mod_fn), end="\n")
 
-                    if epoch == 1:
-                        _save_epoch()
-
-                    elif epoch % self.n_epoch_save == 0:
-                        _save_epoch()
+                    if self.n_epoch_save == -1:
+                        if epoch == self.epochs:
+                            _save_epoch()
+                    else:
+                        if epoch == 1:
+                            _save_epoch()
+                        elif epoch % self.n_epoch_save == 0:
+                            _save_epoch()
 
                 self.func_print("*" * 100)
             if (self.save_model_fmt is not None) and (batch % self.n_test == 0) and self.batch_save:
@@ -483,8 +490,8 @@ class TorchTraining:
                 self.field_records.line["OA {}".format(update_name)] = _cm.OA()
                 self.field_records.line["Kappa {}".format(update_name)] = _cm.getKappa()
                 for name in self.test_cm.CNAMES():
-                    self.field_records.addFields("{} UA {}".format(name, update_name))
-                    self.field_records.addFields("{} PA {}".format(name, update_name))
+                    self.field_records.line["{} UA {}".format(name, update_name)] = _cm.UA(name)
+                    self.field_records.line["{} PA {}".format(name, update_name)] = _cm.PA(name)
             else:
                 _acc = n * 1.0 / n_total
 
@@ -494,6 +501,35 @@ class TorchTraining:
         acc = _accuracy(self.test_loader, self.test_cm, "Test")
 
         return acc
+
+    def imdc(self, data, is_jdt=True):
+        self.model.eval()
+        imdc = torchDataPredict(
+            data=data, win_size=self.win_size,
+            func_predict=lambda x: self.func_logit_category(self.model, x),
+            device=self.device, is_jdt=is_jdt
+        )
+        self.model.train()
+        return imdc
+
+
+def torchDataPredict(data, win_size, func_predict, data_deal=None, device="cuda", is_jdt=True):
+    imdc = torch.zeros(data.shape[1], data.shape[2], device=device)
+    data = data.to(device)
+    if data_deal is not None:
+        data = data_deal(data)
+    data = data.unfold(1, win_size[0], 1).unfold(2, win_size[1], 1)
+    row_start, column_start = int(win_size[0] / 2), int(win_size[1] / 2)
+    jdt = Jdt(data.shape[1], "Torch Data Predict").start(is_jdt=is_jdt)
+    for i in range(data.shape[1]):
+        x_data = data[:, i]
+        x_data = torch.transpose(x_data, 0, 1)
+        y = func_predict(x_data)
+        imdc[row_start + i, column_start: column_start + data.shape[2]] = y
+        jdt.add(is_jdt=is_jdt)
+    jdt.end(is_jdt=is_jdt)
+    imdc = imdc.cpu().numpy()
+    return imdc
 
 
 class PytorchRegressionTraining(RegressionTraining, PytorchTraining):

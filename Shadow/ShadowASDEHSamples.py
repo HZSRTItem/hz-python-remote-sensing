@@ -27,14 +27,17 @@ from osgeo import gdal
 from tabulate import tabulate
 
 from RUN.RUNFucs import df2SplTxt, splTxt2Dict
+from SRTCodes.GDALDraw import GDALDrawImages
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import GDALSamplingFast, RasterToVRTS, dictRasterToVRT, RasterRandomCoors
 from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.NumpyUtils import update10EDivide10, eig2
 from SRTCodes.SRTModel import SamplesData, MLModel, DataScale, SVM_RGS, RF_RGS, FeatFuncs
+from SRTCodes.SRTSample import samplesDescription
 from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.Utils import saveJson, changext, mkdir, DirFileName, getfilenamewithoutext, printDict, \
     readJson, SRTWriteText, timeStringNow, timeDirName, readLines, savecsv, filterFileEndWith, printList
+from Shadow.Hierarchical.SHH2Config import FEAT_NAMES_CLS
 from Shadow.ShadowMainBeiJing import bjFeatureDeal
 from Shadow.ShadowMainChengDu import cdFeatureDeal
 from Shadow.ShadowMainQingDao import qdFeatureDeal
@@ -134,60 +137,7 @@ def _RASTER_FN(city_name):
     return _CITY_NAME_GET(city_name, _QD_RASTER_FN, _BJ_RASTER_FN, _CD_RASTER_FN)
 
 
-class _FEAT_NAMES_CLS:
-
-    def __init__(self):
-        #
-        #
-        # "AS_VV", "AS_VH", "AS_angle", "AS_VHDVV",
-        # "AS_C11", "AS_C12_imag", "AS_C12_real", "AS_C22", "AS_Lambda1", "AS_Lambda2", "AS_SPAN",
-        # "AS_Epsilon", "AS_Mu", "AS_RVI", "AS_m", "AS_Beta",
-        # "AS_H", "AS_A", "AS_Alpha",
-        # "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
-        # "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
-        # "DE_VV", "DE_VH", "DE_angle", "DE_VHDVV",
-        # "DE_C11", "DE_C12_imag", "DE_C12_real", "DE_C22", "DE_SPAN", "DE_Lambda1", "DE_Lambda2",
-        # "DE_Epsilon", "DE_Mu", "DE_RVI", "DE_m", "DE_Beta",
-        # "DE_H", "DE_A", "DE_Alpha",
-        # "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
-        # "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
-        self._opt = ["Blue", "Green", "Red", "NIR", "NDVI", "NDWI", ]
-        self._opt_glcm = ["OPT_asm", "OPT_con", "OPT_cor", "OPT_dis", "OPT_ent", "OPT_hom", "OPT_mean", "OPT_var", ]
-        self._as_bs = ["AS_VV", "AS_VH", "AS_VHDVV", ]
-        self._as_c2 = ["AS_C11", "AS_C22", "AS_SPAN", ]
-        self._as_ha = ["AS_H", "AS_Alpha", ]
-        self._as_glcm = [
-            "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
-            "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
-        ]
-        self._de_bs = ["DE_VV", "DE_VH", "DE_VHDVV", ]
-        self._de_c2 = ["DE_C11", "DE_C22", "DE_SPAN", ]
-        self._de_ha = ["DE_H", "DE_Alpha", ]
-        self._de_glcm = [
-            "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
-            "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
-        ]
-
-    def f_opt(self):
-        return self._opt + self._opt_glcm
-
-    def f_as(self):
-        return self._as_bs + self._as_c2 + self._as_ha + self._as_glcm
-
-    def f_de(self):
-        return self._de_bs + self._de_c2 + self._de_ha + self._de_glcm
-
-    def f_opt_as(self):
-        return self.f_opt() + self.f_as()
-
-    def f_opt_de(self):
-        return self.f_opt() + self.f_de()
-
-    def f_opt_as_de(self):
-        return self.f_opt() + self.f_as() + self.f_de()
-
-
-_FEAT_NAMES = _FEAT_NAMES_CLS()
+_FEAT_NAMES = FEAT_NAMES_CLS()
 
 
 def _10EDivide10(x):
@@ -395,16 +345,6 @@ def sampleTypesToDF(df, n_fn):
     df["NS"] = ns_index
 
     return df
-
-
-def samplesDescription(df, field_name="TEST", is_print=True):
-    df_des = pd.pivot_table(df, index="CNAME", columns=field_name, aggfunc='size', fill_value=0)
-    df_des[pd.isna(df_des)] = 0
-    df_des["SUM"] = df_des.apply(lambda x: x.sum(), axis=1)
-    df_des.loc["SUM"] = df_des.apply(lambda x: x.sum())
-    if is_print:
-        print(tabulate(df_des, tablefmt="simple", headers="keys"))
-    return df_des
 
 
 class _DFFilter:
@@ -1767,6 +1707,34 @@ def draw():
     plt.rcParams['font.family'] = 'serif'
     plt.rcParams['font.serif'] = ['Times New Roman']
 
+    from PIL import Image
+
+    def remove_white_border(input_image_path, output_image_path=None):
+        if output_image_path is None:
+            output_image_path = input_image_path
+        img = Image.open(input_image_path)
+        img = img.convert("RGB")
+        datas = img.getdata()
+        white = (255, 255, 255)
+
+        left, top, right, bottom = img.width, img.height, 0, 0
+        for y in range(img.height):
+            for x in range(img.width):
+                if datas[y * img.width + x] != white:
+                    if x < left:
+                        left = x
+                    if x > right:
+                        right = x
+                    if y < top:
+                        top = y
+                    if y > bottom:
+                        bottom = y
+
+        # left, top, right, bottom = left + 1, top + 1, right - 1, bottom - 1
+        bbox = left, top, right, bottom
+        img_cropped = img.crop(bbox)
+        img_cropped.save(output_image_path, format="JPEG", dpi=(300, 300))
+
     def func1():
         df = pd.read_csv(_CD_SPLING_FN())
         df_training = df[df["TEST"] == 1]
@@ -1818,31 +1786,6 @@ def draw():
             ("IS", df_is_as_sh, df_is_de_sh), ("VEG", df_veg_as_sh, df_veg_de_sh),
             ("SOIL", df_soil_as_sh, df_soil_de_sh), ("WAT", df_wat_as_sh, df_wat_de_sh),
         ]
-
-        from PIL import Image
-
-        def remove_white_border(input_image_path, output_image_path):
-            img = Image.open(input_image_path)
-            img = img.convert("RGB")
-            datas = img.getdata()
-            white = (255, 255, 255)
-
-            left, top, right, bottom = img.width, img.height, 0, 0
-            for y in range(img.height):
-                for x in range(img.width):
-                    if datas[y * img.width + x] != white:
-                        if x < left:
-                            left = x
-                        if x > right:
-                            right = x
-                        if y < top:
-                            top = y
-                        if y > bottom:
-                            bottom = y
-
-            bbox = left, top, right, bottom
-            img_cropped = img.crop(bbox)
-            img_cropped.save(output_image_path, format="JPEG", dpi=(300, 300))
 
         name_dict = {"IS": "(a) Impervious Surface", "VEG": "(b) Vegetation", "SOIL": "(c) Soil", "WAT": "(d) Water"}
 
@@ -1910,11 +1853,77 @@ def draw():
 
         show2()
 
-    func1()
+    def func3():
+        gdi = GDALDrawImages(win_size=(31, 31))
+        qd_name = gdi.addGeoRange(_QD_RASTER_FN, _QD_RANGE_FN)
+        bj_name = gdi.addGeoRange(_BJ_RASTER_FN, _BJ_RANGE_FN)
+        cd_name = gdi.addGeoRange(_CD_RASTER_FN, _CD_RANGE_FN)
+        gdi.addCategoryColor("color", {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)})
+
+        gdi.addRasterCenterCollection("RGB", bj_name, cd_name, qd_name, channel_list=["Red", "Green", "Blue"])
+        gdi.addRasterCenterCollection("NRG", bj_name, cd_name, qd_name, channel_list=["NIR", "Red", "Green"])
+        gdi.addRasterCenterCollection("AS_VV", bj_name, cd_name, qd_name, channel_list=["AS_VV"])
+        gdi.addRasterCenterCollection("DE_VV", bj_name, cd_name, qd_name, channel_list=["DE_VV"])
+
+        column_names = ["RGB", "NRG", "AS SAR", "DE SAR"]
+        row_names = []
+
+        def add_row(name, x, y):
+            n_row = len(row_names)
+            gdi.addAxisDataXY(n_row, 0, "RGB", x, y, min_list=[200, 200, 200, ], max_list=[2000, 2000, 2000, ])
+            gdi.addAxisDataXY(n_row, 1, "NRG", x, y, min_list=[200, 200, 200, ], max_list=[3000, 2000, 2000, ])
+            gdi.addAxisDataXY(n_row, 2, "AS_VV", x, y, min_list=[-14], max_list=[6])
+            gdi.addAxisDataXY(n_row, 3, "DE_VV", x, y, min_list=[-14], max_list=[6])
+            row_names.append(name)
+
+        add_row(" ", 116.4601889, 39.9578624)
+
+        gdi.draw(n_rows_ex=3.0, n_columns_ex=3.0, row_names=row_names, column_names=column_names)
+        fn = r"F:\ASDEWrite\流程图\fig1.jpg"
+        plt.savefig(fn, dpi=300)
+        remove_white_border(fn, fn)
+        plt.show()
+
+    def func4():
+        remove_white_border(r"F:\ASDEWrite\流程图\流程图2.jpg")
+
+    def func5():
+        gdi = GDALDrawImages(win_size=(31, 31))
+
+        qd_name = gdi.addGeoRange(_QD_RASTER_FN, _QD_RANGE_FN)
+        bj_name = gdi.addGeoRange(_BJ_RASTER_FN, _BJ_RANGE_FN)
+        cd_name = gdi.addGeoRange(_CD_RASTER_FN, _CD_RANGE_FN)
+        gdi.addCategoryColor("color", {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)})
+
+        gdi.addRCC("RGB", bj_name, cd_name, qd_name, channel_list=["Red", "Green", "Blue"])
+        gdi.addRCC("NRG", bj_name, cd_name, qd_name, channel_list=["NIR", "Red", "Green"])
+        gdi.addRCC("AS_VV", bj_name, cd_name, qd_name, channel_list=["AS_VV"])
+        gdi.addRCC("DE_VV", bj_name, cd_name, qd_name, channel_list=["DE_VV"])
+
+        column_names = ["NRG", "AS SAR", "DE SAR"]
+        row_names = []
+
+        def add_row(name, x, y):
+            n_row = len(row_names)
+            gdi.addAxisDataXY(n_row, 0, "RGB", x, y, min_list=[200, 200, 200, ], max_list=[2000, 2000, 2000, ])
+            gdi.addAxisDataXY(n_row, 1, "NRG", x, y, min_list=[200, 200, 200, ], max_list=[3000, 2000, 2000, ])
+            gdi.addAxisDataXY(n_row, 2, "AS_VV", x, y, min_list=[-14], max_list=[6])
+            gdi.addAxisDataXY(n_row, 3, "DE_VV", x, y, min_list=[-14], max_list=[6])
+            row_names.append(name)
+
+        add_row(" ", 116.4601889, 39.9578624)
+
+        gdi.draw(n_rows_ex=3.0, n_columns_ex=3.0, row_names=row_names, column_names=column_names)
+        fn = r"F:\ASDEWrite\流程图\fig1.jpg"
+        plt.savefig(fn, dpi=300)
+        remove_white_border(fn, fn)
+        plt.show()
+
+    func5()
 
 
 if __name__ == "__main__":
-    accuracyDirectory(r"F:\ProjectSet\Shadow\ASDEHSamples\Models\20240719H162158\update2-test.csv", "20240719H162158")
+    draw()
 
 r"""
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowASDEHSamples import trainimdcMain; trainimdcMain()"

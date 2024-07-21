@@ -421,34 +421,37 @@ class Jdt:
 
 class RumTime:
 
-    def __init__(self, n_all=0):
+    def __init__(self, n_all=0, func_print=print):
         self.n_all = n_all
         self.n_current = 0
         self.strat_time = time.time()
         self.current_time = time.time()
+        self.func_print = func_print
 
     def strat(self):
         self.n_current = 0
         self.strat_time = time.time()
         self.current_time = time.time()
+        return self
 
     def add(self, n=1):
         self.n_current += 1
         self.current_time = time.time()
+        return self
 
     def printInfo(self):
-        out_s = f"+ {self.n_current}"
-        # time.strftime('%Y-%m-%d %H-%M-%S', time.localtime())
+        out_s = f"+ {self.n_current}/{self.n_all} "
+        out_s += RumTime.fmtTime((self.current_time - self.strat_time) / (self.n_current + + 0.0000001)) + "/it "
         out_s += " RUN:"
         out_s += RumTime.fmtTime(self.current_time - self.strat_time)
         if self.n_all != 0:
             out_s += " ALL:"
             t1 = (self.current_time - self.strat_time) / (self.n_current + 0.0000001) * self.n_all
             out_s += RumTime.fmtTime(t1)
-        print(out_s)
+        self.func_print(out_s)
 
     def end(self):
-        print("end")
+        self.func_print("end")
 
     @classmethod
     def fmtTime(cls, t):

@@ -1449,7 +1449,7 @@ def samplingCSVData(csv_fn, to_fn, to_npy_fn, names_fn, win_rows, win_columns, g
             self.y = _line["Y"]
             self.city = None
 
-    jdt = Jdt(len(df), "SHH2DL Sampling").start()
+    jdt = Jdt(len(df), "CSV Sampling").start()
     for i in range(len(df)):
         line = df.loc[i]
         spl = sample(line)
@@ -1485,6 +1485,15 @@ def samplingCSVData(csv_fn, to_fn, to_npy_fn, names_fn, win_rows, win_columns, g
 
     saveJson(gr[k0].names, names_fn)
     return gr[k0].names
+
+
+def sampleCSV(raster_fn, csv_fn, is_spl, to_fn=None):
+    if to_fn is None:
+        to_fn = changext(csv_fn, "_spl.csv")
+    if os.path.isfile(to_fn) and (not is_spl):
+        return to_fn
+    GDALSamplingFast(raster_fn).csvfile(csv_fn, to_fn)
+    return to_fn
 
 
 def main():

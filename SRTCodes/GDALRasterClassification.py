@@ -9,15 +9,19 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 import csv
 import os.path
+import random
+import time
 import warnings
 
+import numpy as np
 import pandas as pd
+from osgeo import gdal
 
-from SRTCodes.GDALRasterIO import GDALRaster, saveGTIFFImdc
+from SRTCodes.GDALRasterIO import GDALRaster, saveGTIFFImdc, tiffAddColorTable
 from SRTCodes.ModelTraining import ConfusionMatrix, ModelDataCategory, dataModelPredict
 from SRTCodes.NumpyUtils import categoryMap
 from SRTCodes.RasterClassification import RasterPrediction
-from SRTCodes.Utils import readcsv, changext, Jdt
+from SRTCodes.Utils import readcsv, changext, Jdt, getfilenamewithoutext
 
 
 class GDALRasterPrediction(GDALRaster, RasterPrediction):
@@ -374,8 +378,174 @@ class GDALModelDataCategory(ModelDataCategory):
         return to_imdc_fns
 
 
+def tilesRasterImdc(
+        raster_fn, to_imdc_fn, predict_func, read_size=(-1, -1), interval_size=(0, 0),
+        channels=None, tiles_dirname=None, dtype="float32", color_table=None, is_jdt=True
+):
+    read_size = list(read_size)
+    interval_size = list(interval_size)
+
+    gr = GDALRaster(raster_fn)
+    imdc = np.zeros((gr.n_rows, gr.n_columns), dtype="int8")
+
+    init_geo_transform = gr.geo_transform
+
+    if channels is None:
+        channels = gr.names
+    if read_size[0] <= 0:
+        read_size[0] = gr.n_rows
+        interval_size[0] = 0
+    if read_size[1] <= 0:
+        read_size[1] = gr.n_columns
+        interval_size[1] = 0
+
+    n_rows, n_columns = read_size
+    interval_row_size, interval_column_size = interval_size
+    step_row, step_column = n_rows + interval_row_size, n_columns + interval_column_size
+
+    def get_read_n(read_n, n, n_max):
+        if n + read_n > n_max:
+            read_n = n_max - n
+        return read_n
+
+    def get_to_n(interval_n_size, n, read_n):
+        if interval_n_size >= 0:
+            _start1, _end1 = n, n + read_n
+            _start2, _end2 = 0, read_n
+        else:
+            _start1, _end1 = n - int(interval_n_size / 2), n + read_n + int(interval_n_size / 2)
+            _start2, _end2 = 0 - int(interval_n_size / 2), 0 + read_n + int(interval_n_size / 2)
+
+        return _start1, _end1, _start2, _end2
+
+    def save(_data, _fn, _geo_transform=None):
+        if os.path.isfile(_fn):
+            os.remove(_fn)
+        gr.save(
+            d=_data, save_geo_raster_fn=_fn, fmt="GTiff", dtype=gdal.GDT_Byte,
+            start_xy=None, descriptions=["Category"], geo_transform=_geo_transform,
+            options=["COMPRESS=PACKBITS"]
+        )
+        if color_table is not None:
+            tiffAddColorTable(_fn, code_colors=color_table)
+
+    def timestr(_time):
+
+        tian = int(_time // (60 * 60 * 24))
+        _time = _time % (60 * 60 * 24)
+        shi = int(_time // (60 * 60))
+        _time = _time % (60 * 60)
+        fen = int(_time // 60)
+        miao = int(_time % 60)
+
+        if tian >= 1:
+            return "{}D {:02d}:{:02d}:{:02d}".format(tian, shi, fen, miao)
+        if shi >= 1:
+            return "{:02d}:{:02d}:{:02d}".format(shi, fen, miao)
+        return "{:02d}:{:02d}".format(fen, miao)
+
+    n_run = 1
+    for i, row in enumerate(range(0, gr.n_rows, step_row)):
+        for j, column in enumerate(range(0, gr.n_columns, step_column)):
+            n_run += 1
+
+    class _Jdt:
+
+        def __init__(self):
+            self.n = n_run
+
+            self.time = 0.0
+            self.n_current = 0
+            self.time_mean = 0
+
+        def start(self):
+            if not is_jdt:
+                return
+            self.time = time.time()
+            self.n_current = 0
+            self.time_mean = 0
+            return self
+
+        def add(self):
+            if not is_jdt:
+                return
+            time_current = time.time()
+            time_sum = self.n_current * self.time_mean + time_current - self.time
+            self.n_current += 1
+            self.time_mean = time_sum / self.n_current
+
+            print("{:>3d}% {:>2d}/{} [{}<{} {}/it]".format(
+                int(self.n_current / self.n * 100), self.n_current, self.n,
+                timestr(time_sum), timestr(self.time_mean * self.n), timestr(self.time_mean)))
+            self.time = time_current
+
+    jdt = _Jdt().start()
+    n_run = 1
+
+    for i, row in enumerate(range(0, gr.n_rows, step_row)):
+        for j, column in enumerate(range(0, gr.n_columns, step_column)):
+
+            if is_jdt:
+                print("{:>2}. ".format(n_run), end="")
+            n_run += 1
+
+            read_n_rows = get_read_n(n_rows, row, gr.n_rows)
+            read_n_columns = get_read_n(n_columns, column, gr.n_columns)
+
+            data = np.zeros((len(channels), read_n_rows, read_n_columns), dtype=dtype)
+
+            for i_channel, channel in enumerate(channels):
+                data[i_channel] = gr.getGDALBand(channel).ReadAsArray(column, row, read_n_columns, read_n_rows)
+
+            imdc_tmp = predict_func(data).astype("int8")
+
+            r_start1, r_end1, r_start2, r_end2 = get_to_n(interval_row_size, row, read_n_rows)
+            c_start1, c_end1, c_start2, c_end2 = get_to_n(interval_column_size, column, read_n_columns)
+
+            imdc[r_start1:r_end1, c_start1:c_end1] = imdc_tmp[r_start2:r_end2, c_start2:c_end2]
+
+            if tiles_dirname is not None:
+                if tiles_dirname == "":
+                    tiles_dirname = changext(to_imdc_fn, "_imdctiles")
+                if not os.path.isdir(tiles_dirname):
+                    os.mkdir(tiles_dirname)
+                to_name = getfilenamewithoutext(to_imdc_fn)
+                to_fn = os.path.join(tiles_dirname, "{}_{}_{}.tif".format(to_name, i + 1, j + 1))
+
+                x0, y0 = gr.coorRaster2Geo(row, column)
+                x1, y1 = gr.coorRaster2Geo(row + read_n_rows, column + read_n_columns)
+                if x0 > x1:
+                    x0, x1 = x1, x0
+                if y0 > y1:
+                    y0, y1 = y1, y0
+                geo_transform = (x0, gr.geo_transform[1], 0, y1, 0, gr.geo_transform[5])
+
+                save(imdc_tmp, to_fn, geo_transform)
+
+            jdt.add()
+
+    save(imdc, to_imdc_fn, init_geo_transform)
+
+    return imdc
+
+
 def main():
-    pass
+    def predict_func(data):
+        ndvi = (data[1] - data[0]) / (data[1] + data[0])
+        time.sleep(random.random())
+        return (ndvi < 0) + 1
+
+    def tilesRasterImdc_predict_func(data):
+            data = torch.from_numpy(data)
+            return torchDataPredict(data, win_size, func_predict, data_deal, device, is_jdt)
+
+    tilesRasterImdc(
+        raster_fn=r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat",
+        to_imdc_fn=r"F:\Week\20240721\Data\imdc.tif", predict_func=predict_func,
+        read_size=(1600, 1600), interval_size=(-60, -60),
+        channels=["Red", "NIR"], tiles_dirname="", dtype="float32",
+        color_table={1: (255, 255, 255), 2: (0, 255, 0)},
+    )
 
 
 if __name__ == "__main__":

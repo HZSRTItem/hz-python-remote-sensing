@@ -10,6 +10,7 @@ r"""----------------------------------------------------------------------------
 from typing import List, Union
 
 import torch
+from timm.models import ResNet
 from torch import nn, Tensor
 
 

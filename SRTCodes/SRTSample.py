@@ -13,6 +13,7 @@ import random
 
 import numpy as np
 import pandas as pd
+from tabulate import tabulate
 
 from SRTCodes.SRTFeature import SRTFeatureCallBackCollection, SRTFeatureExtractionCollection
 from SRTCodes.Utils import printList, SRTDataFrame, readJson, Jdt, SRTFilter, FRW, getfilenamewithoutext
@@ -918,6 +919,16 @@ class GEOJsonWriteWGS84:
     def save(self, to_fn):
         name = getfilenamewithoutext(to_fn)
         FRW(to_fn).saveJson({"type": self.type, "name": name, "crs": self.crs, "features": self.features})
+
+
+def samplesDescription(df, field_name="TEST", is_print=True):
+    df_des = pd.pivot_table(df, index="CNAME", columns=field_name, aggfunc='size', fill_value=0)
+    df_des[pd.isna(df_des)] = 0
+    df_des["SUM"] = df_des.apply(lambda x: x.sum(), axis=1)
+    df_des.loc["SUM"] = df_des.apply(lambda x: x.sum())
+    if is_print:
+        print(tabulate(df_des, tablefmt="simple", headers="keys"))
+    return df_des
 
 
 def main():

@@ -8,15 +8,34 @@ r"""----------------------------------------------------------------------------
 @Desc    : PyCodes of GDALTorch
 -----------------------------------------------------------------------------"""
 import os
-import time
 
 import numpy as np
 import torch
 from osgeo import gdal
 from osgeo_utils.gdal_merge import main as gdal_merge_main
 
+from SRTCodes.GDALRasterClassification import tilesRasterImdc
 from SRTCodes.GDALRasterIO import tiffAddColorTable, GDALRaster
-from SRTCodes.Utils import Jdt, changext, DirFileName, TimeDeltaRecord
+from SRTCodes.PytorchModelTraining import torchDataPredict
+from SRTCodes.Utils import Jdt, changext, DirFileName
+
+
+def torchImdc3(
+        raster_fn, func_predict, win_size, to_geo_fn, read_size=(5, -1),
+        fit_names=None, data_deal=None, is_jdt=True, color_table=None, device="cuda",
+        is_save_tiles=False,
+):
+    def tilesRasterImdc_predict_func(data):
+        return torchDataPredict(data, win_size, func_predict, data_deal, device, is_jdt)
+
+    tiles_dirname = None
+    if is_save_tiles:
+        tiles_dirname = ""
+
+    tilesRasterImdc(
+        raster_fn, to_geo_fn, tilesRasterImdc_predict_func, read_size=(-1, -1), interval_size=read_size,
+        channels=fit_names, tiles_dirname=tiles_dirname, dtype="float32", color_table=color_table, is_jdt=is_jdt
+    )
 
 
 class GDALTorchImdc:
@@ -78,50 +97,48 @@ class GDALTorchImdc:
 
     def _imdc2(self, func_predict, raster_fn, win_size, to_geo_fn, fit_names, data_deal,
                is_jdt, color_table, device, n=1000):
-        row_start, column_start = int(win_size[0] / 2), int(win_size[1] / 2)
 
         gr = GDALRaster(raster_fn)
+        n_rows, n_columns = gr.n_rows, gr.n_columns
+
         if fit_names is None:
             fit_names = gr.names
 
-        data = torch.zeros(len(fit_names), gr.n_rows, gr.n_columns, dtype=torch.float32)
+        data = torch.zeros(len(fit_names), n_rows, n_columns, dtype=torch.float32)
         self.readRaster(data, fit_names, gr, is_jdt)
 
-        # input("data = data.unfold(1, win_size[0], 1).unfold(2, win_size[1], 1) >")
-        data = data.to(device)
-        if data_deal is not None:
-            data = data_deal(data)
-        data = data.unfold(1, win_size[0], 1).unfold(2, win_size[1], 1)
-        imdc = torch.zeros(gr.n_rows, gr.n_columns, device=device)
-        # input("imdc = torch.zeros(gr.n_rows, gr.n_columns, device=device) >")
+        imdc = torchDataPredict(data, win_size, func_predict, data_deal, device, is_jdt)
 
-        tdr = TimeDeltaRecord(r"F:\ProjectSet\Shadow\Hierarchical\Temp\time.txt")
-        jdt = Jdt(data.shape[1], "Raster Torch Predict").start(is_jdt=is_jdt)
-        for i in range(data.shape[1]):
-            tdr.update(1)
-            x_data = data[:, i]
-
-            tdr.update(2)
-
-            x_data = torch.transpose(x_data, 0, 1)
-
-            tdr.update(3)
-            y = func_predict(x_data)
-
-            tdr.update(4)
-            imdc[row_start + i, column_start: column_start + data.shape[2]] = y
-
-            tdr.update(5)
-            jdt.add(is_jdt=is_jdt)
-            tdr.add()
-        jdt.end(is_jdt=is_jdt)
-
-        imdc = imdc.cpu().numpy()
         gr.save(imdc.astype("int8"), to_geo_fn, fmt="GTiff", dtype=gdal.GDT_Byte, options=["COMPRESS=PACKBITS"])
         if color_table is not None:
             tiffAddColorTable(to_geo_fn, 1, color_table)
 
         data = None
+
+    def imdc3(self, func_predict, win_size, to_imdc_fn,
+              fit_names=None, data_deal=None, color_table=None,
+              is_jdt=True, device="cuda", fun_print=print,
+              read_size=(1000, -1), is_save_tiles=False, ):
+
+        def tilesRasterImdc_predict_func(data):
+            data = torch.from_numpy(data)
+            return torchDataPredict(data, win_size, func_predict, data_deal, device, is_jdt)
+
+        tiles_dirname = None
+        if is_save_tiles:
+            tiles_dirname = ""
+
+        raster_fn = self.raster_fns[0]
+
+        fun_print("Raster:", raster_fn, end="\n")
+        fun_print("Imdc:", to_imdc_fn, end="\n")
+
+        interval_size = -(win_size[0] + 2), -(win_size[1] + 2)
+
+        tilesRasterImdc(
+            raster_fn, to_imdc_fn, tilesRasterImdc_predict_func, read_size=read_size, interval_size=interval_size,
+            channels=fit_names, tiles_dirname=tiles_dirname, dtype="float32", color_table=color_table, is_jdt=is_jdt
+        )
 
 
 def main():

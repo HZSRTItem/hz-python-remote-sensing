@@ -21,6 +21,7 @@ from torchvision.ops import Conv2dNormActivation
 from SRTCodes.NumpyUtils import NumpyDataCenter
 from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.Utils import filterFileEndWith, DirFileName, FieldRecords, SRTWriteText
+from Shadow.Hierarchical import SHH2Config
 from Shadow.Hierarchical.SHH2DLModels import SHH2MOD_SpectralTextureDouble
 from Shadow.Hierarchical.SHH2Model import SamplesData, TorchModel
 
@@ -419,11 +420,59 @@ class _TrainClassification:
 
 
 def main():
-    city_names = ["qd", "bj", "cd"]
-    model_names = ["AlexNet", "ConvNeXt", "GoogLeNet", "ResNet18", "VGG11", ]
-    tc = _TrainClassification(city_names[2], model_names[3])
-    tc.train()
-    return
+    def func1():
+        city_names = ["qd", "bj", "cd"]
+        model_names = ["AlexNet", "ConvNeXt", "GoogLeNet", "ResNet18", "VGG11", ]
+        tc = _TrainClassification(city_names[2], model_names[3])
+        tc.train()
+
+    def func2():
+        get_names = [
+            #  0  1  2  3  4  5
+            "Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2",
+            #  6  7  8  9 10 11
+            "AS_VV", "AS_VH", "AS_C11", "AS_C22", "AS_H", "AS_Alpha",
+            # 12 13 14 15 16 17
+            "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_H", "DE_Alpha",
+        ]
+
+        city_name = "qd"
+        csv_fn = getCSVFn("qd")
+        sd = SamplesData()
+        sd.addDLCSV(
+            csv_fn, (21, 21), get_names, x_deal,
+            grs={"qd": SHH2Config.QD_GR(), "bj": SHH2Config.BJ_GR(), "cd": SHH2Config.CD_GR(), }
+        )
+
+        win_size = (21, 21)
+        read_size = (21, 21)
+
+        model = ResNet(BasicBlock, [2, 2, 2, 2], in_ch=len(get_names), num_classes=4)
+
+        torch_mod = TorchModel()
+        torch_mod.filename = r"F:\Week\20240721\Data\model.hm"
+        torch_mod.map_dict = {
+            "IS": 0, "VEG": 1, "SOIL": 2, "WAT": 3,
+            "IS_SH": 0, "VEG_SH": 1, "SOIL_SH": 2, "WAT_SH": 3,
+        }
+        torch_mod.color_table = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255), }
+        torch_mod.model = model
+        torch_mod.criterion = nn.CrossEntropyLoss()
+        torch_mod.win_size = win_size
+        torch_mod.read_size = read_size
+        torch_mod.epochs = 2
+        torch_mod.train_filters.extend([("city", "==", city_name)])
+        torch_mod.test_filters.extend([("city", "==", city_name)])
+        torch_mod.sampleData(sd)
+        torch_mod.samples.showCounts()
+        torch_mod.n_epoch_save = -1
+
+        torch_mod.save_model_fmt = r"F:\Week\20240721\Data\model{}.pth"
+        torch_mod.train()
+
+        torch_mod.imdc(SHH2Config.QD_ENVI_FN, data_deal=x_deal, mod_fn=None, read_size=(1200, -1),is_save_tiles=True)
+
+    return func2()
 
 
 def run(city_name, model_name, is_train):

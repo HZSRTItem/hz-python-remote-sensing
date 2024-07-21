@@ -224,6 +224,61 @@ def samplesDescription(df):
     return df_des
 
 
+class FEAT_NAMES_CLS:
+
+    def __init__(self):
+        #
+        #
+        # "AS_VV", "AS_VH", "AS_angle", "AS_VHDVV",
+        # "AS_C11", "AS_C12_imag", "AS_C12_real", "AS_C22", "AS_Lambda1", "AS_Lambda2", "AS_SPAN",
+        # "AS_Epsilon", "AS_Mu", "AS_RVI", "AS_m", "AS_Beta",
+        # "AS_H", "AS_A", "AS_Alpha",
+        # "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+        # "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
+        # "DE_VV", "DE_VH", "DE_angle", "DE_VHDVV",
+        # "DE_C11", "DE_C12_imag", "DE_C12_real", "DE_C22", "DE_SPAN", "DE_Lambda1", "DE_Lambda2",
+        # "DE_Epsilon", "DE_Mu", "DE_RVI", "DE_m", "DE_Beta",
+        # "DE_H", "DE_A", "DE_Alpha",
+        # "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+        # "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
+        self._opt = ["Blue", "Green", "Red", "NIR", "NDVI", "NDWI", ]
+        self._opt_glcm = ["OPT_asm", "OPT_con", "OPT_cor", "OPT_dis", "OPT_ent", "OPT_hom", "OPT_mean", "OPT_var", ]
+        self._as_bs = ["AS_VV", "AS_VH", "AS_VHDVV", ]
+        self._as_c2 = ["AS_C11", "AS_C22", "AS_SPAN", ]
+        self._as_ha = ["AS_H", "AS_Alpha", ]
+        self._as_glcm = [
+            "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+            "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
+        ]
+        self._de_bs = ["DE_VV", "DE_VH", "DE_VHDVV", ]
+        self._de_c2 = ["DE_C11", "DE_C22", "DE_SPAN", ]
+        self._de_ha = ["DE_H", "DE_Alpha", ]
+        self._de_glcm = [
+            "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+            "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
+        ]
+
+    def f_opt(self):
+        return self._opt + self._opt_glcm
+
+    def f_as(self):
+        return self._as_bs + self._as_c2 + self._as_ha + self._as_glcm
+
+    def f_de(self):
+        return self._de_bs + self._de_c2 + self._de_ha + self._de_glcm
+
+    def f_opt_as(self):
+        return self.f_opt() + self.f_as()
+
+    def f_opt_de(self):
+        return self.f_opt() + self.f_de()
+
+    def f_opt_as_de(self):
+        return self.f_opt() + self.f_as() + self.f_de()
+
+
+
+
 def main():
     pass
 

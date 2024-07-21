@@ -572,7 +572,7 @@ class _Samples:
     def __len__(self):
         return len(self.keys)
 
-    def showCounts(self, *args, **kwargs):
+    def showCounts(self, func_print=print, *args, **kwargs):
         return None
 
 
@@ -650,84 +650,13 @@ class _MLSamples(_Samples):
         self.data_scale = DataScale().loadDict(to_dict["data_scale"])
         return self
 
-    def showCounts(self, *args, **kwargs):
+    def showCounts(self,func_print=print, *args, **kwargs):
         df = _sampleTestCounts(*self.spls_train, *self.spls_test)
         if "is_show" in kwargs:
             if not kwargs["is_show"]:
                 return df
-        print(df)
+        func_print(df)
         return df
-
-
-class _MLFCSamples(_Samples):
-
-    def __init__(self):
-        super().__init__()
-
-        self.vhl_spls = _MLSamples()
-        self.is_spls = _MLSamples()
-        self.ws_spls = _MLSamples()
-
-        self.vhl_fd = _FieldData()
-        self.is_fd = _FieldData()
-        self.ws_fd = _FieldData()
-
-    def deal(self):
-        def _field_data_func(_spl: _MLSamples, _fd: _FieldData):
-            _fd.dim = 1
-            _spl.x_train = _fd.get(_spl.x_train)
-            _spl.x_test = _fd.get(_spl.x_test)
-
-        _field_data_func(self.vhl_spls, self.vhl_fd)
-        _field_data_func(self.is_spls, self.is_fd)
-        _field_data_func(self.ws_spls, self.ws_fd)
-
-        self.x_test = self.data_scale.fits(pd.DataFrame(self.x_test))
-        self.x_test = self.x_test.values
-        return self
-
-    def showCounts(self, *args, **kwargs):
-        print("* VHL Sample Counts")
-        self.vhl_spls.showCounts()
-        print("* IS Sample Counts")
-        self.is_spls.showCounts()
-        print("* WS Sample Counts")
-        self.ws_spls.showCounts()
-        print("* Test")
-        print(_sampleTestCounts(*self.spls_test))
-
-    def toDict(self):
-        to_dict = {
-            "keys": self.keys,
-            "data_scale": self.data_scale.toDict(),
-
-            "vhl_spls": self.vhl_spls.toDict(),
-            "is_spls": self.is_spls.toDict(),
-            "ws_spls": self.ws_spls.toDict(),
-
-            "vhl_fd": self.vhl_fd.toDict(),
-            "is_fd": self.is_fd.toDict(),
-            "ws_fd": self.ws_fd.toDict(),
-
-            "test": [spl.toDict() for spl in self.spls_test]
-        }
-
-        return to_dict
-
-    def loadDict(self, to_dict, *args, **kwargs):
-        self.keys = to_dict["keys"]
-        self.data_scale = DataScale().loadDict(to_dict["data_scale"])
-
-        self.vhl_spls = _MLSamples().loadDict(to_dict["vhl_spls"])
-        self.is_spls = _MLSamples().loadDict(to_dict["is_spls"])
-        self.ws_spls = _MLSamples().loadDict(to_dict["ws_spls"])
-
-        self.vhl_fd = _FieldData().loadDict(to_dict["vhl_fd"])
-        self.is_fd = _FieldData().loadDict(to_dict["is_fd"])
-        self.ws_fd = _FieldData().loadDict(to_dict["ws_fd"])
-
-        self.spls_test = [_Sample().loadDict(spl_dict) for spl_dict in to_dict["test"]]
-        return self
 
 
 class TorchDataset(Dataset):
@@ -764,8 +693,8 @@ class _TorchSamples(_Samples):
         self.train_ds = TorchDataset()
         self.test_ds = TorchDataset()
 
-    def showCounts(self, *args, **kwargs):
-        print(_sampleTestCounts(*self.spls_train, *self.spls_test))
+    def showCounts(self,func_print=print, *args, **kwargs):
+        func_print(_sampleTestCounts(*self.spls_train, *self.spls_test))
 
     def deal(self):
         if len(self.spls_train) > 0:
@@ -774,8 +703,9 @@ class _TorchSamples(_Samples):
 
 class SamplesData:
 
-    def __init__(self, ):
+    def __init__(self, _dl_sample_dirname=_DL_SAMPLE_DIRNAME):
         self.samples = []
+        self._dl_sample_dirname = _dl_sample_dirname
 
     def addDF(self, df, data=None, data_keys=None, data_get_keys=None, x_deal=None):
         for i in range(len(df)):
@@ -796,13 +726,14 @@ class SamplesData:
         return self
 
     def addDLCSV(self, csv_fn, read_size, data_get_keys, x_deal=None, grs=None, ):
-        dfn = DirFileName(_DL_SAMPLE_DIRNAME)
+        dfn = DirFileName(self._dl_sample_dirname)
         csv_fn_spl = dfn.fn("{}-{}_{}.csv".format(FN(csv_fn).getfilenamewithoutext(), read_size[0], read_size[1]))
         npy_fn = FN(csv_fn_spl).changext("-data.npy")
         names_fn = FN(csv_fn_spl).changext("-names.json")
 
         if not os.path.isfile(csv_fn_spl):
-            samplingCSVData(grs, csv_fn, csv_fn_spl, npy_fn, names_fn, read_size[0], read_size[1])
+            # csv_fn, to_fn, to_npy_fn, names_fn, win_rows, win_columns, gr
+            samplingCSVData(csv_fn, csv_fn_spl, npy_fn, names_fn, read_size[0], read_size[1], grs, )
 
         df = pd.read_csv(csv_fn_spl)
         data = np.load(npy_fn)
@@ -850,89 +781,6 @@ class SamplesData:
             if ("TEST", "==", 0) not in test_filter:
                 test_filter.append(("TEST", "==", 0))
         return train_filters, test_filter
-
-    def mlfc(
-            self, data_scale=DataScale(),
-            vhl_x_keys=None, vhl_train_filters=None, vhl_test_filter=None, vhl_map_dict=None,
-            is_x_keys=None, is_train_filters=None, is_test_filter=None, is_map_dict=None,
-            ws_x_keys=None, ws_train_filters=None, ws_test_filter=None, ws_map_dict=None,
-            test_filter=None, test_map_dict=None,
-    ):
-        if test_filter is None:
-            test_filter = [("TEST", "==", "0")]
-        if test_map_dict is None:
-            test_map_dict = {"IS": 1, "VEG": 2, "SOIL": 3, "WAT": 4, "IS_SH": 1, "VEG_SH": 2, "SOIL_SH": 3, "WAT_SH": 4}
-
-        def _init(_x_keys, _train_filters, _test_filter, _map_dict,
-                  _x_keys_tmp, _train_filters_tmp, _test_filter_tmp, _map_dict_tmp, ):
-            def _is_none(_k, _k_tmp):
-                if _k is None:
-                    return _k_tmp
-                return _k
-
-            _x_keys = _is_none(_x_keys, _x_keys_tmp)
-            _train_filters = _is_none(_train_filters, _train_filters_tmp)
-            _test_filter = _is_none(_test_filter, _test_filter_tmp)
-            _map_dict = _is_none(_map_dict, _map_dict_tmp)
-
-            return _x_keys, _train_filters, _test_filter, _map_dict
-
-        vhl_x_keys, vhl_train_filters, vhl_test_filter, vhl_map_dict = _init(
-            vhl_x_keys, vhl_train_filters, vhl_test_filter, vhl_map_dict,
-            vhl_x_keys, [], [], {
-                "IS": 1, "VEG": 2, "SOIL": 1, "WAT": 3,
-                "IS_SH": 3, "VEG_SH": 3, "SOIL_SH": 3, "WAT_SH": 3
-            }
-        )
-
-        is_x_keys, is_train_filters, is_test_filter, is_map_dict = _init(
-            is_x_keys, is_train_filters, is_test_filter, is_map_dict,
-            is_x_keys, [], [], {"IS": 1, "SOIL": 2, }
-        )
-
-        ws_x_keys, ws_train_filters, ws_test_filter, ws_map_dict = _init(
-            ws_x_keys, ws_train_filters, ws_test_filter, ws_map_dict,
-            ws_x_keys, [], [], {"WAT": 3, "IS_SH": 1, "VEG_SH": 2, "SOIL_SH": 2, "WAT_SH": 2}
-        )
-
-        train_spls = _funcFilter([("TEST", "==", 1)], self.samples)
-        test_spls = _funcFilter([("TEST", "==", 0)], self.samples)
-
-        x_keys = list({*vhl_x_keys, *is_x_keys, *ws_x_keys})
-
-        def _ml_spl(_x_keys, _train_filters, _test_filter, _map_dict):
-            ml_spl = _MLSamples()
-
-            def _func_filter(_filter, _samples):
-                spls = _funcFilter(_filter, _samples, _map_dict)
-                x = [spl.gets(x_keys) for spl in spls]
-                y = [spl.code(_map_dict) for spl in spls]
-                return x, y, spls
-
-            ml_spl.x_train, ml_spl.y_train, ml_spl.spls_train = _func_filter(_train_filters, train_spls)
-            ml_spl.x_test, ml_spl.y_test, ml_spl.spls_test = _func_filter(_test_filter, test_spls)
-            ml_spl.keys = _x_keys
-            ml_spl.data_scale = data_scale
-            ml_spl.deal()
-
-            return ml_spl
-
-        mlfc_spl = _MLFCSamples()
-        mlfc_spl.keys = x_keys
-        mlfc_spl.data_scale = data_scale
-        mlfc_spl.spls_test = _funcFilter(test_filter, self.samples, test_map_dict)
-        mlfc_spl.x_test = [spl.gets(x_keys) for spl in mlfc_spl.spls_test]
-        mlfc_spl.y_test = [spl.code(test_map_dict) for spl in mlfc_spl.spls_test]
-
-        mlfc_spl.vhl_spls = _ml_spl(vhl_x_keys, vhl_train_filters, vhl_test_filter, vhl_map_dict)
-        mlfc_spl.is_spls = _ml_spl(is_x_keys, is_train_filters, is_test_filter, is_map_dict)
-        mlfc_spl.ws_spls = _ml_spl(ws_x_keys, ws_train_filters, ws_test_filter, ws_map_dict)
-        mlfc_spl.vhl_fd = _FieldData(x_keys).initGetName(vhl_x_keys)
-        mlfc_spl.is_fd = _FieldData(x_keys).initGetName(is_x_keys)
-        mlfc_spl.ws_fd = _FieldData(x_keys).initGetName(ws_x_keys)
-
-        mlfc_spl.deal()
-        return mlfc_spl
 
     def dltorch(self, map_dict, win_size, read_size, train_filters=None, test_filter=None, device="cuda"):
         train_filters, test_filter = self.gettraintestfilter(train_filters, test_filter)
@@ -1374,7 +1222,7 @@ class TorchModel(_ModelInit):
         torch_training.optimizer(optim.Adam, lr=0.001, eps=0.000001)
         torch_training.scheduler(optim.lr_scheduler.StepLR, step_size=20, gamma=0.6, last_epoch=-1)
 
-        torch_training.initCM(3)
+        torch_training.initCM(cnames=self.cm_names)
         torch_training.batch_save = self.batch_save
         torch_training.epoch_save = self.epoch_save
         torch_training.save_model_fmt = self.save_model_fmt
@@ -1392,7 +1240,8 @@ class TorchModel(_ModelInit):
         torch_training.train()
         return
 
-    def imdc(self, raster_fns, to_imdc_fn=None, mod_fn=None, data_deal=None, *args, **kwargs):
+    def imdc(self, raster_fns, to_imdc_fn=None, mod_fn=None, data_deal=None,read_size=(1000, -1) ,
+             is_save_tiles=False,fun_print=print, *args, **kwargs):
         if mod_fn is not None:
             self.model.load_state_dict(torch.load(mod_fn))
             self.model.to(self.device)
@@ -1408,10 +1257,11 @@ class TorchModel(_ModelInit):
                 to_imdc_fn = changext(self.filename, "_imdc.tif")
 
         gti = GDALTorchImdc(raster_fns)
-        gti.imdc2(
+        gti.imdc3(
             func_predict=func_predict, win_size=self.win_size, to_imdc_fn=to_imdc_fn,
             fit_names=self.x_keys, data_deal=data_deal, color_table=self.color_table,
-            n=-1, is_jdt=True, device=self.device,
+            is_jdt=True, device=self.device, read_size=read_size, is_save_tiles=is_save_tiles,
+            fun_print=fun_print,
         )
 
         self.model.train()
@@ -1421,45 +1271,6 @@ class TorchModel(_ModelInit):
         x = torch.from_numpy(x).to(self.device)
         y1 = self.func_logit_category(self.model, x)
         return y1.cpu().numpy()
-
-
-class FCModel(_ModelInit):
-
-    def __init__(self):
-        super(FCModel, self).__init__()
-        self.name = "FCModel"
-
-        self.vhl_fd = _FieldData()
-        self.is_fd = _FieldData()
-        self.ws_fd = _FieldData()
-
-        self.vhl_ml_mod = _ModelInit()
-        self.intiVHLModel()
-
-        self.is_ml_mod = _ModelInit()
-        self.initISModel()
-
-        self.ws_ml_mod = _ModelInit()
-        self.initWSModel()
-
-        self.test_filters: list[tuple[str, str, Union[int, str, float]]] = [("TEST", "==", 0)]
-
-    def showCM(self):
-        print("* VHL CM")
-        print(self.vhl_ml_mod.cm().fmtCM())
-        print("* IS CM")
-        print(self.is_ml_mod.cm().fmtCM())
-        print("* WS CM")
-        print(self.ws_ml_mod.cm().fmtCM())
-
-    def initWSModel(self, *args, **kwargs):
-        return self
-
-    def initISModel(self, *args, **kwargs):
-        return self
-
-    def intiVHLModel(self, *args, **kwargs):
-        return self
 
 
 def main():
