@@ -171,7 +171,7 @@ class GoogLeNet(nn.Module):
         else:
             return x  # type: ignore[return-value]
 
-    def forward(self, x: Tensor) :
+    def forward(self, x: Tensor):
         x = self._transform_input(x)
         x, aux1, aux2 = self._forward(x)
         aux_defined = self.training and self.aux_logits
@@ -183,10 +183,11 @@ class GoogLeNet(nn.Module):
             else:
                 return GoogLeNetOutputs(x, aux2, aux1)
         else:
-            if self.is_training:
-                return self.eager_outputs(x, aux2, aux1).logits
+            to_x = self.eager_outputs(x, aux2, aux1)
+            if isinstance(to_x, Tensor):
+                return to_x
             else:
-                return self.eager_outputs(x, aux2, aux1)
+                return to_x.logits
 
 
 class Inception(nn.Module):

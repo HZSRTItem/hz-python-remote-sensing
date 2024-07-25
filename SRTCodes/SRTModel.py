@@ -610,7 +610,7 @@ class _MLSamples(_Samples):
         return self
 
     def dataDescription(self, fmt="{:>.3f}", print_func=print, end=""):
-        lines = [["NAME", "MIN 1", "MAX 1", "MEAN 1", "STD 1", "MIN 1", "MAX 0", "MEAN 0", "STD 0",]]
+        lines = [["NAME", "MIN 1", "MAX 1", "MEAN 1", "STD 1", "MIN 1", "MAX 0", "MEAN 0", "STD 0", ]]
         for i, k in enumerate(self.keys):
             lines.append([
                 k,
@@ -650,7 +650,7 @@ class _MLSamples(_Samples):
         self.data_scale = DataScale().loadDict(to_dict["data_scale"])
         return self
 
-    def showCounts(self,func_print=print, *args, **kwargs):
+    def showCounts(self, func_print=print, *args, **kwargs):
         df = _sampleTestCounts(*self.spls_train, *self.spls_test)
         if "is_show" in kwargs:
             if not kwargs["is_show"]:
@@ -693,7 +693,7 @@ class _TorchSamples(_Samples):
         self.train_ds = TorchDataset()
         self.test_ds = TorchDataset()
 
-    def showCounts(self,func_print=print, *args, **kwargs):
+    def showCounts(self, func_print=print, *args, **kwargs):
         func_print(_sampleTestCounts(*self.spls_train, *self.spls_test))
 
     def deal(self):
@@ -1175,8 +1175,9 @@ class TorchModel(_ModelInit):
         self._scheduler = None
 
         def func_logit_category(model, x: torch.Tensor):
-            logit = model(x)
-            y = torch.argmax(logit, dim=1) + 1
+            with torch.no_grad():
+                logit = model(x)
+                y = torch.argmax(logit, dim=1) + 1
             return y
 
         self.func_epoch = None
@@ -1240,12 +1241,13 @@ class TorchModel(_ModelInit):
         torch_training.train()
         return
 
-    def imdc(self, raster_fns, to_imdc_fn=None, mod_fn=None, data_deal=None,read_size=(1000, -1) ,
-             is_save_tiles=False,fun_print=print, *args, **kwargs):
+    def imdc(self, raster_fns, to_imdc_fn=None, mod_fn=None, data_deal=None, read_size=(1000, -1),
+             is_save_tiles=False, fun_print=print, *args, **kwargs):
         if mod_fn is not None:
             self.model.load_state_dict(torch.load(mod_fn))
             self.model.to(self.device)
         self.model.eval()
+        self.model.zero_grad()
 
         def func_predict(x):
             return self.func_logit_category(self.model, x)
