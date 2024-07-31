@@ -10,23 +10,51 @@ r"""----------------------------------------------------------------------------
 import numpy as np
 from matplotlib import pyplot as plt
 
-from SRTCodes.GDALUtils import GDALRasterCenterDatas
-from SRTCodes.SRTDraw import MplPatchesEllipseColl
+from SRTCodes.GDALUtils import GDALRasterCenterDatas, GDALRasterCenterData
+from SRTCodes.SRTDraw import DrawImage, dataToCategory
 
 
-class GDALDrawImages(GDALRasterCenterDatas):
+class GDALDrawImage(DrawImage):
+
+    def __init__(self, win_size=None, is_min_max=True, is_01=True):
+        super().__init__()
+        self.grcd = GDALRasterCenterData(win_size=win_size, is_min_max=is_min_max, is_01=is_01)
+
+    def addRCC(self, name, *raster_fns, channel_list=None, fns=None, win_size=None, is_min_max=None,
+               is_01=None, no_data=0.0, min_list=None, max_list=None, callback_funcs=None):
+        return self.grcd.addRasterCenterCollection(
+            name, *raster_fns, channel_list=channel_list, fns=fns, win_size=win_size, is_min_max=is_min_max,
+            is_01=is_01, no_data=no_data, min_list=min_list, max_list=max_list, callback_funcs=callback_funcs
+        )
+
+    def addGR(self, raster_fn, geo_range=None):
+        return self.grcd.addGeoRange(raster_fn=raster_fn, geo_range=geo_range)
+
+    def read(self, grcc_name, x, y, win_size=None, is_trans=False, *args, **kwargs):
+        self.data = self.grcd.readAxisDataXY(grcc_name, x, y, win_size=win_size, is_trans=is_trans, *args, **kwargs)
+        if self.data.shape[2] == 1:
+            data_tmp = np.zeros((*self.data.shape[:2], 3))
+            data_tmp[:, :, 0] = self.data[:, :, 0]
+            data_tmp[:, :, 1] = self.data[:, :, 0]
+            data_tmp[:, :, 2] = self.data[:, :, 0]
+        return self.data
+
+    def readDraw(self, grcc_name, x, y, win_size=None, is_trans=False, *args, **kwargs):
+        self.read(grcc_name, x, y, win_size=win_size, is_trans=is_trans, *args, **kwargs)
+        self.draw(*args, **kwargs)
+
+
+class GDALDrawImages(GDALRasterCenterDatas, DrawImage):
 
     def __init__(self, win_size=None, is_min_max=True, is_01=True, fontdict=None):
-        super().__init__(win_size, is_min_max, is_01)
+        DrawImage.__init__(self)
+        GDALRasterCenterDatas.__init__(self, win_size, is_min_max, is_01)
 
         if fontdict is None:
             fontdict = {'family': 'Times New Roman', 'size': 16}
 
         self.column_names = None
         self.row_names = None
-
-        self.ell_coll = MplPatchesEllipseColl()
-
         self.fontdict = fontdict
 
     def draw(self, n_columns_ex=1.0, n_rows_ex=1.0, row_names=None, column_names=None, fontdict=None):
@@ -67,20 +95,16 @@ class GDALDrawImages(GDALRasterCenterDatas):
 
         return axes, fontdict, n_columns, n_rows
 
-    def toCategory(self, n_row, n_column, color_name):
+    def toCategory(self, n_row, n_column, color_name, *args, **kwargs):
         d = np.array(self.getData(n_row, n_column))
-        d = d.astype("int")
-        d = d[:, :, 0]
-        c_d = np.zeros((d.shape[0], d.shape[1], 3))
         c_dict = self.category_colors[color_name]
-        for k in c_dict:
-            c_d[d == k, :] = np.array(c_dict[k])
-        c_d = c_d / 255
+        c_d = dataToCategory(c_dict, d)
         self.setData(n_row, n_column, c_d)
 
-    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, color_name=None,is_trans=False, *args, **kwargs):
+    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, color_name=None, is_trans=False, *args,
+                      **kwargs):
         d = super(GDALDrawImages, self).addAxisDataXY(n_row=n_row, n_column=n_column, grcc_name=grcc_name, x=x, y=y,
-                                                      win_size=win_size,is_trans=is_trans,  *args, **kwargs)
+                                                      win_size=win_size, is_trans=is_trans, *args, **kwargs)
         if d.shape[2] == 1:
             to_d = np.zeros((d.shape[0], d.shape[1], 3))
             for i in range(3):
@@ -157,6 +181,7 @@ class GDALDrawImagesColumns(GDALDrawImages):
                                    color_name=column_key.color_name, win_size=win_size, *_args, **_kwargs)
         self.draw(n_columns_ex=n_columns_ex, n_rows_ex=n_rows_ex, row_names=row_names, column_names=column_names,
                   fontdict=fontdict)
+
 
 def main():
     gdi = GDALDrawImages((100, 100))

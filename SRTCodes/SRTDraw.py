@@ -130,6 +130,78 @@ class SRTDrawData(SRTFeatureDataCollection):
         return d[select_d]
 
 
+def dataToCategory(c_dict, d):
+    d = d.astype("int")
+    d = d[:, :, 0]
+    c_d = np.zeros((d.shape[0], d.shape[1], 3))
+    for k in c_dict:
+        c_d[d == k, :] = np.array(c_dict[k])
+    c_d = c_d / 255
+    return c_d
+
+
+class DrawImage:
+
+    def __init__(self):
+        self.category_colors = {}
+        self.ell_coll = MplPatchesEllipseColl()
+        self.ells = []
+
+        self.data = None
+
+    def addCategoryColor(self, name, *category_colors, **category_color):
+        c_dict = {}
+        i = 0
+        c_name = ""
+        for c_color in category_colors:
+            if isinstance(c_color, dict):
+                for k in c_color:
+                    c_dict[k] = c_color[k]
+            else:
+                if i % 2 == 0:
+                    c_name = c_color
+                else:
+                    c_dict[c_name] = c_color
+        for k in category_color:
+            c_dict[k] = category_color[k]
+        self.category_colors[name] = c_dict
+        return name
+
+    def toCategory(self, *args, **kwargs):
+        color_name = args[0]
+        c_dict = self.category_colors[color_name]
+        c_d = dataToCategory(c_dict, self.data)
+        return c_d
+
+    def draw(self, *args, **kwargs):
+        if len(args) >= 1:
+            ax = args[0]
+        elif "ax" in kwargs:
+            ax = kwargs["ax"]
+        else:
+            ax = plt.gca()
+        ax.imshow(self.data)
+
+        if "fontdict" in kwargs:
+            fontdict = kwargs["fontdict"]
+        else:
+            fontdict = {}
+        for ell in self.ells:
+            ax.add_patch(ell.fit())
+        ax.set_xticks([])
+        ax.set_yticks([])
+        if "xlabel" in kwargs:
+            ax.set_xlabel("xlabel", rotation=0, fontdict=fontdict)
+        if "ylabel" in kwargs:
+            ax.set_ylabel("ylabel", rotation=0, fontdict=fontdict)
+        return ax
+
+    def addEllipse(self, xy, width, height, angle=0, is_ratio=False, *args, **kwargs):
+        ell = MplPatchesEllipse(xy=xy, width=width, height=height, angle=angle, is_ratio=is_ratio, **kwargs)
+        self.ells.append(ell)
+        return ell
+
+
 class SRTDrawHist(SRTDrawData):
 
     def __init__(self, ):

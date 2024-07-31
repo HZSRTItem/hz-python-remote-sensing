@@ -548,32 +548,27 @@ class GDALRasterCenterCollection:
         return self.grc.d
 
 
-class GDALRasterCenterDatas:
+class GDALRasterCenterData:
 
     def __init__(self, win_size=None, is_min_max=False, is_01=False):
-        # super().__init__(geo_image_fns, geo_ranges, win_size, is_min_max, is_01, min_list, max_list)
-
-        self.data = [[None]]
         self.rasters_fns_geo_ranges = {}
         self.win_size = win_size
         self.is_min_max = is_min_max
         self.is_01 = is_01
         self.grccs = {}
-        self.category_colors = {}
 
     def keys(self):
         return list(self.grccs.keys())
 
-    def changeDataList(self, n_row, n_column):
-        if n_row >= len(self.data):
-            for i in range(n_row - len(self.data) + 1):
-                self.data.append([None for _ in range(len(self.data[0]))])
-        if n_column >= len(self.data[0]):
-            n_column_tmp = len(self.data[0])
-            for i in range(len(self.data)):
-                for j in range(n_column - n_column_tmp + 1):
-                    self.data[i].append(None)
-        return n_row, n_column
+    def addGeoRange(self, raster_fn, geo_range=None):
+        if geo_range is not None:
+            if isinstance(geo_range, str):
+                geo_range = GDALRasterRange().loadJsonFile(geo_range)
+            elif isinstance(geo_range, dict):
+                geo_range = GDALRasterRange().loadJsonFile(geo_range)
+        raster_fn = os.path.abspath(raster_fn)
+        self.rasters_fns_geo_ranges[raster_fn] = geo_range
+        return getfilenamewithoutext(raster_fn)
 
     def addRasterCenterCollection(self, name, *raster_fns, channel_list=None, fns=None, win_size=None, is_min_max=None,
                                   is_01=None, no_data=0.0, min_list=None, max_list=None, callback_funcs=None):
@@ -615,45 +610,37 @@ class GDALRasterCenterDatas:
             is_01=is_01, no_data=no_data, min_list=min_list, max_list=max_list, callback_funcs=callback_funcs
         )
 
-    def addGeoRange(self, raster_fn, geo_range=None):
-        if geo_range is not None:
-            if isinstance(geo_range, str):
-                geo_range = GDALRasterRange().loadJsonFile(geo_range)
-            elif isinstance(geo_range, dict):
-                geo_range = GDALRasterRange().loadJsonFile(geo_range)
-        raster_fn = os.path.abspath(raster_fn)
-        self.rasters_fns_geo_ranges[raster_fn] = geo_range
-        return getfilenamewithoutext(raster_fn)
-
-    def addCategoryColor(self, name, *category_colors, **category_color):
-        c_dict = {}
-        i = 0
-        c_name = ""
-        for c_color in category_colors:
-            if isinstance(c_color, dict):
-                for k in c_color:
-                    c_dict[k] = c_color[k]
-            else:
-                if i % 2 == 0:
-                    c_name = c_color
-                else:
-                    c_dict[c_name] = c_color
-        for k in category_color:
-            c_dict[k] = category_color[k]
-        self.category_colors[name] = c_dict
-        return name
-
-    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, is_trans=False, *args, **kwargs):
-        n_row, n_column = self.changeDataList(n_row, n_column)
+    def readAxisDataXY(self, grcc_name, x, y, win_size=None, is_trans=False, *args, **kwargs):
         grcc: GDALRasterCenterCollection = self.grccs[grcc_name]
         min_list, max_list = None, None
         if "min_list" in kwargs:
             min_list = kwargs["min_list"]
         if "max_list" in kwargs:
             max_list = kwargs["max_list"]
-
         d = grcc.getPatch(x, y, win_size=win_size, min_list=min_list, max_list=max_list, is_trans=is_trans)
+        return d
 
+
+class GDALRasterCenterDatas(GDALRasterCenterData):
+
+    def __init__(self, win_size=None, is_min_max=False, is_01=False):
+        super().__init__(win_size, is_min_max, is_01)
+        self.data = [[None]]
+
+    def changeDataList(self, n_row, n_column):
+        if n_row >= len(self.data):
+            for i in range(n_row - len(self.data) + 1):
+                self.data.append([None for _ in range(len(self.data[0]))])
+        if n_column >= len(self.data[0]):
+            n_column_tmp = len(self.data[0])
+            for i in range(len(self.data)):
+                for j in range(n_column - n_column_tmp + 1):
+                    self.data[i].append(None)
+        return n_row, n_column
+
+    def addAxisDataXY(self, n_row, n_column, grcc_name, x, y, win_size=None, is_trans=False, *args, **kwargs):
+        n_row, n_column = self.changeDataList(n_row, n_column)
+        d = self.readAxisDataXY(grcc_name, x, y, win_size=win_size, is_trans=is_trans, *args, **kwargs)
         self.setData(n_row, n_column, d)
         return d
 
@@ -972,6 +959,10 @@ class GDALSamplingInit:
             win_row, win_column,
             is_jdt=is_jdt, is_trans=is_trans
         )
+
+    def samplingToData(self, x, y, is_jdt=True, is_trans=False):
+        data = self.sampling2(x, y, 1, 1, is_jdt, is_trans)
+        return data[:, :, 0, 0]
 
 
 class GDALSamplingFast(GDALSamplingInit):

@@ -7,18 +7,69 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2024, ZhengHan. All rights reserved.
 @Desc    : PyCodes of SHH2Funcs
 -----------------------------------------------------------------------------"""
+import os
+from shutil import copyfile
+
 import numpy as np
 import pandas as pd
 from osgeo import gdal
 
 from SRTCodes.GDALRasterIO import GDALRaster
-from SRTCodes.GDALUtils import RasterToVRTS
+from SRTCodes.GDALUtils import RasterToVRTS, GDALSamplingFast
 from SRTCodes.OGRUtils import sampleSpaceUniform
-from SRTCodes.Utils import FRW, DirFileName, FN
+from SRTCodes.Utils import FRW, DirFileName, FN, filterFileEndWith, getfilenamewithoutext
 from Shadow.Hierarchical import SHH2Config
 
 
 def main():
+    def func1():
+        dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Mods\Temp")
+        city_name = "qd"
+        dirname = dfn.fn(city_name)
+        to_dirname = r"F:\ProjectSet\Shadow\Hierarchical\Mods\Temp\imdcs"
+        for f in os.listdir(dirname):
+            if f.endswith("_imdc.tif"):
+                fn = os.path.join(dirname, f)
+                to_fn = os.path.join(to_dirname, "{}_{}".format(city_name, f))
+                copyfile(fn, to_fn)
+
+    def func2():
+        csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\1\shh2_qd1.csv"
+        to_csv_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\1\shh2_qd12.csv"
+        df = pd.read_csv(csv_fn)
+        fns = filterFileEndWith(r"F:\ProjectSet\Shadow\Hierarchical\Mods\Temp\imdcs", "_imdc.tif")
+        names = []
+        for fn in fns:
+            name = getfilenamewithoutext(fn)
+            names.append(name)
+            if not os.path.isfile(to_csv_fn):
+                gsf = GDALSamplingFast(fn)
+                print(name)
+                df[name] = gsf.samplingToData(df["X"], df["Y"], ).ravel()
+        if not os.path.isfile(to_csv_fn):
+            df.to_csv(to_csv_fn, index=False)
+        df = pd.read_csv(to_csv_fn)
+        data = df[names].values
+        category = np.unique(data)
+        to_list = []
+        for line in df.to_dict("records"):
+            n_dict = {cate: 0 for cate in category}
+            for name in names:
+                n = line[name]
+                n_dict[n] += 1
+            to_list.append(n_dict)
+        df_data = pd.DataFrame(to_list)
+        for k in df_data:
+            df[k] = df_data[k]
+        n_names = [1, 2, 3, 4]
+        df["CATEGORY"] = np.argmax(df[n_names].values, axis=1) + 1
+        df = df.sort_values(["CATEGORY", 1, 2, 3, 4], ascending=[True, False, False, False, False, ])
+        df.to_csv(to_csv_fn, index=False)
+
+    return func2()
+
+
+def method_name4():
     print('F:\\ProjectSet\\Shadow\\Hierarchical\\Images\\ChengDu\\SH22\\SHH2_CD2_range2.json')
     dfn = DirFileName(r"E:\ImageData\GLCM")
     is_save = True
@@ -48,7 +99,6 @@ def main():
     save(SHH2Config.QD_ENVI_FN, SHH2Config.QD_RANGE_FN, "QD")
     save(SHH2Config.BJ_ENVI_FN, SHH2Config.BJ_RANGE_FN, "BJ")
     save(SHH2Config.CD_ENVI_FN, SHH2Config.CD_RANGE_FN, "CD")
-    return
 
 
 def method_name3():
