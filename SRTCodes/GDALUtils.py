@@ -304,7 +304,8 @@ class GDALRasterCenter:
         self.ds = ds
         return ds, raster_fn
 
-    def read(self, x_row=0.0, y_column=0.0, win_row_size=0, win_column_size=0, is_geo=True, no_data=0, is_trans=False,
+    def read(self, x_row=0.0, y_column=0.0, win_row_size=0, win_column_size=0, is_geo=True, no_data=0,
+             is_trans=False,
              *args, **kwargs):
         ds: gdal.Dataset = self.ds
         names = []
@@ -321,6 +322,7 @@ class GDALRasterCenter:
         n_rows = ds.RasterYSize
         n_columns = ds.RasterXSize
         n_channels = ds.RasterCount
+
         if is_geo:
             if is_trans:
                 x_row, y_column, _ = self.wgs84_to_this.TransformPoint(x_row, y_column)
@@ -375,6 +377,22 @@ class GDALRasterCenter:
 
         self.d = d
         return d
+
+    def toGeoJson(self, x_row=0.0, y_column=0.0, win_row_size=0, win_column_size=0, is_geo=True, no_data=0,
+                  is_trans=False,
+                  *args, **kwargs):
+
+        ds: gdal.Dataset = self.ds
+
+        geo_trans = ds.GetGeoTransform()
+        inv_geo_trans = gdal.InvGeoTransform(geo_trans)
+
+        if is_geo:
+            if is_trans:
+                x_row, y_column, _ = self.wgs84_to_this.TransformPoint(x_row, y_column)
+            x_row, y_column = coorTrans(inv_geo_trans, x_row, y_column)
+
+        x_row, y_column = int(x_row), int(y_column)
 
     def initGeoRaster(self, channel_list, name, raster_fn):
         if channel_list is None:
@@ -620,6 +638,16 @@ class GDALRasterCenterData:
         d = grcc.getPatch(x, y, win_size=win_size, min_list=min_list, max_list=max_list, is_trans=is_trans)
         return d
 
+    def readGEODataXY(self, grcc_name, x, y, win_size=None, is_trans=False, *args, **kwargs):
+        grcc: GDALRasterCenterCollection = self.grccs[grcc_name]
+        min_list, max_list = None, None
+        if "min_list" in kwargs:
+            min_list = kwargs["min_list"]
+        if "max_list" in kwargs:
+            max_list = kwargs["max_list"]
+        d = grcc.getPatch(x, y, win_size=win_size, min_list=min_list, max_list=max_list, is_trans=is_trans)
+        return d
+
 
 class GDALRasterCenterDatas(GDALRasterCenterData):
 
@@ -662,6 +690,108 @@ class GDALRasterCenterDatas(GDALRasterCenterData):
                 return len(self.data)
             elif dim == 1:
                 return len(self.data[0])
+
+
+class GDALRasterCenterWarp:
+
+    def __init__(self, raster_fn, x_row, y_column, win_row_size, win_column_size,
+                 is_geo=True, is_trans=False, out_fmt="GTiff"):
+
+        self.raster_fn = raster_fn
+        self.x_row = x_row
+        self.y_column = y_column
+        self.win_row_size = win_row_size
+        self.win_column_size = win_column_size
+        self.is_geo = is_geo
+        self.is_trans = is_trans
+        self.out_fmt = out_fmt
+
+        self.grs = {}
+        self.srs = None
+        self.y0 = 0
+        self.x0 = 0
+        self.y1 = 0
+        self.x1 = 0
+        self.options = {"format": self.out_fmt}
+        self.initOptions()
+
+    def initOptions(self, raster_fn=None, ):
+        gr = self._getGR(raster_fn)
+        self.srs = gr.dst_srs
+        x_row, y_column = self.x_row, self.y_column
+        if self.is_geo:
+            if self.is_trans:
+                x_row, y_column, _ = gr.wgs84_to_this.TransformPoint(self.x_row, self.y_column)
+            x_row, y_column = gr.coorGeo2Raster(x_row, y_column)
+        x_row, y_column = int(x_row), int(y_column)
+        row_2, column_2 = int(self.win_row_size / 2), int(self.win_column_size / 2)
+        row0, column0 = x_row - row_2, y_column - column_2
+        row1, column1 = x_row + row_2 + 1, y_column + column_2 + 1
+        self.x0, self.y0 = gr.coorRaster2Geo(row0, column0)
+        self.x1, self.y1 = gr.coorRaster2Geo(row1, column1)
+        gdal.TranslateOptions()
+
+    def _getGR(self, raster_fn):
+        if raster_fn is None:
+            raster_fn = self.raster_fn
+        raster_fn = os.path.abspath(raster_fn)
+        if raster_fn not in self.grs:
+            self.grs[raster_fn] = GDALRaster(raster_fn)
+        gr: GDALRaster = self.grs[raster_fn]
+        return gr
+
+    def toFile(self, to_fn, band_list=None, raster_fn=None):
+        band_list, gr, raster_fn = self._initToFile(band_list, raster_fn)
+        self.options["bandList"] = band_list
+        self.options["projWin"] = [self.x0, self.y0, self.x1, self.y1]
+        self.options["projWinSRS"] = self.srs
+        gdal.Translate(to_fn, raster_fn, **self.options)
+
+    def toShowTif(self, to_fn, band_list=None, raster_fn=None, min_list=None, max_list=None):
+        band_list, gr, raster_fn = self._initToFile(band_list, raster_fn)
+
+        self.options["bandList"] = band_list
+        self.options["projWin"] = [self.x0, self.y0, self.x1, self.y1]
+        self.options["projWinSRS"] = self.srs
+        self.options["format"] = "GTiff"
+
+        tmp_fn = to_fn.replace(".", "_") + "-back.tif"
+        to_ds = gdal.Translate(tmp_fn, raster_fn, **self.options)
+        data = to_ds.ReadAsArray()
+        if min_list is None:
+            min_list = np.min(data, axis=(1, 2)).tolist()
+        if max_list is None:
+            max_list = np.max(data, axis=(1, 2)).tolist()
+        for i in range(len(band_list)):
+            data[i] = np.clip(data[i], min_list[i], max_list[i])
+            data[i] = (data[i] - min_list[i]) / (max_list[i] - min_list[i]) * 255
+        data = data.astype("int8")
+
+        to_gr = GDALRaster(tmp_fn)
+        to_gr.save(
+            data, to_fn, fmt="GTiff",
+            dtype=gdal.GDT_Byte, options=["COMPRESS=PACKBITS"],
+            descriptions=[gr.names[i] for i in band_list]
+        )
+        del to_gr
+        del to_ds
+
+        os.remove(tmp_fn)
+
+    def _initToFile(self, band_list, raster_fn):
+        gr = self._getGR(raster_fn)
+        raster_fn = gr.gdal_raster_fn
+        if band_list is None:
+            band_list = [i + 1 for i in range(gr.n_channels)]
+        else:
+            for i in range(len(band_list)):
+                if isinstance(band_list[i], str):
+                    band_list[i] = gr.names.index(band_list[i]) + 1
+        if len(band_list) > 3:
+            band_list = band_list[:3]
+        if len(band_list) == 2:
+            raise Exception("Number of bands is 1 or 3 not 2")
+        return band_list, gr, raster_fn
 
 
 class SRTGDALCategorySampleCollection(SRTCategorySampleCollection):

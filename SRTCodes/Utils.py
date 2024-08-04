@@ -253,7 +253,7 @@ class DirFileName:
         self.dirname = dirname
         if dirname is None:
             self.dirname = os.getcwd()
-        self._week_dir = r"D:\GroupMeeting"
+        self._week_dir = r"F:\Week"
         if init_week_dir:
             self.dirname = self._week_dir
         self._data_dir = self._getDataDir()

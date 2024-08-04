@@ -301,7 +301,7 @@ def run2(city_name, init_model_name, win_size, is_train):
         return None
 
     dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods")
-    td = TimeDirectory(dfn.fn(), time_dirname=r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240724H110745")
+    td = TimeDirectory(dfn.fn(), time_dirname=r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240728H135412")
     td.initLog(mode="a")
     td.kw("DIRNAME", td.time_dirname())
     td.log("\n#", "-" * 50, city_name.upper(), init_model_name, "-" * 50, "#\n")
@@ -316,8 +316,11 @@ def run2(city_name, init_model_name, win_size, is_train):
         "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_H", "DE_Alpha",
     ]
     map_dict = {
-        "IS": 0, "VEG": 1, "SOIL": 2, "WAT": 3,
-        "IS_SH": 0, "VEG_SH": 1, "SOIL_SH": 2, "WAT_SH": 3,
+        "IS": 0,
+        # "VEG": 1,
+        "SOIL": 1,
+        # "WAT": 3,
+        # "IS_SH": 0, "VEG_SH": 1, "SOIL_SH": 2, "WAT_SH": 3,
     }
     cm_names = ["IS", "VEG", "SOIL", "WAT"]
     epochs = 100
@@ -340,7 +343,7 @@ def run2(city_name, init_model_name, win_size, is_train):
     torch_mod = TorchModel()
     torch_mod.filename = dfn_tmp.fn(model_name + ".hm")
     torch_mod.map_dict = map_dict
-    torch_mod.color_table = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255), }
+    torch_mod.color_table = {1: (255, 0, 0), 2: (255, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255), }
     torch_mod.model = model
     torch_mod.criterion = nn.CrossEntropyLoss()
     torch_mod.win_size = win_size
@@ -416,7 +419,7 @@ def run2(city_name, init_model_name, win_size, is_train):
 def main():
     win_size_list = [
         ("ResNet18", (7, 7)),
-        ("VIT", (24, 24)),
+        # ("VIT", (24, 24)),
         ("SqueezeNet", (24, 24)),
         ("GoogLeNet", (24, 24)),
         # ("DenseNet121", (24, 24)),  # size small
@@ -431,13 +434,13 @@ def main():
 
     for city_name in ["qd", "bj", "cd"]:
         for name, win_size in win_size_list:
-            # print("python -c \""
-            #       r"import sys; "
-            #       r"sys.path.append(r'F:\PyCodes'); "
-            #       r"from Shadow.Hierarchical.SHH2DLRun import run2; "
-            #       "run2('{}', '{}', {}, True)\"".format(
-            #     city_name, name, win_size
-            # ))
+            print("python -c \""
+                  r"import sys; "
+                  r"sys.path.append(r'F:\PyCodes'); "
+                  r"from Shadow.Hierarchical.SHH2DLRun import run2; "
+                  "run2('{}', '{}', {}, True)\"".format(
+                city_name, name, win_size
+            ))
             print("python -c \""
                   r"import sys; "
                   r"sys.path.append(r'F:\PyCodes'); "

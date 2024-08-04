@@ -1,8 +1,8 @@
-import gc
 import random
 import sys
 import time
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import torch
 from osgeo import gdal
@@ -10,12 +10,12 @@ from torch import nn
 from torch.utils.data import Dataset
 
 from SRTCodes.GDALRasterClassification import tilesRasterImdc
-from SRTCodes.GDALUtils import GDALSamplingInit, GDALSamplingFast, GDALSampling
+from SRTCodes.GDALUtils import GDALSampling, GDALRasterCenterWarp
 from SRTCodes.NumpyUtils import connectedComponent, categoryMap, NumpyDataCenter
 from SRTCodes.PytorchModelTraining import torchDataPredict
 # from SRTCodes.PytorchUtils import printTorchModel
 from SRTCodes.SRTModelImage import SRTModImPytorch
-from SRTCodes.Utils import readText, printList
+from SRTCodes.Utils import readText
 from Shadow.Hierarchical import SHHConfig
 from Shadow.Hierarchical.SHH2DL import buildModel
 
@@ -57,13 +57,36 @@ class TNet(nn.Module):
 
 
 def main():
+    grcw = GDALRasterCenterWarp(
+        r"F:\ProjectSet\Shadow\ASDEHSamples\Images\BeiJing\HSPL_BJ_envi.dat",
+        116.503404, 39.871045, 121, 121
+    )
+    grcw.toShowTif(r"F:\ProjectSet\Shadow\ASDEHSamples\Temp\tmp1.tif", [3, 2, 1])
+    grcw.toShowTif(r"F:\ProjectSet\Shadow\ASDEHSamples\Temp\tmp2.tif",
+                raster_fn=r"F:\ProjectSet\Shadow\MkTu\4.1Details\BingImages\bj_googleimages.mbtiles")
+
+    data1 = GDALRaster(r"F:\ProjectSet\Shadow\ASDEHSamples\Temp\tmp1.tif").readAsArray(interleave="pixel")
+    data2 = GDALRaster(r"F:\ProjectSet\Shadow\ASDEHSamples\Temp\tmp2.tif").readAsArray(interleave="pixel")
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.imshow(data1)
+    plt.gca().set_aspect(1)
+    plt.subplot(1, 2, 2)
+    plt.imshow(data2)
+    plt.gca().set_aspect(1)
+    plt.show()
+
+    return
+
+
+def method_name7():
     def predict_func(data):
         ndvi = (data[1] - data[0]) / (data[1] + data[0])
         time.sleep(random.random())
         return (ndvi < 0) + 1
 
     def func_predict(data):
-        return torch.ones(data.shape[0])+1
+        return torch.ones(data.shape[0]) + 1
 
     def tilesRasterImdc_predict_func(data):
         data = torch.from_numpy(data)
@@ -76,8 +99,6 @@ def main():
         channels=["Red", "NIR"], tiles_dirname="", dtype="float32",
         color_table={1: (255, 255, 255), 2: (0, 255, 0)},
     )
-
-    return
 
 
 def method_name6():
@@ -117,8 +138,10 @@ def method_name4():
 def bib2csv(bib_fn, csv_fn):
     bib_fns = [
         r"F:\Articles\ConnectedPapers\ConnectedPapers-for-Improving-the-impervious-surface-estimation-with-combined-use-of-optical-and-SAR-remote-sensing-images.bib"
-        ,r"F:\Articles\ConnectedPapers\Derivative-Works-for-Improving-the-impervious-surface-estimation-with-combined-use-of-optical-and-SAR-remote-sensing-images.bib"
-        ,r"F:\Articles\ConnectedPapers\Prior-Works-for-Improving-the-impervious-surface-estimation-with-combined-use-of-optical-and-SAR-remote-sensing-images.bib"
+        ,
+        r"F:\Articles\ConnectedPapers\Derivative-Works-for-Improving-the-impervious-surface-estimation-with-combined-use-of-optical-and-SAR-remote-sensing-images.bib"
+        ,
+        r"F:\Articles\ConnectedPapers\Prior-Works-for-Improving-the-impervious-surface-estimation-with-combined-use-of-optical-and-SAR-remote-sensing-images.bib"
     ]
 
     bib_text = ""
@@ -154,6 +177,7 @@ def bib2csv(bib_fn, csv_fn):
                 k = k.strip()
                 if k not in keys:
                     keys.append(k)
+
     keys = []
     getkeys()
     print(keys)
@@ -165,7 +189,7 @@ def bib2csv(bib_fn, csv_fn):
             for k in keys:
                 if line1.startswith(k):
                     tmp_ch = getch(line1)
-                    if len(tmp_ch) ==1 :
+                    if len(tmp_ch) == 1:
                         to_dict[k] = tmp_ch[0].strip("{}")
 
         to_list.append(to_dict)

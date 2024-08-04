@@ -30,18 +30,27 @@ class GDALDrawImage(DrawImage):
     def addGR(self, raster_fn, geo_range=None):
         return self.grcd.addGeoRange(raster_fn=raster_fn, geo_range=geo_range)
 
-    def read(self, grcc_name, x, y, win_size=None, is_trans=False, *args, **kwargs):
+    def read(self, grcc_name, x, y, win_size=None, is_trans=False, color_dict=None, *args, **kwargs):
         self.data = self.grcd.readAxisDataXY(grcc_name, x, y, win_size=win_size, is_trans=is_trans, *args, **kwargs)
-        if self.data.shape[2] == 1:
+        if color_dict is None:
+            if self.data.shape[2] == 1:
+                data_tmp = np.zeros((*self.data.shape[:2], 3))
+                data_tmp[:, :, 0] = self.data[:, :, 0]
+                data_tmp[:, :, 1] = self.data[:, :, 0]
+                data_tmp[:, :, 2] = self.data[:, :, 0]
+                self.data = data_tmp
+            return self.data
+        else:
             data_tmp = np.zeros((*self.data.shape[:2], 3))
-            data_tmp[:, :, 0] = self.data[:, :, 0]
-            data_tmp[:, :, 1] = self.data[:, :, 0]
-            data_tmp[:, :, 2] = self.data[:, :, 0]
-        return self.data
+            data = self.data[:, :, 0]
+            for category in color_dict:
+                data_tmp[data == category] = np.array(color_dict[category]) / 255
+            self.data = data_tmp
+            return self.data
 
-    def readDraw(self, grcc_name, x, y, win_size=None, is_trans=False, *args, **kwargs):
-        self.read(grcc_name, x, y, win_size=win_size, is_trans=is_trans, *args, **kwargs)
-        self.draw(*args, **kwargs)
+    def readDraw(self, grcc_name, x, y, win_size=None, is_trans=False, color_dict=None, *args, **kwargs):
+        self.read(grcc_name, x, y, win_size=win_size, is_trans=is_trans, color_dict=color_dict, *args, **kwargs)
+        return self.draw(*args, **kwargs)
 
 
 class GDALDrawImages(GDALRasterCenterDatas, DrawImage):
@@ -220,6 +229,7 @@ def main():
 
     gdi.draw(n_rows_ex=2, n_columns_ex=2)
     plt.show()
+
     pass
 
 

@@ -22,7 +22,7 @@ class MplPatchesEllipse:
     def __init__(self, xy, width, height, angle=0, is_ratio=False, select_columns=None, **kwargs):
         if select_columns is None:
             select_columns = []
-        self.xy = xy
+        self.xy = list(xy)
         self.width = width
         self.height = height
         self.angle = angle
@@ -180,7 +180,7 @@ class DrawImage:
             ax = kwargs["ax"]
         else:
             ax = plt.gca()
-        ax.imshow(self.data)
+        ax.imshow(self.data, aspect="auto")
 
         if "fontdict" in kwargs:
             fontdict = kwargs["fontdict"]
@@ -191,9 +191,11 @@ class DrawImage:
         ax.set_xticks([])
         ax.set_yticks([])
         if "xlabel" in kwargs:
-            ax.set_xlabel("xlabel", rotation=0, fontdict=fontdict)
+            ax.set_xlabel(kwargs["xlabel"], rotation=0, fontdict=fontdict)
         if "ylabel" in kwargs:
-            ax.set_ylabel("ylabel", rotation=0, fontdict=fontdict)
+            ax.set_ylabel(kwargs["ylabel"], rotation=0, fontdict=fontdict)
+        if "title" in kwargs:
+            ax.set_title(kwargs["title"], fontdict=fontdict)
         return ax
 
     def addEllipse(self, xy, width, height, angle=0, is_ratio=False, *args, **kwargs):
@@ -284,7 +286,7 @@ class SRTDrawImages:
                     ax = axes[i, j]
                 if j == 0:
                     if row_names is not None:
-                        ax.set_ylabel(row_names[i], rotation=0, fontdict=fontdict)
+                        ax.set_ylabel(row_names[i],rotation=0, fontdict=fontdict)
                 if i == 0:
                     if column_names is not None:
                         ax.set_title(column_names[j], fontdict=fontdict)
