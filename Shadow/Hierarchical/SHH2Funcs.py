@@ -22,6 +22,29 @@ from Shadow.Hierarchical import SHH2Config
 
 
 def main():
+    def dirname_imdc_fn(_dirname):
+        for fn in os.listdir(_dirname):
+            if fn.endswith("_imdc.tif"):
+                return os.path.join(_dirname, fn)
+
+    raster_fns = {
+        "QingDao_ML_VHL3": dirname_imdc_fn(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240805H105502"),
+        "BeiJing_ML_VHL3": dirname_imdc_fn(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240806H094617"),
+        "ChengDu_ML_VHL3": dirname_imdc_fn(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240806H101049"),
+        "QingDao_ML_Category4": dirname_imdc_fn(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240806H101844"),
+        "BeiJing_ML_Category4": dirname_imdc_fn(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240806H102411"),
+        "ChengDu_ML_Category4": dirname_imdc_fn(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240806H102804"),
+    }
+
+    gr = GDALRaster(raster_fns["ChengDu_ML_Category4"])
+    data = gr.readGDALBand(1)
+    categorys, n = np.unique(data, return_counts=True)
+    print(n / np.sum(n))
+
+    return
+
+
+def method_name5():
     def func1():
         dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Mods\Temp")
         city_name = "qd"

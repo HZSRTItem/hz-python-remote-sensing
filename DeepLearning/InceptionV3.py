@@ -34,8 +34,10 @@ class Inception3(nn.Module):
             init_weights: Optional[bool] = True,
             dropout: float = 0.5,
             in_channels=3,
+            is_training=True,
     ) -> None:
         super().__init__()
+        self.is_training = is_training
         if inception_blocks is None:
             inception_blocks = [BasicConv2d, InceptionA, InceptionB, InceptionC, InceptionD, InceptionE, InceptionAux]
         if init_weights is None:
@@ -58,13 +60,14 @@ class Inception3(nn.Module):
 
         self.aux_logits = aux_logits
         self.transform_input = transform_input
-        self.Conv2d_1a_3x3 = conv_block(in_channels, 32, kernel_size=3, stride=2)
-        self.Conv2d_2a_3x3 = conv_block(32, 32, kernel_size=3)
+        self.Conv2d_1a_3x3 = conv_block(in_channels, 32, kernel_size=3, stride=1, padding=1)
+        self.Conv2d_2a_3x3 = conv_block(32, 32, kernel_size=3, padding=1)
         self.Conv2d_2b_3x3 = conv_block(32, 64, kernel_size=3, padding=1)
-        self.maxpool1 = nn.MaxPool2d(kernel_size=3, stride=2)
+        # self.maxpool1 = nn.MaxPool2d(kernel_size=3, stride=2)
         self.Conv2d_3b_1x1 = conv_block(64, 80, kernel_size=1)
-        self.Conv2d_4a_3x3 = conv_block(80, 192, kernel_size=3)
-        self.maxpool2 = nn.MaxPool2d(kernel_size=3, stride=2)
+        self.Conv2d_4a_3x3 = conv_block(80, 192, kernel_size=3, padding=1)
+        # self.maxpool2 = nn.MaxPool2d(kernel_size=3, stride=2)
+
         self.Mixed_5b = inception_a(192, pool_features=32)
         self.Mixed_5c = inception_a(256, pool_features=64)
         self.Mixed_5d = inception_a(288, pool_features=64)
@@ -107,13 +110,14 @@ class Inception3(nn.Module):
         # N x 32 x 147 x 147
         x = self.Conv2d_2b_3x3(x)
         # N x 64 x 147 x 147
-        x = self.maxpool1(x)
+        # x = self.maxpool1(x)
         # N x 64 x 73 x 73
         x = self.Conv2d_3b_1x1(x)
         # N x 80 x 73 x 73
         x = self.Conv2d_4a_3x3(x)
         # N x 192 x 71 x 71
-        x = self.maxpool2(x)
+        # x = self.maxpool2(x)
+
         # N x 192 x 35 x 35
         x = self.Mixed_5b(x)
         # N x 256 x 35 x 35
@@ -160,16 +164,23 @@ class Inception3(nn.Module):
         else:
             return x  # type: ignore[return-value]
 
-    def forward(self, x: Tensor) -> InceptionOutputs:
+    def forward(self, x: Tensor):
         x = self._transform_input(x)
         x, aux = self._forward(x)
         aux_defined = self.training and self.aux_logits
         if torch.jit.is_scripting():
             if not aux_defined:
                 warnings.warn("Scripted Inception3 always returns Inception3 Tuple")
-            return InceptionOutputs(x, aux)
+            if self.is_training:
+                return InceptionOutputs(x, aux).logits
+            else:
+                return InceptionOutputs(x, aux)
         else:
-            return self.eager_outputs(x, aux)
+            to_x = self.eager_outputs(x, aux)
+            if isinstance(to_x, Tensor):
+                return to_x
+            else:
+                return to_x.logits
 
 
 class InceptionA(nn.Module):

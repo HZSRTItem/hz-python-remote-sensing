@@ -36,6 +36,7 @@ from SRTCodes.Utils import datasCaiFen, changext, Jdt, saveJson, readJson, DirFi
 _DL_SAMPLE_DIRNAME = r"F:\Data\DL"
 
 
+
 class _SHH2Config:
 
     def __init__(self):
@@ -784,8 +785,8 @@ class SamplesData:
 
     def dltorch(self, map_dict, win_size, read_size, train_filters=None, test_filter=None, device="cuda"):
         train_filters, test_filter = self.gettraintestfilter(train_filters, test_filter)
-        train_spls = _funcFilter(train_filters, self.samples)
-        test_spls = _funcFilter(test_filter, self.samples)
+        train_spls = _funcFilter(train_filters, self.samples, map_dict=map_dict)
+        test_spls = _funcFilter(test_filter, self.samples, map_dict=map_dict)
 
         torch_spl = _TorchSamples()
         torch_spl.fd = self.samples[0].fd
@@ -941,7 +942,7 @@ class _ModelInit:
     def score(self, x=None, y=None, *args, **kwargs):
         return accuracy_score(y, self.predict(x))
 
-    def toDict(self):
+    def toDict(self, *args, **kwargs):
         to_dict = {
             "name": self.name,
             "filename": self.filename,
@@ -1082,7 +1083,7 @@ class MLModel(_ModelInit):
         )
         return to_imdc_fn
 
-    def save(self, filename=None, dirname=None, is_save_clf=True, is_save_data=True, *args, **kwargs):
+    def save(self, filename=None, dirname=None, is_save_clf=True, is_save_data=True,is_samples=True, *args, **kwargs):
         filename = self._getfilename(dirname, filename)
 
         if is_save_clf:
@@ -1098,7 +1099,7 @@ class MLModel(_ModelInit):
             np.save(to_data_fn.format("y_train"), np.array(self.samples.y_train))
             np.save(to_data_fn.format("y_test"), np.array(self.samples.y_test))
 
-        to_dict = self.toDict()
+        to_dict = self.toDict(is_samples=is_samples)
         to_dict["__class__.__name__"] = self.__class__.__name__
         saveJson(to_dict, filename)
 
@@ -1128,12 +1129,15 @@ class MLModel(_ModelInit):
         self.samples.y_test = loaddata(to_data_fn.format("y_test"))
         return self
 
-    def toDict(self):
+    def toDict(self, is_samples=True, *args, **kwargs):
         to_dict = super(MLModel, self).toDict()
-        to_dict = {**to_dict, "samples": self.samples.toDict(),
-                   "train_filters": self.train_filters,
-                   "test_filter": self.test_filters, }
-
+        to_dict = {
+            **to_dict,
+            "train_filters": self.train_filters,
+            "test_filter": self.test_filters,
+        }
+        if is_samples:
+            to_dict["samples"] = self.samples.toDict()
         return to_dict
 
     def loadDict(self, to_dict):
@@ -1176,7 +1180,9 @@ class TorchModel(_ModelInit):
 
         def func_logit_category(model, x: torch.Tensor):
             with torch.no_grad():
+                # input(r"F:\PyCodes\SRTCodes\SRTModel.py::1182 {} >".format(x.shape))
                 logit = model(x)
+                # input(r"F:\PyCodes\SRTCodes\SRTModel.py::1184>")
                 y = torch.argmax(logit, dim=1) + 1
             return y
 

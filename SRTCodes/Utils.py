@@ -21,6 +21,9 @@ from typing import Iterable
 
 import numpy as np
 
+from SRTCodes.DEFINE import StrOrBytesPath
+from SRTCodes.SRTLinux import W2LF
+
 
 def stoprun(fn, n_line):
     input("{0} {1}>".format(fn, n_line))
@@ -249,11 +252,12 @@ def writeCSVLine(filename, line: list):
 class DirFileName:
     """ Directory file name """
 
-    def __init__(self, dirname=None, init_week_dir=False):
+    def __init__(self, dirname: StrOrBytesPath = None, init_week_dir=False):
         self.dirname = dirname
         if dirname is None:
             self.dirname = os.getcwd()
-        self._week_dir = r"F:\Week"
+        self.dirname = W2LF(self.dirname)
+        self._week_dir = W2LF(r"F:\Week")
         if init_week_dir:
             self.dirname = self._week_dir
         self._data_dir = self._getDataDir()

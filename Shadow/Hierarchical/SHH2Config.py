@@ -11,22 +11,23 @@ import numpy as np
 import pandas as pd
 
 from SRTCodes.GDALRasterIO import GDALRaster, saveGTIFFImdc
+from SRTCodes.SRTLinux import W2LF
 
-QD_ENVI_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat"
-BJ_ENVI_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_envi.dat"
-CD_ENVI_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_envi.dat"
+QD_ENVI_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat")
+BJ_ENVI_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_envi.dat")
+CD_ENVI_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_envi.dat")
 
-QD_NPY_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_data.npy"
-BJ_NPY_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_data.npy"
-CD_NPY_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_data.npy"
+QD_NPY_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_data.npy")
+BJ_NPY_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_data.npy")
+CD_NPY_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_data.npy")
 
-QD_LOOK_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_look.tif"
-BJ_LOOK_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_look.tif"
-CD_LOOK_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_look.tif"
+QD_LOOK_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_look.tif")
+BJ_LOOK_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_look.tif")
+CD_LOOK_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_look.tif")
 
-QD_RANGE_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_range2.json"
-BJ_RANGE_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_range2.json"
-CD_RANGE_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_range2.json"
+QD_RANGE_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_range2.json")
+BJ_RANGE_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_range2.json")
+CD_RANGE_FN = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_range2.json")
 
 NAMES = [
     "Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2", "NDVI", "NDWI",
@@ -66,6 +67,8 @@ class FEAT_NAMES:
 
     ALL = OPT + OPT_GLCM + AS_BS + AS_C2 + AS_HA + AS_GLCM + DE_BS + DE_C2 + DE_HA + DE_GLCM
 
+    AS = AS_BS + AS_C2 + AS_HA + AS_GLCM
+    DE = DE_BS + DE_C2 + DE_HA + DE_GLCM
 
 def GET_RASTER_FN(city_name):
     if city_name == "qd":
@@ -76,6 +79,17 @@ def GET_RASTER_FN(city_name):
         return CD_ENVI_FN
     else:
         return None
+
+def GET_RANGE_FN(city_name):
+    if city_name == "qd":
+        return QD_RANGE_FN
+    elif city_name == "bj":
+        return BJ_RANGE_FN
+    elif city_name == "cd":
+        return CD_RANGE_FN
+    else:
+        return None
+
 
 
 def QD_GR():
@@ -208,7 +222,7 @@ IMD_RW = SHH2ImageReadWrite()
 class SHH2ReleaseSamples:
 
     def __init__(self):
-        self.init_dirname = r"F:\ProjectSet\Shadow\Hierarchical\Samples\SaveSamples"
+        self.init_dirname = W2LF(r"F:\ProjectSet\Shadow\Hierarchical\Samples\SaveSamples")
         self.current_fn = ""
         self.filelist
 
@@ -275,8 +289,6 @@ class FEAT_NAMES_CLS:
 
     def f_opt_as_de(self):
         return self.f_opt() + self.f_as() + self.f_de()
-
-
 
 
 def main():

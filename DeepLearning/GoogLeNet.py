@@ -62,11 +62,11 @@ class GoogLeNet(nn.Module):
         self.aux_logits = aux_logits
         self.transform_input = transform_input
 
-        self.conv1 = conv_block(in_channels, 64, kernel_size=7, stride=2, padding=3)
-        self.maxpool1 = nn.MaxPool2d(3, stride=2, ceil_mode=True)
-        self.conv2 = conv_block(64, 64, kernel_size=1)
+        # self.conv1 = conv_block(in_channels, 64, kernel_size=7, stride=2, padding=3)
+        # self.maxpool1 = nn.MaxPool2d(3, stride=2, ceil_mode=True)
+        self.conv2 = conv_block(in_channels, 64, kernel_size=1)
         self.conv3 = conv_block(64, 192, kernel_size=3, padding=1)
-        self.maxpool2 = nn.MaxPool2d(3, stride=2, ceil_mode=True)
+        # self.maxpool2 = nn.MaxPool2d(3, stride=2, ceil_mode=True)
 
         self.inception3a = inception_block(192, 64, 96, 128, 16, 32, 32)
         self.inception3b = inception_block(256, 128, 128, 192, 32, 96, 64)
@@ -110,16 +110,16 @@ class GoogLeNet(nn.Module):
         return x
 
     def _forward(self, x: Tensor) -> Tuple[Tensor, Optional[Tensor], Optional[Tensor]]:
-        # N x 3 x 224 x 224
-        x = self.conv1(x)
-        # N x 64 x 112 x 112
-        x = self.maxpool1(x)
+        # # N x 3 x 224 x 224
+        # x = self.conv1(x)
+        # # N x 64 x 112 x 112
+        # x = self.maxpool1(x)
         # N x 64 x 56 x 56
         x = self.conv2(x)
         # N x 64 x 56 x 56
         x = self.conv3(x)
-        # N x 192 x 56 x 56
-        x = self.maxpool2(x)
+        # # N x 192 x 56 x 56
+        # x = self.maxpool2(x)
 
         # N x 192 x 28 x 28
         x = self.inception3a(x)

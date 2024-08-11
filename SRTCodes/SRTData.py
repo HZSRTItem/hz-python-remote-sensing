@@ -236,6 +236,81 @@ def DFFilter_lt(df, name, value):
     return df[df[name] < value]
 
 
+def dffilter(self, filter_data):
+    fn, ft, d = filter_data
+    if ft == ">":
+        return self.__getitem__(fn) > d
+    if ft == ">=":
+        return self.__getitem__(fn) >= d
+    if ft == "<":
+        return self.__getitem__(fn) < d
+    if ft == "<=":
+        return self.__getitem__(fn) <= d
+    if ft == "==":
+        return self.__getitem__(fn) == d
+    if ft == "!=":
+        return self.__getitem__(fn) != d
+    return False
+
+
+def DFF_AND(df: pd.DataFrame, *filters):
+    """ filters *(name, f, data) """
+    df_list = df.to_dict("records")
+    to_df_list = []
+    for line in df_list:
+        is_add = True
+        for fn, ft, d in filters:
+            if ft == ">":
+                is_f = line[fn] > d
+            elif ft == ">=":
+                is_f = line[fn] >= d
+            elif ft == "<":
+                is_f = line[fn] < d
+            elif ft == "<=":
+                is_f = line[fn] <= d
+            elif ft == "==":
+                is_f = line[fn] == d
+            elif ft == "!=":
+                is_f = line[fn] != d
+            else:
+                is_f = False
+            if not is_f:
+                is_add = False
+                break
+        if is_add:
+            to_df_list.append(line)
+    return pd.DataFrame(to_df_list)
+
+
+def DFF_OR(df: pd.DataFrame, *filters):
+    """ filters *(name, f, data) """
+    df_list = df.to_dict("records")
+    to_df_list = []
+    for line in df_list:
+        is_add = False
+        for fn, ft, d in filters:
+            if ft == ">":
+                is_f = line[fn] > d
+            elif ft == ">=":
+                is_f = line[fn] >= d
+            elif ft == "<":
+                is_f = line[fn] < d
+            elif ft == "<=":
+                is_f = line[fn] <= d
+            elif ft == "==":
+                is_f = line[fn] == d
+            elif ft == "!=":
+                is_f = line[fn] != d
+            else:
+                is_f = False
+            if is_f:
+                is_add = True
+                break
+        if is_add:
+            to_df_list.append(line)
+    return pd.DataFrame(to_df_list)
+
+
 def main():
     sds = SRTDataset()
     sds.addNDArray(1, np.random.random((123, 7, 7)))

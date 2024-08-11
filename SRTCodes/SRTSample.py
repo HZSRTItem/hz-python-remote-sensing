@@ -16,6 +16,7 @@ import pandas as pd
 from tabulate import tabulate
 
 from SRTCodes.SRTFeature import SRTFeatureCallBackCollection, SRTFeatureExtractionCollection
+from SRTCodes.SRTReadWrite import SRTInfoFileRW
 from SRTCodes.Utils import printList, SRTDataFrame, readJson, Jdt, SRTFilter, FRW, getfilenamewithoutext
 
 
@@ -931,6 +932,60 @@ def samplesDescription(df, field_name="TEST", is_print=True):
     return df_des
 
 
+def dfnumber(df, row_field_name, column_field_name, is_print=True):
+    df_des = pd.pivot_table(df, index=row_field_name, columns=column_field_name, aggfunc='size', fill_value=0)
+    df_des[pd.isna(df_des)] = 0
+    df_des["SUM"] = df_des.apply(lambda x: x.sum(), axis=1)
+    df_des.loc["SUM"] = df_des.apply(lambda x: x.sum())
+    if is_print:
+        print(tabulate(df_des, tablefmt="simple", headers="keys"))
+    return df_des
+
+
+class SamplesManage:
+
+    def __init__(self):
+        self.samples = []
+
+    def add(self, spl, field_datas=None):
+        if field_datas is not None:
+            for name in field_datas:
+                spl[name] = field_datas[name]
+        self.samples.append(spl)
+        return self
+
+    def adds(self, spls, field_datas=None):
+        for spl in spls:
+            self.add(spl, field_datas=field_datas)
+        return self
+
+    def addDF(self, df: pd.DataFrame, field_datas=None):
+        df_list = df.to_dict("records")
+        self.adds(df_list, field_datas=field_datas)
+        return self
+
+    def addCSV(self, csv_fn, field_datas=None):
+        return self.addDF(pd.read_csv(csv_fn), field_datas=field_datas)
+
+    def addQJY(self, txt_fn, field_datas=None):
+        df_dict = readQJYTxt(txt_fn)
+        return self.addDF(pd.DataFrame(df_dict), field_datas=field_datas)
+
+    def toDF(self, ) -> pd.DataFrame:
+        return pd.DataFrame(self.samples)
+
+    def toCSV(self, csv_fn, ):
+        self.toDF().to_csv(csv_fn, index=False)
+        return csv_fn
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, item) -> dict:
+        return self.samples[item]
+
+
+
 def main():
     # csv_spl = CSVSamples(r"F:\ProjectSet\Shadow\QingDao\Sample\qd_shadow_spl3_s1.csv")
     # csv_spl.fieldNameCategory("CNAME")
@@ -969,3 +1024,29 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def readQJYTxt(txt_fn):
+    srt_fr = SRTInfoFileRW(txt_fn)
+    d = srt_fr.readAsDict()
+    df_dict = {"__X": [], "__Y": [], "__CNAME": [], "__IS_TAG": []}
+    for k in d["FIELDS"]:
+        df_dict[k] = []
+    fields = d["FIELDS"].copy()
+    cr = csv.reader(d["DATA"])
+    for line in cr:
+        for k in df_dict:
+            df_dict[k].append(None)
+
+        x = float(line[3])
+        y = float(line[4])
+        c_name = line[1].strip()
+        is_tag = eval(line[2])
+        df_dict["__X"][-1] = x
+        df_dict["__Y"][-1] = y
+        df_dict["__CNAME"][-1] = c_name
+        df_dict["__IS_TAG"][-1] = is_tag
+
+        for i in range(5, len(line)):
+            df_dict[fields[i - 5]][-1] = line[i]
+    return df_dict

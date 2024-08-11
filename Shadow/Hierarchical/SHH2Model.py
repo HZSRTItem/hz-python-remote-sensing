@@ -230,7 +230,7 @@ class FCModel(_ModelInit):
 
 class MLFCModel(FCModel):
 
-    def __init__(self, name="MLFCModel"):
+    def __init__(self, name="MLFCModel", is_init=True):
         super().__init__()
         self.name = "MLFCModel"
 
@@ -244,11 +244,13 @@ class MLFCModel(FCModel):
 
         self.samples = _MLFCSamples()
         self.vhl_ml_mod = MLModel()
-        self.intiVHLModel()
         self.is_ml_mod = MLModel()
-        self.initISModel()
         self.ws_ml_mod = MLModel()
-        self.initWSModel()
+
+        if is_init:
+            self.initISModel()
+            self.intiVHLModel()
+            self.initWSModel()
 
     def initWSModel(self, *args, **kwargs):
         self.ws_ml_mod.name = "WSMod"
@@ -346,15 +348,14 @@ class MLFCModel(FCModel):
             y[ws_select] = y_ws
         return y
 
-    def toDict(self):
+    def toDict(self, is_samples=True, *args, **kwargs):
         to_dict = super(MLFCModel, self).toDict()
         to_dict = {
             **to_dict,
-            "samples": self.samples.toDict(),
 
-            "vhl_ml_mod": self.vhl_ml_mod.toDict(),
-            "is_ml_mod": self.is_ml_mod.toDict(),
-            "ws_ml_mod": self.ws_ml_mod.toDict(),
+            "vhl_ml_mod": self.vhl_ml_mod.toDict(is_samples=is_samples),
+            "is_ml_mod": self.is_ml_mod.toDict(is_samples=is_samples),
+            "ws_ml_mod": self.ws_ml_mod.toDict(is_samples=is_samples),
 
             "vhl_fd": self.vhl_fd.toDict(),
             "is_fd": self.is_fd.toDict(),
@@ -362,6 +363,8 @@ class MLFCModel(FCModel):
 
             "test_filter": self.test_filters,
         }
+        if is_samples:
+            to_dict["samples"] = self.samples.toDict()
         return to_dict
 
     def loadDict(self, to_dict):
@@ -378,7 +381,7 @@ class MLFCModel(FCModel):
 
         self.test_filters = to_dict["test_filter"]
 
-    def save(self, filename=None, dirname=None, is_save_clf=True, is_save_data=True, *args, **kwargs):
+    def save(self, filename=None, dirname=None, is_save_clf=True, is_save_data=True,is_samples=True, *args, **kwargs):
         filename = self._getfilename(dirname, filename)
 
         if is_save_clf or is_save_clf:
@@ -393,7 +396,7 @@ class MLFCModel(FCModel):
             np.save(to_data_fn.format("x_test"), np.array(self.samples.x_test))
             np.save(to_data_fn.format("y_test"), np.array(self.samples.y_test))
 
-        to_dict = self.toDict()
+        to_dict = self.toDict(is_samples=is_samples)
         to_dict["__class__.__name__"] = self.__class__.__name__
         saveJson(to_dict, filename)
 

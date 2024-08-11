@@ -1617,6 +1617,19 @@ def sampleCSV(raster_fn, csv_fn, is_spl, to_fn=None):
     return to_fn
 
 
+def uniqueSamples(raster_fn, samples, x_field_name="X", y_field_name="Y"):
+    find_set = set()
+    gr = GDALRaster(raster_fn)
+    to_samples = []
+    for sample in samples:
+        x, y = sample[x_field_name], sample[y_field_name]
+        row, column = gr.coorGeo2Raster(x, y, is_int=True)
+        if (row, column) not in find_set:
+            find_set.add((row, column))
+            to_samples.append(sample)
+    return to_samples
+
+
 def main():
     # grr = GDALRasterRange(r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_envi.dat")
     # fn = r"F:\ProjectSet\Shadow\MkTu\Draw\SH_CD_envi.dat.npy"

@@ -11,8 +11,6 @@ import os.path
 
 import joblib
 import pandas as pd
-from osgeo import gdal
-from sklearn.ensemble import RandomForestClassifier
 
 from SRTCodes.GDALUtils import GDALSamplingFast, GDALSampling
 from SRTCodes.ModelTraining import ConfusionMatrix
@@ -22,163 +20,7 @@ from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.Utils import FRW, DirFileName
 from Shadow.Hierarchical import SHH2Config
 from Shadow.Hierarchical.SHH2Accuracy import accuracyY12, SHH2SamplesManage
-from Shadow.Hierarchical.SHH2Config import samplesDescription
 from Shadow.Hierarchical.SHH2MLModel import SHH2MLTraining
-
-
-class TIC(SHH2MLTraining):
-    """ train image classification """
-
-    def __init__(
-            self,
-            name="TIC",
-            df=pd.DataFrame(),
-            map_dict=None,
-            raster_fn=None,
-            x_keys=None,
-            cm_names=None,
-            clf=None,
-
-            category_field_name="CNAME",
-            color_table=None,
-            sfm=None,
-            is_save_model=True,
-            is_save_imdc=True,
-            td=None,
-    ):
-        super(TIC, self).__init__()
-
-        if cm_names is None:
-            cm_names = []
-        if color_table is None:
-            color_table = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255), }
-        if x_keys is None:
-            x_keys = []
-        if map_dict is None:
-            map_dict = {}
-        if td is None:
-            td = TimeDirectory(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods").initLog()
-        if clf is None:
-            clf = RandomForestClassifier(n_estimators=100, max_depth=10, min_samples_leaf=1, min_samples_split=2)
-
-        self.name = name
-        self.df = df
-        self.map_dict = map_dict
-        self.raster_fn = raster_fn
-        self.x_keys = x_keys
-        self.cm_names = cm_names
-        self.clf = clf
-
-        self.category_field_name = category_field_name
-        self.color_table = color_table
-        self.sfm = sfm
-        self.is_save_model = is_save_model
-        self.is_save_imdc = is_save_imdc
-        self.td = td
-
-        self.accuracy_dict = {}
-        self.cm = ConfusionMatrix()
-
-    def initTD(self, td=None):
-        if td is None:
-            td = self.td
-        if td is None:
-            return self
-        print(self.td.time_dfn.dirname)
-        self.td = td
-        self.td.log("#", "-" * 20, "SHH2ML Image classification", "-" * 20, "#")
-        self.td.kw("NAME", self.name)
-        self.td.kw("data", self.df, sep=":\n")
-        self.td.kw("CLF", self.clf)
-        self.td.kw("MAP_DICT", self.map_dict)
-        self.td.kw("CATEGORY_FIELD_NAME", self.map_dict)
-        self.td.kw("X_KEYS", self.x_keys)
-        self.td.kw("COLOR_TABLE", self.color_table)
-        self.td.saveDF("{}_data.csv".format(self.name), self.df, index=False)
-        return self
-
-    def train(self, to_mod_fn=None, **kwargs):
-        print("NAME:", self.name)
-        if self.td is not None:
-            self.td.kw("DF_DES", samplesDescription(self.df), sep=":\n", end="\n")
-        else:
-            print("DF_DES:", samplesDescription(self.df))
-
-        x_train, y_train, category_names, df_train = self.train_test(
-            1, self.x_keys, self.category_field_name, self.map_dict)
-        x_test, y_test, category_names, df_test = self.train_test(
-            0, self.x_keys, self.category_field_name, self.map_dict)
-        if self.td is not None:
-            self.td.kw("DF_DES DF_TRAIN", samplesDescription(df_train), sep=":\n", end="\n")
-            self.td.kw("DF_DES DF_TEST", samplesDescription(df_test), sep=":\n", end="\n")
-        else:
-            print("DF_DES DF_TRAIN:", samplesDescription(df_train), sep=":\n", end="\n")
-            print("DF_DES DF_TEST:", samplesDescription(df_test), sep=":\n", end="\n")
-
-        self.clf.fit(x_train, y_train)
-        if to_mod_fn is None:
-            if self.td is not None:
-                to_mod_fn = self.td.time_dfn.fn("{}_mod.mod".format(self.name))
-        if to_mod_fn is not None:
-            if self.is_save_model:
-                joblib.dump(self.clf, to_mod_fn)
-        train_acc, test_acc = self.clf.score(x_train, y_train) * 100, self.clf.score(x_test, y_test) * 100
-        self.accuracy_dict = self.addAccuracy(df_test, x_test, y_test)
-        self.calCM()
-
-        if self.td is not None:
-            self.td.saveJson("{}_accuracy_data.json".format(self.name), self.accuracy_dict)
-            self.td.saveDF("{}_accuracy_data.csv".format(self.name), pd.DataFrame(self.accuracy_dict), index=False)
-            self.td.kw("TO_MOD_FN", to_mod_fn)
-            self.td.kw("TRAIN_ACC", train_acc)
-            self.td.kw("TEST_ACC", test_acc)
-            self.td.kw("CM", self.cm.fmtCM(), sep=":\n", end="\n")
-            self.td.kw("OA", self.cm.OA())
-            self.td.kw("KAPPA", self.cm.getKappa())
-        else:
-            print("TO_MOD_FN:", to_mod_fn)
-            print("TRAIN_ACC:", train_acc)
-            print("TEST_ACC:", test_acc)
-            print("CM:", self.cm.fmtCM(), sep=":\n", end="\n")
-            print("OA:", self.cm.OA())
-            print("KAPPA:", self.cm.getKappa())
-
-        return self
-
-    def calCM(self):
-        cm = ConfusionMatrix(class_names=self.cm_names)
-        cm.addData(self.accuracy_dict["y1"], self.accuracy_dict["y2"])
-        self.cm = cm
-        return cm
-
-    def imdc(self, to_imdc_fn=None, **kwargs):
-        if self.sfm is not None:
-            gimdc = GDALImdc(self.raster_fn, is_sfm=True)
-            gimdc.sfm = self.sfm
-        else:
-            gimdc = GDALImdc(self.raster_fn, is_sfm=False)
-
-        if to_imdc_fn is None:
-            if self.td is not None:
-                to_imdc_fn = self.td.time_dfn.fn("{}_imdc.tif".format(self.name))
-
-        if to_imdc_fn is None:
-            to_imdc_fn = r"F:\ProjectSet\Shadow\Hierarchical\Temp\tmp_imdc.tif"
-
-        if self.td is not None:
-            self.td.kw("TO_IMDC_FN", to_imdc_fn)
-        else:
-            print("TO_IMDC_FN:", to_imdc_fn)
-
-        gimdc.imdc1(self.clf, to_imdc_fn, self.x_keys, color_table=self.color_table)
-
-        if to_imdc_fn == r"F:\ProjectSet\Shadow\Hierarchical\Temp\tmp_imdc.tif":
-            return gdal.Open(to_imdc_fn).ReadAsArray()
-
-        if not self.is_save_imdc:
-            os.remove(to_imdc_fn)
-
-        return None
 
 
 class SHH2MLTrainSamplesTiao(SHH2MLTraining):
@@ -784,4 +626,4 @@ python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.
     
     """
 
-    main()
+    train()

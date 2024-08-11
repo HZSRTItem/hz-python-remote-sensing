@@ -7,7 +7,6 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ShadowUtils
 -----------------------------------------------------------------------------"""
-import csv
 import os.path
 import shutil
 
@@ -19,7 +18,6 @@ from SRTCodes.GDALRasterClassification import GDALRasterClassificationAccuracy
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.PandasUtils import filterDF
-from SRTCodes.SRTReadWrite import SRTInfoFileRW
 from SRTCodes.Utils import listUnique, filterFileContain, Jdt, saveJson, readJson, timeDirName, changefiledirname, \
     changext, filterStringAnd, DirFileName, timeFileName, catIterToStr
 
@@ -341,32 +339,6 @@ def _isTo01(_is):
 
 def _listToInt(_list: list):
     return list(map(int, _list))
-
-
-def readQJYTxt(txt_fn):
-    srt_fr = SRTInfoFileRW(txt_fn)
-    d = srt_fr.readAsDict()
-    df_dict = {"__X": [], "__Y": [], "__CNAME": [], "__IS_TAG": []}
-    for k in d["FIELDS"]:
-        df_dict[k] = []
-    fields = d["FIELDS"].copy()
-    cr = csv.reader(d["DATA"])
-    for line in cr:
-        for k in df_dict:
-            df_dict[k].append(None)
-
-        x = float(line[3])
-        y = float(line[4])
-        c_name = line[1].strip()
-        is_tag = eval(line[2])
-        df_dict["__X"][-1] = x
-        df_dict["__Y"][-1] = y
-        df_dict["__CNAME"][-1] = c_name
-        df_dict["__IS_TAG"][-1] = is_tag
-
-        for i in range(5, len(line)):
-            df_dict[fields[i - 5]][-1] = line[i]
-    return df_dict
 
 
 class ShadowTiaoTestAcc:

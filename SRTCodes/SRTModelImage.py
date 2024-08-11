@@ -768,7 +768,7 @@ class GDALImdc:
         self.sfm = SRTFeaturesMemory()
         self.is_sfm = is_sfm
         if len(self.raster_fns) >= 1:
-            self.sfm = SRTFeaturesMemory(names=GDALRaster(raster_fns[0]).names)
+            self.sfm = SRTFeaturesMemory(names=GDALRaster(raster_fns[0]).names).initCallBacks()
 
     def imdc1(self, model, to_imdc_fn, fit_names=None, data_deal=None, is_jdt=True, color_table=None):
         color_table, fit_names = self._initImdc(color_table, fit_names)
@@ -812,7 +812,6 @@ class GDALImdc:
     def readRaster(self, data, fit_names, gr, is_jdt, *args, **kwargs):
         jdt = Jdt(len(fit_names), "Read Raster").start(is_jdt)
         for i, name in enumerate(fit_names):
-            # data[i] = self.sfm.callbacks(name).fit(gr.readGDALBand(name))
             data_i = gr.readGDALBand(name)
             data_i[np.isnan(data_i)] = 0
             if self.is_sfm:

@@ -546,8 +546,6 @@ class SRTFeaturesMemory:
         else:
             return name_number
 
-
-
 def main():
     pass
 

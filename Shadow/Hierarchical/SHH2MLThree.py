@@ -59,6 +59,7 @@ def main():
         cm_oa = ConfusionMatrix(class_names=cm_names)
         cm_oa.addData(y1_list, y2_list)
         oa_list.append(cm_oa.accuracyCategory("IS").OA())
+
         # IS SOIL OA
         y1_list, y2_list = [], []
         for i, spl in enumerate(spls_test):
