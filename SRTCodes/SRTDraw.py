@@ -13,6 +13,7 @@ import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
 
+from SRTCodes.NumpyUtils import scaleMinMax
 from SRTCodes.SRTFeature import SRTFeatureDataCollection
 from SRTCodes.Utils import CheckLoc, NONE_CLASS
 
@@ -286,7 +287,7 @@ class SRTDrawImages:
                     ax = axes[i, j]
                 if j == 0:
                     if row_names is not None:
-                        ax.set_ylabel(row_names[i],rotation=0, fontdict=fontdict)
+                        ax.set_ylabel(row_names[i], rotation=0, fontdict=fontdict)
                 if i == 0:
                     if column_names is not None:
                         ax.set_title(column_names[j], fontdict=fontdict)
@@ -307,6 +308,46 @@ class SRTDrawImages:
         if fn is None:
             return None
         return Image.open(fn)
+
+
+def showData(data, min_list=None, max_list=None, color_table=None):
+    to_data = np.zeros((3, data.shape[-2], data.shape[-1]))
+
+    if color_table is not None:
+        data = data.astype("int")
+        if len(data.shape) == 3:
+            data = data[0]
+        for n in color_table:
+            color_data = np.array([color_table[n]]).T
+            to_data[:, data == n] = color_data / 255
+    else:
+        if len(data.shape) == 2:
+            data = np.concatenate([[data], [data], [data]])
+        if min_list is None:
+            min_list = np.min(data, axis=(1, 2))
+        else:
+            if len(min_list) == 1:
+                min_list = list(min_list) * 3
+        if max_list is None:
+            max_list = np.max(data, axis=(1, 2))
+        else:
+            if len(max_list) == 1:
+                max_list = list(max_list) * 3
+        for i in range(3):
+            to_data[i] = scaleMinMax(data[i], min_list[i], max_list[i])
+
+    for i in range(3):
+        to_data[i] = scaleMinMax(to_data[i], 0, 1)
+
+    plt.imshow(np.transpose(to_data, axes=(1, 2, 0)))
+
+
+def showHist(data, n=256, data_range=None, *args, **kwargs):
+    if data_range is not None:
+        data = np.clip(data, data_range[0], data_range[1])
+    hist, bin_edges = np.histogram(data,n, density=True)
+    plt.plot(bin_edges[:-1] + (bin_edges[1] - bin_edges[0]) / 2, hist, *args, **kwargs)
+    return data
 
 
 def main():

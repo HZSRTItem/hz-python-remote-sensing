@@ -318,7 +318,7 @@ class GMRaster:
 
 
 def main():
-    gmr = GMRaster(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\Channels\QingDao_AS_C11.tif")
+    gmr = GMRaster(r"G:\SHImages\QD_AS_VV.tif")
     gmr.read(1)
     gmr.draw(8, fontdict={"size": 16})
     plt.show()

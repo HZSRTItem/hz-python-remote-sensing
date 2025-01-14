@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.image import imread, imsave
+from tabulate import tabulate
 
 
 class DataFrameDictSort:
@@ -77,6 +78,21 @@ def splitDf(_df, field_name, *df_splits):
         else:
             df_list.append(None)
     return tuple(df_list)
+
+
+def vLookUpCount(df, row_name, column_name=None, is_print=False):
+    if not isinstance(df, pd.DataFrame):
+        df = pd.DataFrame(df)
+    if column_name is None:
+        to_df = df[row_name].value_counts()
+        if is_print:
+            print(to_df)
+    else:
+        to_df = pd.pivot_table(df, index=row_name, columns=column_name, aggfunc='size', fill_value=0)
+        if is_print:
+            print(tabulate(to_df, headers="keys"))
+
+    return to_df
 
 
 def main():

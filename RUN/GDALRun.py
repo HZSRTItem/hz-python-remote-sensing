@@ -28,7 +28,8 @@ from osgeo_utils.ogrmerge import main as ogrmerge_main
 
 from RUN.GLI import GLI_main
 from SRTCodes.GDALRasterIO import GDALRaster, GDALRasterChannel
-from SRTCodes.Utils import printListTable
+from SRTCodes.NumpyUtils import reHist0
+from SRTCodes.Utils import changext, readJson, saveJson
 
 
 class GDAL2Tiles_main:
@@ -215,7 +216,7 @@ class GDALDataDes_main:
 
         fmt_name = "{:<" + str(len_name) + "}"
         fmt_column_names = "{:>" + str(len_column + n_xiaoshu) + "}"
-        fmt_column = "{:>" + str(len_column+ n_xiaoshu) + "." + str(n_xiaoshu) + "f}"
+        fmt_column = "{:>" + str(len_column + n_xiaoshu) + "." + str(n_xiaoshu) + "f}"
 
         if fmt == "lines" or fmt == "csv":
             if fmt == "lines":
@@ -332,6 +333,78 @@ class GDALDesCopy_main:
         print("    *raster_fns: raster files")
 
 
+class GDALDataRange_main:
+
+    def __init__(self):
+        self.name = "gdaldatarange"
+        self.description = "Calculate the percentage range for each channel and save it to the range file."
+        self.argv = []
+
+    def run(self, argv):
+        self.argv = argv
+        if len(argv) == 1:
+            self.usage()
+            return None
+
+        raster_fn = None
+        ratio = None
+        out_json_fn = None
+
+        i = 1
+        while i < len(argv):
+
+            if (argv[i] == "-o") and (i < len(argv) - 1):
+                i += 1
+                out_json_fn = argv[i]
+
+            elif raster_fn is None:
+                raster_fn = argv[i]
+
+            elif ratio is None:
+                ratio = float(argv[i]) / 100
+
+            i += 1
+
+        if raster_fn is None:
+            print("Not find raster file")
+            return
+
+        gr = GDALRaster(raster_fn)
+        if out_json_fn is None:
+            out_json_fn = changext(raster_fn, "_range.json")
+
+        if os.path.isfile(out_json_fn):
+            to_dict = readJson(out_json_fn)
+        else:
+            to_dict = {}
+
+        print("Raster   :{}".format(raster_fn))
+        print("Ratio    :{}".format(ratio))
+        print("Out Range:{}".format(out_json_fn))
+
+        fmt_name = "{:<" + str(max([len(name) for name in gr.names])) + "}"
+
+        for i, name in enumerate(gr.names):
+            data = gr.readGDALBand(name)
+            if name in to_dict:
+                x_min, x_max = to_dict[name]["min"], to_dict[name]["max"]
+            else:
+                x_min, x_max = reHist0(data, ratio, False)
+                to_dict[name] = {}
+            x_min, x_max = float(x_min), float(x_max)
+            to_dict[name]["min"], to_dict[name]["max"] = x_min, x_max
+            saveJson(to_dict, out_json_fn)
+            print("{:>3}. {} {:>20.6f} {:>20.6f}".format(i + 1, fmt_name.format(name), x_min, x_max))
+
+
+    def usage(self):
+        print("{0} raster_fn ratio [-o range_fn]".format(self.name))
+        print("@Des: {0}".format(self.description))
+        print("    raster_fn: calculate raster file name.")
+        print("    ratio: two range ratio of %.")
+        print("    -o range_fn: out range filename. default:_range.json")
+
+
 class SRTGeo:
 
     def __init__(self):
@@ -396,6 +469,8 @@ def main_gdalrun(argv):
     srt_geo.add(GDALListNames_main())
     srt_geo.add(GDALDataDes_main())
     srt_geo.add(GDALDesCopy_main())
+    srt_geo.add(GDALDataRange_main())
+
     if len(argv) == 1:
         srt_geo.usage()
     else:

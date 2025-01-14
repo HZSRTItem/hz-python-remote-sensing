@@ -527,7 +527,7 @@ def main():
         print(fn)
         plt.show()
 
-    return func3()
+    return func2()
 
 
 def method_name1():

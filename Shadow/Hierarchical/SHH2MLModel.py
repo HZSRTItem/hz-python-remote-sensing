@@ -16,7 +16,7 @@ from osgeo import gdal
 from sklearn.ensemble import RandomForestClassifier
 
 from SRTCodes.ModelTraining import ConfusionMatrix
-from SRTCodes.SRTFeature import SRTFeaturesMemory
+from SRTCodes.SRTFeature import SRTFeaturesMemory, SRTFeaturesCalculation
 from SRTCodes.SRTModel import mapDict
 from SRTCodes.SRTModelImage import GDALImdc
 from Shadow.Hierarchical.SHH2Config import samplesDescription
@@ -33,6 +33,7 @@ class SHH2MLTraining:
         self.clf = None
         self.map_dict = None
         self.test_filters = {0: [], 1: []}
+        self.sfc = None
 
     def train(self, name, x_keys=None, c_fn="CATEGORY", map_dict=None, clf=None, *args, **kwargs):
         if x_keys is None:
@@ -82,6 +83,8 @@ class SHH2MLTraining:
 
     def train_test(self, n, x_keys, c_fn=None, map_dict=None):
         _df = self.df[self.df["TEST"] == n]
+        self.sfc.initData("df", _df)
+        self.sfc.fit()
 
         data_filter = self.test_filters[n]
         if len(data_filter) != 0:
@@ -123,6 +126,7 @@ class TIC(SHH2MLTraining):
             x_keys=None,
             cm_names=None,
             clf=None,
+            sfc=None,
 
             category_field_name="CNAME",
             color_table=None,
@@ -145,6 +149,8 @@ class TIC(SHH2MLTraining):
             map_dict = {}
         if clf is None:
             clf = RandomForestClassifier(n_estimators=100, max_depth=10, min_samples_leaf=1, min_samples_split=2)
+        if sfc is None:
+            sfc = SRTFeaturesCalculation(*x_keys)
 
         self.name = name
         self.df = df
@@ -153,6 +159,7 @@ class TIC(SHH2MLTraining):
         self.x_keys = x_keys
         self.cm_names = cm_names
         self.clf = clf
+        self.sfc = sfc
 
         self.category_field_name = category_field_name
         self.color_table = color_table
@@ -242,10 +249,10 @@ class TIC(SHH2MLTraining):
 
     def imdc(self, to_imdc_fn=None, **kwargs):
         if self.sfm is not None:
-            gimdc = GDALImdc(self.raster_fn, is_sfm=True)
+            gimdc = GDALImdc(self.raster_fn, is_sfm=True, sfc=self.sfc)
             gimdc.sfm = self.sfm
         else:
-            gimdc = GDALImdc(self.raster_fn, is_sfm=False)
+            gimdc = GDALImdc(self.raster_fn, is_sfm=False, sfc=self.sfc)
 
         to_imdc_fn = self.getImdcFn(to_imdc_fn)
 

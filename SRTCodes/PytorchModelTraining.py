@@ -280,6 +280,16 @@ class PytorchCategoryTraining(CategoryTraining, PytorchTraining):
         return model_name
 
 
+def _lossToItem(loss):
+    if isinstance(loss, tuple):
+        to_loss = 0
+        for _loss in loss:
+            to_loss += _loss.item()
+        return to_loss
+    else:
+        return loss.item()
+
+
 class TorchTraining:
 
     def __init__(self):
@@ -299,6 +309,8 @@ class TorchTraining:
         self._optimizer = None
         self._scheduler = None
         self.loss = None
+        self.epoch = -1
+        self.batch = -1
 
         self.train_cm = ConfusionMatrix()
         self.test_cm = ConfusionMatrix()
@@ -367,14 +379,20 @@ class TorchTraining:
         self.time_run.start()
 
         for epoch in range(self.epochs):
+            self.epoch = epoch
 
             if self.func_epoch is not None:
                 self.func_epoch()
 
             for batch, (x, y) in enumerate(self.train_loader):
+                self.batch = batch
+
                 # x, y = x.to(self.device), y.to(self.device)
                 if self.win_size is None:
-                    self.win_size = int(x.shape[2]), int(x.shape[3])
+                    if len(x.shape) == 2:
+                        self.win_size = 1, 1
+                    else:
+                        self.win_size = int(x.shape[2]), int(x.shape[3])
 
                 if self.func_xy_deal is not None:
                     x, y = self.func_xy_deal(x, y)
@@ -390,7 +408,11 @@ class TorchTraining:
                     self.loss = self.func_loss_deal(self.loss)
 
                 self._optimizer.zero_grad()
-                self.loss.backward()
+                if isinstance(self.loss, tuple):
+                    for loss in self.loss:
+                        loss.backward()
+                else:
+                    self.loss.backward()
                 self._optimizer.step()
 
                 self.testing(epoch, batch)
@@ -408,7 +430,7 @@ class TorchTraining:
         self.field_records.clearLine()
         self.field_records.line["Epoch"] = epoch
         self.field_records.line["Batch"] = batch
-        self.field_records.line["Loss"] = float(self.loss.item())
+        self.field_records.line["Loss"] = float(_lossToItem(self.loss))
 
         def _print(_acc):
             if self.func_print is None:
@@ -418,7 +440,7 @@ class TorchTraining:
                 self.func_print("-" * 100)
             self.func_print("+ Epoch:", "{:<6d}".format(epoch), end=" ")
             self.func_print("Batch:", "{:<6d}".format(batch), end=" ")
-            self.func_print("Loss:", "{:<12.6f}".format(float(self.loss.item())), end=" ")
+            self.func_print("Loss:", "{:<12.6f}".format(float(_lossToItem(self.loss))), end=" ")
             self.func_print("Accuracy:", "{:>6.3f}".format(_acc), end="   ")
             self.func_print(self.time_run.fmt, end="\n")
             if batch == 0:

@@ -25,7 +25,7 @@ from SRTCodes.ModelTraining import ConfusionMatrix, TrainLog, ConfusionMatrixLog
     dataPredictPatch2
 from SRTCodes.NumpyUtils import categoryMap
 from SRTCodes.PytorchModelTraining import PytorchTraining, pytorchModelCodeString
-from SRTCodes.SRTFeature import SRTFeaturesMemory
+from SRTCodes.SRTFeature import SRTFeaturesMemory, SRTFeaturesCalculation
 from SRTCodes.Utils import Jdt, timeDirName, FN, numberfilename, changext, filterFileExt, changefiledirname, \
     funcCodeString, saveJson, datasCaiFen
 
@@ -762,10 +762,11 @@ def imdc2(func_predict, data, win_size, to_geo_fn, gr, data_deal=None, is_jdt=Tr
 
 class GDALImdc:
 
-    def __init__(self, *raster_fns, is_sfm=True):
+    def __init__(self, *raster_fns, is_sfm=True, sfc=None):
         self.raster_fns = datasCaiFen(raster_fns)
         self.color_table = None
         self.sfm = SRTFeaturesMemory()
+        self.sfc = sfc
         self.is_sfm = is_sfm
         if len(self.raster_fns) >= 1:
             self.sfm = SRTFeaturesMemory(names=GDALRaster(raster_fns[0]).names).initCallBacks()
@@ -810,15 +811,30 @@ class GDALImdc:
         data = None
 
     def readRaster(self, data, fit_names, gr, is_jdt, *args, **kwargs):
-        jdt = Jdt(len(fit_names), "Read Raster").start(is_jdt)
-        for i, name in enumerate(fit_names):
+        read_names, sfc = self.getReadNames(data, fit_names, gr)
+        jdt = Jdt(len(read_names), "Read Raster").start(is_jdt)
+        for name in read_names:
             data_i = gr.readGDALBand(name)
             data_i[np.isnan(data_i)] = 0
             if self.is_sfm:
                 data_i = self.sfm.callbacks(name).fit(data_i)
-            data[i] = data_i
+            sfc[name] = data_i
             jdt.add(is_jdt)
         jdt.end(is_jdt)
+        sfc.fit()
+
+        return
+
+    def getReadNames(self, data, fit_names, gr):
+        sfc = self.sfc
+        if sfc is None:
+            sfc = SRTFeaturesCalculation(*fit_names)
+        sfc.initData("np", data)
+        read_names = []
+        for name in sfc.init_names:
+            if name in gr.names:
+                read_names.append(name)
+        return read_names, sfc
 
     def _imdc2(self, func_predict, raster_fn, win_size, to_geo_fn, fit_names, data_deal, is_jdt, color_table, n=1000):
         gr = GDALRaster(raster_fn)

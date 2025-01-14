@@ -8,15 +8,15 @@ r"""----------------------------------------------------------------------------
 @Desc    : PyCodes of SHH2MLMain
 -----------------------------------------------------------------------------"""
 import os.path
-import sys
 
 import joblib
 import pandas as pd
 
 from SRTCodes.GDALUtils import uniqueSamples
+from SRTCodes.SRTFeature import SRTFeaturesCalculation
 from SRTCodes.SRTModel import RF_RGS
 from SRTCodes.SRTTimeDirectory import TimeDirectory
-from SRTCodes.Utils import changext
+from SRTCodes.Utils import changext, samplesFilterOR, printList
 from Shadow.Hierarchical import SHH2Config
 from Shadow.Hierarchical.SHH2MLModel import TIC
 from Shadow.Hierarchical.SHH2Sample import SAMPLING_CITY_NAME
@@ -37,18 +37,18 @@ _CSV_FNS = [
     ("qd", r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\qd\sh2_spl30_qd6.csv"),
 ]
 
-_NAME = "IW-{}-{}".format(_CITY_NAME.upper(), "OAD")
+_NAME = "VHL-{}-{}".format(_CITY_NAME.upper(), "O")
 _MAP_DICT = {
-    "IS": 1, "VEG": 1, "SOIL": 1, "WAT": 2,
-    "IS_SH": 2, "VEG_SH": 2, "SOIL_SH": 2, "WAT_SH": 2,
+    "IS": 1, "VEG": 2, "SOIL": 1, "WAT": 3,
+    "IS_SH": 3, "VEG_SH": 3, "SOIL_SH": 3, "WAT_SH": 3,
 }
 _COLOR_TABLE = {
     # 1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255),
-    1: (255, 0, 0), 2: (0, 0, 0), 3: (255, 255, 0), 4: (0, 0, 255),
+    1: (255, 0, 0), 2: (0, 255, 0), 3: (0, 0, 0), 4: (0, 0, 255),
 }
 _CM_NAMES = [
     # "IS", "VEG", "SOIL", "WAT",
-    "IVS", "WS"
+    "IS", "VEG", "WS"
 ]
 
 _X_KEYS = [
@@ -72,13 +72,19 @@ _X_KEYS = [
     # "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
 ]
 
+_FUNC_DN = lambda x, y: (x - y) / (x + y + 0.0000001)
+_SFC = SRTFeaturesCalculation()
+_SFC.init_names = _X_KEYS
+_SFC.add("MNDWI", ["Green", "SWIR2"], lambda data: _FUNC_DN(data["Green"], data["SWIR2"]))
+printList("_X_KEYS:", _X_KEYS)
+
 # _CLF = RandomForestClassifier(n_estimators=100, max_depth=10, min_samples_leaf=1, min_samples_split=2)
 _CLF = RF_RGS()
 
 _RASTER_FN = SHH2Config.GET_RASTER_FN(_CITY_NAME)
 
 
-def GET_CSV_FN(city_name):
+def _GET_CSV_FN(city_name):
     for i in range(len(_CSV_FNS)):
         city_name_tmp, csv_fn = _CSV_FNS[-(i + 1)]
         print(city_name_tmp, csv_fn)
@@ -92,7 +98,23 @@ def GET_CSV_FN(city_name):
             return csv_spl_fn
 
 
-_CSV_FN = GET_CSV_FN(_CITY_NAME)
+def _GET_DF(city_name, train_filter=None, test_filter=None):
+    csv_fn = _GET_CSV_FN(city_name)
+    df = pd.read_csv(csv_fn)
+    if (train_filter is None) and (test_filter is None):
+        return df
+    df_train_list, df_test_list = df[df["TEST"] == 1].to_dict("records"), df[df["TEST"] == 0].to_dict("records")
+    if train_filter is not None:
+        df_train_list = samplesFilterOR(df_train_list, *train_filter)
+    if test_filter is not None:
+        df_test_list = samplesFilterOR(df_test_list, *test_filter)
+    return pd.DataFrame(df_train_list + df_test_list)
+
+
+_DF = _GET_DF(
+    _CITY_NAME,
+    train_filter=[("FCNAME", "==", "VHL")]
+)
 
 
 # sys.exit()
@@ -102,10 +124,11 @@ def trainimdc():
     td = TimeDirectory(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods").initLog("{}_log.txt".format(_CITY_NAME))
     td.kw("CITY_NAME", _CITY_NAME)
     tic = TIC(
-        name=_NAME, df=pd.read_csv(_CSV_FN), map_dict=_MAP_DICT, raster_fn=_RASTER_FN, x_keys=_X_KEYS,
+        name=_NAME, df=_DF, map_dict=_MAP_DICT, raster_fn=_RASTER_FN, x_keys=_X_KEYS,
         cm_names=_CM_NAMES, clf=_CLF, category_field_name="CNAME", color_table=_COLOR_TABLE, sfm=None,
         is_save_model=True, is_save_imdc=True, td=td,
         func_save_model=lambda to_mod_fn: joblib.dump(_CLF.clf, to_mod_fn),
+        sfc=_SFC,
     ).train().imdc()
 
 

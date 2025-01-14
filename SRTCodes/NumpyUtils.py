@@ -279,6 +279,42 @@ def reHist(d, ratio=0.001):
     return np.array([d0, d1]).T
 
 
+def reHist0(d_i, ratio=0.001, is_print=True):
+    if is_print:
+        print("-" * 80)
+    n_re = int(np.size(d_i) * ratio)
+    d00, d10 = 0, 0
+    while True:
+        k1, k2 = 0, 0
+        zuo, you = 0, 0
+        h, bin_edges = np.histogram(d_i, bins=256)
+        for j in range(h.shape[0]):
+            zuo += h[j]
+            k1 += 1
+            if k1 == 10:
+                d00 = bin_edges[j]
+                break
+            if zuo >= n_re:
+                d00 = bin_edges[j]
+                break
+        for j in range(h.shape[0] - 1, -1, -1):
+            you += h[j]
+            k2 += 1
+            if k2 == 10:
+                d10 = bin_edges[j + 1]
+                break
+            if you >= n_re:
+                d10 = bin_edges[j + 1]
+                break
+        if is_print:
+            print(k1, d00, k2, d10)
+        if k1 != 10 and k2 != 10:
+            d0, d1 = d00, d10
+            break
+        d_i = np.clip(d_i, d00, d10)
+    return d0, d1
+
+
 def npShuffle2(x: np.ndarray):
     select = [i for i in range(x.shape[0])]
     random.shuffle(select)
@@ -325,6 +361,63 @@ def calPCA(d, num_components=None):
     selected_eigenvectors = eigenvectors[:, :num_components]
     transformed_data = np.dot(centered_data, selected_eigenvectors)
     return selected_eigenvalues, selected_eigenvectors, transformed_data
+
+
+def calHSV(rgb):
+    # 分离 RGB 通道
+    r, g, b = rgb[0], rgb[1], rgb[2]
+
+    # 计算最大值、最小值和差值
+    max_val = np.max(rgb, axis=0)
+    min_val = np.min(rgb, axis=0)
+    delta = max_val - min_val + 0.000001
+
+    # 初始化 HSV 数组
+    h = np.zeros_like(max_val)
+    s = np.zeros_like(max_val)
+    v = max_val
+
+    # Hue 计算
+    mask = delta != 0
+    h[mask & (max_val == r)] = (60 * (g - b) / delta)[mask & (max_val == r)] % 360
+    h[mask & (max_val == g)] = (60 * (b - r) / delta + 120)[mask & (max_val == g)]
+    h[mask & (max_val == b)] = (60 * (r - g) / delta + 240)[mask & (max_val == b)]
+
+    # Saturation 计算
+    s[max_val != 0] = delta[max_val != 0] / max_val[max_val != 0]
+
+    # 将 HSV 合并为一个数组
+    hsv = np.stack((h, s, v), axis=0)
+
+    return hsv
+
+
+def calHSI(rgb):
+    # 分离 RGB 通道
+    r, g, b = rgb[0], rgb[1], rgb[2]
+
+    # 计算强度 I
+    I = (r + g + b) / 3.0
+
+    # 计算饱和度 S
+    min_rgb = np.min(rgb, axis=0)
+    S = 1 - 3 * min_rgb / (r + g + b + 1e-6)
+
+    # 计算色调 H
+    numerator = 0.5 * ((r - g) + (r - b))
+    denominator = np.sqrt((r - g) ** 2 + (r - b) * (g - b))
+    theta = np.arccos(np.clip(numerator / (denominator + 1e-6), -1, 1))
+
+    H = np.zeros_like(theta)
+    H[b > g] = 2 * np.pi - theta[b > g]
+    H[b <= g] = theta[b <= g]
+
+    H = H / (2 * np.pi)  # 将 H 归一化到 [0, 1] 范围
+
+    # 将 H, S, I 合并为一个数组
+    hsi = np.stack((H, S, I), axis=0)
+
+    return hsi
 
 
 def filterLee():
@@ -402,19 +495,24 @@ def randomSampling(x, y, n=500, select_list=None):
     random_list = [i for i in range(len(out_x))]
     random.shuffle(random_list)
     out_x, out_y = out_x[random_list], out_y[random_list]
+
     return out_x, out_y
 
 
-def conv2dDim1(data, kernel):
+def conv2dDim1(data, kernel, is_jdt=False):
     data, kernel = np.array(data), np.array(kernel)
     row, column = kernel.shape
     row_center, column_center = int(row / 2.0), int(column / 2.0)
     out_data = np.zeros_like(data)
 
+    jdt = Jdt(len(list(range(row_center, data.shape[0] - row_center - 1))),
+              "NumpyUtils::conv2dDim1").start(is_jdt=is_jdt)
     for i in range(row_center, data.shape[0] - row_center - 1):
         for j in range(column_center, data.shape[1] - column_center - 1):
             data_tmp = data[i - row_center:i + row_center + 1, j - column_center:j + column_center + 1]
             out_data[i, j] = np.sum(data_tmp * kernel)
+        jdt.add()
+    jdt.end()
 
     return out_data
 

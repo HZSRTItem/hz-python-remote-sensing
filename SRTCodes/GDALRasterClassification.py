@@ -380,13 +380,13 @@ class GDALModelDataCategory(ModelDataCategory):
 
 def tilesRasterImdc(
         raster_fn, to_imdc_fn, predict_func, read_size=(-1, -1), interval_size=(0, 0),
-        channels=None, tiles_dirname=None, dtype="float32", color_table=None, is_jdt=True
+        channels=None, tiles_dirname=None, dtype="float32", color_table=None, is_jdt=True, to_dtype="int8"
 ):
     read_size = list(read_size)
     interval_size = list(interval_size)
 
     gr = GDALRaster(raster_fn)
-    imdc = np.zeros((gr.n_rows, gr.n_columns), dtype="int8")
+    imdc = np.zeros((gr.n_rows, gr.n_columns), dtype=to_dtype)
 
     init_geo_transform = gr.geo_transform
 
@@ -421,10 +421,11 @@ def tilesRasterImdc(
     def save(_data, _fn, _geo_transform=None):
         if os.path.isfile(_fn):
             os.remove(_fn)
+        to_gdal_dtype = GDALRaster.NpType2GDALType[to_dtype]
         gr.save(
-            d=_data, save_geo_raster_fn=_fn, fmt="GTiff", dtype=gdal.GDT_Byte,
+            d=_data, save_geo_raster_fn=_fn, fmt="GTiff", dtype=to_gdal_dtype,
             start_xy=None, descriptions=["Category"], geo_transform=_geo_transform,
-            options=["COMPRESS=PACKBITS"]
+            options=["COMPRESS=LZW"]
         )
         if color_table is not None:
             tiffAddColorTable(_fn, code_colors=color_table)
@@ -497,7 +498,7 @@ def tilesRasterImdc(
             for i_channel, channel in enumerate(channels):
                 data[i_channel] = gr.getGDALBand(channel).ReadAsArray(column, row, read_n_columns, read_n_rows)
 
-            imdc_tmp = predict_func(data).astype("int8")
+            imdc_tmp = predict_func(data).astype(to_dtype)
 
             r_start1, r_end1, r_start2, r_end2 = get_to_n(interval_row_size, row, read_n_rows)
             c_start1, c_end1, c_start2, c_end2 = get_to_n(interval_column_size, column, read_n_columns)

@@ -70,6 +70,7 @@ class FEAT_NAMES:
     AS = AS_BS + AS_C2 + AS_HA + AS_GLCM
     DE = DE_BS + DE_C2 + DE_HA + DE_GLCM
 
+
 def GET_RASTER_FN(city_name):
     if city_name == "qd":
         return QD_ENVI_FN
@@ -80,6 +81,7 @@ def GET_RASTER_FN(city_name):
     else:
         return None
 
+
 def GET_RANGE_FN(city_name):
     if city_name == "qd":
         return QD_RANGE_FN
@@ -89,7 +91,6 @@ def GET_RANGE_FN(city_name):
         return CD_RANGE_FN
     else:
         return None
-
 
 
 def QD_GR():
@@ -233,8 +234,8 @@ def samplesDescription(df):
         "Testing": df[df["TEST"] == 0].groupby("CNAME").count()["TEST"].to_dict()
     })
     df_des[pd.isna(df_des)] = 0
-    df_des["SUM"] = df_des.apply(lambda x: x.sum(), axis=1)
-    df_des.loc["SUM"] = df_des.apply(lambda x: x.sum())
+    df_des["SUM"] = df_des.apply(lambda x: x.addFieldSum(), axis=1)
+    df_des.loc["SUM"] = df_des.apply(lambda x: x.addFieldSum())
     return df_des
 
 

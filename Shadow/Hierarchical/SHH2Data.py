@@ -7,20 +7,198 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2024, ZhengHan. All rights reserved.
 @Desc    : PyCodes of SHH2Data
 -----------------------------------------------------------------------------"""
+import os
 
 import numpy as np
 from osgeo import gdal
 
 from SRTCodes.GDALRasterIO import GDALRaster
-from SRTCodes.NumpyUtils import eig, update10EDivide10, eig2
-from SRTCodes.Utils import DirFileName
+from SRTCodes.NumpyUtils import eig, update10EDivide10, eig2, update10Log10, calPCA, calHSV
+from SRTCodes.Utils import DirFileName, readJson
 from Shadow.Hierarchical import SHH2Config
 from Shadow.ShadowGeoDraw import _10log10
 from Shadow.ShadowRaster import ShadowRasterGLCM
 
 
+def show1(_name, _data):
+    print("{:>6} {:>15.3f}  {:>15.3f}".format(_name, _data.min(), _data.max()))
+    return _data
+
+
 def main():
-    method_name5()
+    gr = GDALRaster(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\qd_1.tif")
+    gr_save = GDALRaster(SHH2Config.QD_ENVI_FN)
+    data = gr.readGDALBand(1)
+    print(data.shape)
+    to_data = np.zeros((gr_save.n_rows, gr_save.n_columns))
+    print(to_data.shape)
+    to_data = data[:to_data.shape[0], :to_data.shape[1]]
+    gr.save(
+        to_data,
+        r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\data1.tif",
+        dtype=gdal.GDT_Float32,
+        fmt="GTiff",
+    )
+    return
+
+
+def method_name7():
+    dfn = DirFileName(r"F:\ProjectSet\Shadow\ASDEIndex\Images\2").mkdir()
+    gr = GDALRaster(SHH2Config.QD_ENVI_FN)
+
+    def read(_name):
+        _data = show1(_name, gr.readGDALBand(_name))
+        _data = show1(_name, update10EDivide10(_data))
+        return _data
+
+    as1 = read("AS_VV")
+    as2 = read("AS_VH")
+    de1 = read("DE_VV")
+    de2 = read("DE_VH")
+    # data = np.sqrt(as1 * as2 * de1 * de2)
+    # show1("E3", data)
+    # gr.save(data.astype("float32"), dfn.fn("e3.tif"), fmt="GTiff", dtype=gdal.GDT_Float32)
+    # data = update10Log10(data)
+    # show1("E3_10log10", data)
+    # gr.save(data.astype("float32"), dfn.fn("e3_10log10.tif"), fmt="GTiff", dtype=gdal.GDT_Float32)
+    data = update10Log10(np.sqrt(as1 * as2))
+    show1("E32", data)
+    gr.save(data.astype("float32"), dfn.fn("e32.tif"), fmt="GTiff", dtype=gdal.GDT_Float32)
+
+
+def featExt():
+    # Water index
+    gr = GDALRaster(SHH2Config.QD_ENVI_FN)
+    print(gr.names)
+    gr_water9 = GDALRaster(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\Water9.tif")
+    gr_data1 = GDALRaster(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\data1.tif")
+    to_dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\Index")
+    range_dict = readJson(SHH2Config.QD_RANGE_FN)
+    eps = 0.0000001
+    data_dict = {}
+
+    def add_data(_name, _data):
+        data_dict[_name] = _data
+        show1(_name, _data)
+        return _data
+
+    def read(_name):
+        _data = gr.readGDALBand(_name)
+        show1(_name, _data)
+        return _data
+
+    def norm(_data1, _data2):
+        return (_data1 - _data2) / (_data1 + _data2 + eps)
+
+    def cal_pca(_data):
+        _data_shape = _data.shape
+        to_data = calPCA(np.reshape(_data, (_data_shape[0], -1)))
+        to_data = np.reshape(to_data[2].T, _data_shape)
+        return to_data
+
+    def data_range(name, _data):
+        _data = np.clip(_data, range_dict[name]["min"], range_dict[name]["max"])
+        _data = (_data - range_dict[name]["min"]) / (range_dict[name]["max"] - range_dict[name]["min"])
+        return _data
+
+    data_blue = read("Blue")
+    data_green = read("Green")
+    data_red = read("Red")
+    data_nir = read("NIR")
+    data_swir1 = read("SWIR1")
+    data_swir2 = read("SWIR2")
+
+    print("-" * 60)
+    # A method for extracting small water bodies based on DEM and remote sensing images
+    # The use of normalized difference water index (NDWI) in the delineation of open water features
+    ndwi = add_data("NDWI", norm(data_green, data_nir))
+    # Extracting Miyun reservoir’s water area and monitoring its change based on a revised normalized different water index
+    rndwi = add_data("RNDWI", norm(data_swir2, data_red))
+    mndwi = add_data("MNDWI", norm(data_green, data_swir1))
+    mbwi = add_data("MBWI", 2 * data_green - data_red - data_nir - data_swir1 - data_swir2)
+
+    print("-" * 60)
+    ndvi = add_data("NDVI", norm(data_nir, data_red))
+    savi = add_data("SAVI", 1.5 * ndvi + 0.5)
+
+    print("-" * 60)
+    # ASI: An artificial surface Index for Landsat 8 imagery." International Journal of Applied Earth Observation and Geoinformation
+    ui = add_data("NDBI", norm(data_swir2, data_nir))
+    ndbi = add_data("NDBI", norm(data_swir1, data_nir))
+    nbi = add_data("NBI", data_red * data_swir2 / data_nir)
+    mbi = add_data("MBI", (data_swir1 * data_red - data_swir2 * data_swir2) / (data_red + data_nir + data_swir1))
+
+    print("-" * 60)
+    water9 = gr_water9.readGDALBand(1)
+    data1 = gr_data1.readGDALBand(1)
+    sei = add_data("SEI", norm(data1 + water9, data_green + data_nir))
+    csi = add_data("CSI", sei - ndvi)
+    rgb = np.concatenate([
+        [data_range("Red", data_red)],
+        [data_range("Green", data_green)],
+        [data_range("Blue", data_blue)],
+    ])
+    hsv = calHSV(rgb)
+    nsvdi = add_data("NSVDI", norm(hsv[1], hsv[2]))
+    # pca = cal_pca(rgb)
+    # hsi = calHSI(rgb)
+    # si = add_data("SI", (pca[0] - hsi[2]) * (1 + hsi[1]) / (pca[0] + hsi[2] + hsi[1]))
+
+    print(data_dict.keys())
+
+    for name in data_dict:
+        to_fn = to_dfn.fn("{}.tif".format(name))
+        print(to_fn)
+        if os.path.isfile(to_fn):
+            os.remove(to_fn)
+        gr.save(data_dict[name].astype("float32"), to_fn, fmt="GTiff", dtype=gdal.GDT_Float32, descriptions=name)
+
+
+def dataConcat():
+    data_names_dict = {}
+
+    names1 = [
+        'Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2', 'NDVI', 'NDWI', 'OPT_asm', 'OPT_con', 'OPT_cor',
+        'OPT_dis', 'OPT_ent', 'OPT_hom', 'OPT_mean', 'OPT_var', 'AS_VV', 'AS_VH', 'AS_angle', 'AS_VHDVV', 'AS_C11',
+        'AS_C12_imag', 'AS_C12_real', 'AS_C22', 'AS_Lambda1', 'AS_Lambda2', 'AS_SPAN', 'AS_Epsilon', 'AS_Mu',
+        'AS_RVI', 'AS_m', 'AS_Beta', 'AS_H', 'AS_A', 'AS_Alpha', 'AS_VH_asm', 'AS_VH_con', 'AS_VH_cor',
+        'AS_VH_dis', 'AS_VH_ent', 'AS_VH_hom', 'AS_VH_mean', 'AS_VH_var', 'AS_VV_asm', 'AS_VV_con', 'AS_VV_cor',
+        'AS_VV_dis', 'AS_VV_ent', 'AS_VV_hom', 'AS_VV_mean', 'AS_VV_var', 'DE_VV', 'DE_VH', 'DE_angle', 'DE_VHDVV',
+        'DE_C11', 'DE_C12_imag', 'DE_C12_real', 'DE_C22', 'DE_SPAN', 'DE_Lambda1', 'DE_Lambda2', 'DE_Epsilon',
+        'DE_Mu', 'DE_RVI', 'DE_m', 'DE_Beta', 'DE_H', 'DE_A', 'DE_Alpha', 'DE_VH_asm', 'DE_VH_con', 'DE_VH_cor',
+        'DE_VH_dis', 'DE_VH_ent', 'DE_VH_hom', 'DE_VH_mean', 'DE_VH_var', 'DE_VV_asm', 'DE_VV_con', 'DE_VV_cor',
+        'DE_VV_dis', 'DE_VV_ent', 'DE_VV_hom', 'DE_VV_mean', 'DE_VV_var'
+    ]
+
+    for name in names1:
+        fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\Channels\QingDao_{}.tif".format(name)
+        if not os.path.isfile(fn):
+            raise Exception("Not find {}".format(fn))
+        data_names_dict[name] = fn
+
+    names2 = ['NDWI', 'RNDWI', 'MNDWI', 'MBWI', 'NDVI', 'SAVI', 'NDBI', 'NBI', 'MBI', 'SEI', 'CSI', 'NSVDI']
+    for name in names2:
+        fn = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\Index\{}.tif".format(name)
+        if not os.path.isfile(fn):
+            raise Exception("Not find {}".format(fn))
+        data_names_dict[name] = fn
+
+    data = None
+    to_names = []
+    gr = None
+    for i, name in enumerate(data_names_dict):
+        fn = data_names_dict[name]
+        gr = GDALRaster(fn)
+        print("{:>2d}. {:<15} {}".format(i + 1, name, fn))
+        if data is None:
+            data = np.zeros((len(data_names_dict), gr.n_rows, gr.n_columns), dtype="float32")
+        data[i] = gr.readGDALBand(1).astype("float32")
+        to_names.append(name)
+    print(data.shape)
+    gr.save(data,
+            r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat",
+            dtype=gdal.GDT_Float32, descriptions=to_names)
+
     return
 
 
@@ -53,13 +231,13 @@ def method_name6():
 def method_name5():
     dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\Images")
     grs = {
-        # "QingDao": SHH2Config.QD_GR(),
+        "QingDao": SHH2Config.QD_GR(),
         # "BeiJing": SHH2Config.BJ_GR(),
         # "ChengDu": SHH2Config.CD_GR(),
 
         # "QingDao": GDALRaster(SHH2Config.QD_LOOK_FN),
-        "BeiJing": GDALRaster(SHH2Config.BJ_LOOK_FN),
-        "ChengDu": GDALRaster(SHH2Config.CD_LOOK_FN),
+        # "BeiJing": GDALRaster(SHH2Config.BJ_LOOK_FN),
+        # "ChengDu": GDALRaster(SHH2Config.CD_LOOK_FN),
     }
     for city_name, gr in grs.items():
         to_dfn = DirFileName(dfn.fn(city_name, "SH22", "Channels"))
@@ -313,4 +491,4 @@ def method_name1():
 
 
 if __name__ == "__main__":
-    main()
+    dataConcat()

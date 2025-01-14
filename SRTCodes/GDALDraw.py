@@ -7,11 +7,42 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2024, ZhengHan. All rights reserved.
 @Desc    : PyCodes of GDALDraw
 -----------------------------------------------------------------------------"""
+import warnings
+
 import numpy as np
 from matplotlib import pyplot as plt
 
 from SRTCodes.GDALUtils import GDALRasterCenterDatas, GDALRasterCenterData
 from SRTCodes.SRTDraw import DrawImage, dataToCategory
+
+
+class _GDIDraws:
+
+    def __init__(self, gdi, loc=0):
+        self.gdi = gdi
+        self.draw_list = []
+        self.axs = []
+        self.loc = loc
+
+    def add(self, *args, **kwargs):
+        self.draw_list.append((args, kwargs))
+
+    def fit(self, x, y, loc=None):
+        self.axs = plt.gcf().get_axes()
+        if isinstance(loc, int):
+            self.loc = loc
+        elif isinstance(loc, tuple) or isinstance(loc, list):
+            self.loc = (loc[0] - 1) * loc[1] + loc[2]
+        else:
+            warnings.warn("Can not format {}".format(loc))
+
+        for i, (_args, _kwargs) in enumerate(self.draw_list):
+            self.readDraw(*_args, **_kwargs)
+
+    def readDraw(self, *args, **kwargs):
+        plt.sca(self.axs[self.loc])
+        self.gdi.readDraw(*args, **kwargs)
+        self.loc += 1
 
 
 class GDALDrawImage(DrawImage):
@@ -51,6 +82,9 @@ class GDALDrawImage(DrawImage):
     def readDraw(self, grcc_name, x, y, win_size=None, is_trans=False, color_dict=None, *args, **kwargs):
         self.read(grcc_name, x, y, win_size=win_size, is_trans=is_trans, color_dict=color_dict, *args, **kwargs)
         return self.draw(*args, **kwargs)
+
+    def draws(self, loc=0):
+        return _GDIDraws(self, loc=loc)
 
 
 class GDALDrawImages(GDALRasterCenterDatas, DrawImage):

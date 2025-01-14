@@ -2157,8 +2157,8 @@ class ShadowSketchMap:
 
         func2(0)
         # plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
-        plt.savefig(r"F:\ASDEWrite\Images\fig312.svg", dpi=300, bbox_inches='tight', pad_inches=0)
-        plt.savefig(r"F:\ASDEWrite\Images\fig312.jpg", dpi=300, bbox_inches='tight', pad_inches=0)
+        plt.savefig(r"F:\ASDEWrite\Images\fig312.svg", dpi=300, bbox_inches='tight', pad_inches=0.2)
+        plt.savefig(r"F:\ASDEWrite\Images\fig312.jpg", dpi=300, bbox_inches='tight', pad_inches=0.2)
         plt.show()
 
 
@@ -2175,6 +2175,8 @@ def main():
     scm = ShadowSketchMap()
     scm.drawASDE3()
 
+    import matplotlib.colors as mcolors
+    mcolors.CSS4_COLORS
     pass
 
 

@@ -7,7 +7,6 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2023, ZhengHan. All rights reserved.
 @Desc    : BaseCodes of SRTFeature
 -----------------------------------------------------------------------------"""
-import gc
 import warnings
 
 import numpy as np
@@ -356,6 +355,7 @@ class SRTFeatureDataCollection(SRTCollection):
 
 
 class SRTFeaturesForwards:
+
     def __init__(self):
         self._init_forward_name = "FORWARD"
         self.feature_forwards = {}
@@ -545,6 +545,63 @@ class SRTFeaturesMemory:
             return self.names.index(name_number)
         else:
             return name_number
+
+
+class SRTFeaturesCalculation:
+    """ Features calculate self, extraction
+
+    type: data type as df|np
+    """
+
+    DATA_TYPES = ["df", "np"]
+
+    def __init__(self, *init_names):
+        self.init_names = list(init_names)
+        self.type = None
+        self.data = None
+        self.calculation = []
+
+    def initData(self, _type, _data):
+        if _type not in self.DATA_TYPES:
+            raise Exception("Can not support data type of \"{}\". Not in {}.".format(_type, self.DATA_TYPES))
+        self.type = _type
+        self.data = _data
+
+    def __getitem__(self, item):
+        if self.type == "np":
+            return self.data[self.init_names.index(item)]
+        elif self.type == "df":
+            return self.data[item]
+        else:
+            return None
+
+    def __setitem__(self, key, value):
+        if self.type == "np":
+            self.data[self.init_names.index(key)] = value
+        elif self.type == "df":
+            self.data[key] = value
+
+    def __contains__(self, item):
+        return item in self.init_names
+
+    def add(self, init_name, fit_names, func):
+        if init_name not in self.init_names:
+            self.init_names.append(init_name)
+            warnings.warn("Init name \"{}\" not in list and add.".format(init_name))
+        self.calculation.append((init_name, fit_names, func))
+
+    def fit(self, ):
+        for init_name, fit_names, func in self.calculation:
+            datas = {}
+            for name in fit_names:
+                if self.type == "df":
+                    datas[name] = self.__getitem__(name).values
+                else:
+                    datas[name] = self.__getitem__(name)
+            data = func(datas)
+            self.__setitem__(init_name, data)
+
+
 
 def main():
     pass

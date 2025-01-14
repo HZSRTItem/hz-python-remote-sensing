@@ -9,6 +9,8 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 import numpy as np
 
+from SRTCodes.NumpyUtils import reHist0
+
 eps = 0.0000001
 
 
@@ -21,40 +23,6 @@ def reHist(d, ratio=0.001):
         d0.append(d00)
         d1.append(d10)
     return np.array([d0, d1]).T
-
-
-def reHist0(d_i, ratio=0.001):
-    print("-" * 80)
-    n_re = int(d_i.shape[0] * d_i.shape[1] * ratio)
-    d00, d10 = 0, 0
-    while True:
-        k1, k2 = 0, 0
-        zuo, you = 0, 0
-        h, bin_edges = np.histogram(d_i, bins=256)
-        for j in range(h.shape[0]):
-            zuo += h[j]
-            k1 += 1
-            if k1 == 10:
-                d00 = bin_edges[j]
-                break
-            if zuo >= n_re:
-                d00 = bin_edges[j]
-                break
-        for j in range(h.shape[0] - 1, -1, -1):
-            you += h[j]
-            k2 += 1
-            if k2 == 10:
-                d10 = bin_edges[j + 1]
-                break
-            if you >= n_re:
-                d10 = bin_edges[j + 1]
-                break
-        print(k1, d00, k2, d10)
-        if k1 != 10 and k2 != 10:
-            d0, d1 = d00, d10
-            break
-        d_i = np.clip(d_i, d00, d10)
-    return d0, d1
 
 
 def plotImageHist(imd: np.array, bands=None, labels=None, kw=None):

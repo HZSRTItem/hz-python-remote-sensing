@@ -17,7 +17,7 @@ from tabulate import tabulate
 
 from SRTCodes.SRTFeature import SRTFeatureCallBackCollection, SRTFeatureExtractionCollection
 from SRTCodes.SRTReadWrite import SRTInfoFileRW
-from SRTCodes.Utils import printList, SRTDataFrame, readJson, Jdt, SRTFilter, FRW, getfilenamewithoutext
+from SRTCodes.Utils import printList, SRTDataFrame, readJson, Jdt, SRTFilter, FRW, getfilenamewithoutext, datasCaiFen
 
 
 def filter_1(c_names, cate, select):
@@ -423,12 +423,65 @@ class SRTSample:
         self.fields[key] = value
 
 
-class SRTSampleCollection:
+class SRTSampleCollectionInit:
 
     def __init__(self):
         self.samples = []
-        self._n_iter = 0
         self.field_names = []
+
+        self._n_iter = 0
+
+    def addSample(self, spl):
+        for name in spl:
+            self._addFieldName(name)
+        self.samples.append(spl)
+        return spl
+
+    def addSamples(self, *spls):
+        spls = datasCaiFen(spls)
+        for spl in spls:
+            self.addSample(spl)
+        return len(spls)
+
+    def _addFieldName(self, name):
+        if name not in self.field_names:
+            self.field_names.append(name)
+        return name
+
+    def setField(self, n_spl, field_name, data):
+        self._addFieldName(field_name)
+        self.samples[n_spl][field_name] = data
+        return self.samples[n_spl]
+
+    def keys(self):
+        return self.field_names
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._n_iter == len(self.samples):
+            self._n_iter = 0
+            raise StopIteration()
+        self._n_iter += 1
+        return self.samples[self._n_iter - 1]
+
+    def __getitem__(self, item):
+        return self.samples[item]
+
+    def __contains__(self, item):
+        return item in self.samples
+
+
+
+
+class SRTSampleCollection(SRTSampleCollectionInit):
+
+    def __init__(self):
+        super().__init__()
 
     def read_csv(self, csv_fn, field_datas=None, *args, **kwargs):
         if field_datas is None:
@@ -444,17 +497,7 @@ class SRTSampleCollection:
             self.addSample(spl)
 
     def addSample(self, spl: SRTSample):
-        for name in spl:
-            self.addFieldName(name)
-        self.samples.append(spl)
-
-    def addFieldName(self, name):
-        if name not in self.field_names:
-            self.field_names.append(name)
-        return name
-
-    def keys(self):
-        return self.field_names
+        super(SRTSampleCollection, self).addSample(spl)
 
     def getFields(self, *field_names):
         if len(field_names) == 0:
@@ -470,32 +513,14 @@ class SRTSampleCollection:
                 to_field_names = to_field_names[0]
         return [spl[to_field_names] for spl in self.samples]
 
-    def setField(self, n_spl, field_name, data):
-        self.addFieldName(field_name)
-        self.samples[n_spl][field_name] = data
-        return self.samples[n_spl]
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __iter__(self):
-        return self
-
     def __next__(self) -> SRTSample:
-        if self._n_iter == len(self.samples):
-            self._n_iter = 0
-            raise StopIteration()
-        self._n_iter += 1
-        return self.samples[self._n_iter - 1]
-
-    def __contains__(self, item):
-        return item in self.samples
-
-    def __getitem__(self, item) -> SRTSample:
-        return self.samples[item]
+        return super(SRTSampleCollection, self).__next__()
 
     def __setitem__(self, key, value):
         self.samples[key] = value
+
+    def __getitem__(self, item) -> SRTSample:
+        return super(SRTSampleCollection, self).__getitem__(item)
 
     def copyNoSamples(self):
         ssc = SRTSampleCollection()
@@ -656,7 +681,7 @@ class SRTCategorySampleCollection(SRTSampleCollection):
 
     def addSample(self, spl: SRTSample):
         for name in spl:
-            self.addFieldName(name)
+            self._addFieldName(name)
         if self.FN_CNAME in spl:
             spl.name = spl[self.FN_CNAME]
             spl.code = self.category_coll.map(spl.name)
@@ -922,11 +947,15 @@ class GEOJsonWriteWGS84:
         FRW(to_fn).saveJson({"type": self.type, "name": name, "crs": self.crs, "features": self.features})
 
 
-def samplesDescription(df, field_name="TEST", is_print=True):
+def samplesDescription(df, field_name="TEST", is_print=True, _is_1=False):
     df_des = pd.pivot_table(df, index="CNAME", columns=field_name, aggfunc='size', fill_value=0)
     df_des[pd.isna(df_des)] = 0
-    df_des["SUM"] = df_des.apply(lambda x: x.sum(), axis=1)
-    df_des.loc["SUM"] = df_des.apply(lambda x: x.sum())
+    if _is_1:
+        df_des["SUM"] = df_des.apply(lambda x: x.sum(), axis=1)
+        df_des.loc["SUM"] = df_des.apply(lambda x: x.sum())
+    else:
+        df_des["SUM"] = df_des.apply(lambda x: x.addFieldSum(), axis=1)
+        df_des.loc["SUM"] = df_des.apply(lambda x: x.addFieldSum())
     if is_print:
         print(tabulate(df_des, tablefmt="simple", headers="keys"))
     return df_des
@@ -935,8 +964,8 @@ def samplesDescription(df, field_name="TEST", is_print=True):
 def dfnumber(df, row_field_name, column_field_name, is_print=True):
     df_des = pd.pivot_table(df, index=row_field_name, columns=column_field_name, aggfunc='size', fill_value=0)
     df_des[pd.isna(df_des)] = 0
-    df_des["SUM"] = df_des.apply(lambda x: x.sum(), axis=1)
-    df_des.loc["SUM"] = df_des.apply(lambda x: x.sum())
+    df_des["SUM"] = df_des.apply(lambda x: x.addFieldSum(), axis=1)
+    df_des.loc["SUM"] = df_des.apply(lambda x: x.addFieldSum())
     if is_print:
         print(tabulate(df_des, tablefmt="simple", headers="keys"))
     return df_des
@@ -984,46 +1013,20 @@ class SamplesManage:
     def __getitem__(self, item) -> dict:
         return self.samples[item]
 
+    def show(self, n=None, _fields=None, _type="dict"):
+        def _show(_n):
+            spl = self.samples[_n]
+            _fields_n = _fields
+            if _fields is None:
+                _fields_n = list(spl.keys())
+            if _type == "dict":
+                print("{:>3d}.".format(_n + 1), " ".join(["{}:{}".format(name, spl[name]) for name in _fields_n]))
 
-
-def main():
-    # csv_spl = CSVSamples(r"F:\ProjectSet\Shadow\QingDao\Sample\qd_shadow_spl3_s1.csv")
-    # csv_spl.fieldNameCategory("CNAME")
-    # csv_spl.fieldNameTag("TAG")
-    # csv_spl.addCategoryNames(["NOT_KNOW", "IS", "IS_SH", "VEG", "VEG_SH", "SOIL", "SOIL_SH", "WAT", "WAT_SH"])
-    # csv_spl.readData()
-
-    # csv_spl.is_get_return_cname = True
-    # csv_spl.is_get_return_code_t = True
-    # d = csv_spl.get(feat_names=["B", "G", "R", "N", "VV_AS", "VH_AS", "VV_DE"],
-    #                 c_names=["NOT_KNOW", "SOIL", "VEG"])
-
-    # csv_spl.addCategoryIter(["IS", "VEG"])
-    # csv_spl.addCategoryIter(["SOIL", "VEG"])
-    # csv_spl.addCategoryIter(["WATER", "VEG"])
-
-    # csv_spl.addFeatureIter(["X", "Y", "SRT", "B", "G", "R", "N", "VV_AS", "VH_AS", "VV_DE"])
-    # csv_spl.addFeatureIter(["VH_DE", "NDVI", "NDWI", "Optical_PC1_Variance", "Optical_PC1_Homogeneity"])
-    # csv_spl.addFeatureIter(["Optical_PC1_Contrast", "VH_DE_Mean", "VH_DE_Variance", "VH_DE_Homogeneity", "VV_DE_Mean"])
-    # csv_spl.addFeatureIter(["VV_DE_Variance", "VV_DE_Homogeneity", "VH_AS_Mean", "VH_AS_Variance"])
-    # csv_spl.addFeatureIter(["VH_AS_Homogeneity", "VV_AS_Mean", "VV_AS_Variance", "VV_AS_Homogeneity"])
-    # csv_spl.addFeatureIter(["DE_20210430_C22", "DE_20210430_C12real", "DE_20210430_C12imag", "DE_20210430_C11"])
-    # csv_spl.addFeatureIter(["AS_20210507_C22", "AS_20210507_C12real", "AS_20210507_C12imag", "AS_20210507_C11"])
-
-    # for i, (x, y, d) in enumerate(csv_spl):
-    #     print(i, x.shape, y.shape, d)
-
-    # csv_spl.print()
-
-    ssc = SRTSampleCollection()
-    ssc.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\20231209\20240105H205307\20240105H205307_train_spl.csv")
-    d = ssc.getFields()
-
-    pass
-
-
-if __name__ == "__main__":
-    main()
+        if n is None:
+            for i in range(len(self.samples)):
+                _show(i)
+        else:
+            _show(n)
 
 
 def readQJYTxt(txt_fn):
@@ -1050,3 +1053,55 @@ def readQJYTxt(txt_fn):
         for i in range(5, len(line)):
             df_dict[fields[i - 5]][-1] = line[i]
     return df_dict
+
+
+class SampleUpdate(SamplesManage):
+
+    def __init__(self, txt_fn):
+        super().__init__()
+
+    def get(self, name, map_dict=None):
+        if map_dict is not None:
+            return [map_dict[spl[name]] for spl in self.samples]
+        else:
+            return [spl[name] for spl in self.samples]
+
+
+def main():
+    csv_spl = CSVSamples(r"F:\ProjectSet\Shadow\QingDao\Sample\qd_shadow_spl3_s1.csv")
+    csv_spl.fieldNameCategory("CNAME")
+    csv_spl.fieldNameTag("TAG")
+    csv_spl.addCategoryNames(["NOT_KNOW", "IS", "IS_SH", "VEG", "VEG_SH", "SOIL", "SOIL_SH", "WAT", "WAT_SH"])
+    csv_spl.readData()
+
+    csv_spl.is_get_return_cname = True
+    csv_spl.is_get_return_code_t = True
+    d = csv_spl.get(feat_names=["Red", "NIR"], c_names=["NOT_KNOW", "SOIL", "VEG"])
+    print(d)
+
+    csv_spl.addCategoryIter(["IS", "VEG"])
+    csv_spl.addCategoryIter(["SOIL", "VEG"])
+    csv_spl.addCategoryIter(["WATER", "VEG"])
+
+    csv_spl.addFeatureIter(["X", "Y", "SRT", "B", "G", "R", "N", "VV_AS", "VH_AS", "VV_DE"])
+    csv_spl.addFeatureIter(["VH_DE", "NDVI", "NDWI", "Optical_PC1_Variance", "Optical_PC1_Homogeneity"])
+    csv_spl.addFeatureIter(["Optical_PC1_Contrast", "VH_DE_Mean", "VH_DE_Variance", "VH_DE_Homogeneity", "VV_DE_Mean"])
+    csv_spl.addFeatureIter(["VV_DE_Variance", "VV_DE_Homogeneity", "VH_AS_Mean", "VH_AS_Variance"])
+    csv_spl.addFeatureIter(["VH_AS_Homogeneity", "VV_AS_Mean", "VV_AS_Variance", "VV_AS_Homogeneity"])
+    csv_spl.addFeatureIter(["DE_20210430_C22", "DE_20210430_C12real", "DE_20210430_C12imag", "DE_20210430_C11"])
+    csv_spl.addFeatureIter(["AS_20210507_C22", "AS_20210507_C12real", "AS_20210507_C12imag", "AS_20210507_C11"])
+
+    for i, (x, y, d) in enumerate(csv_spl):
+        print(i, x.shape, y.shape, d)
+
+    csv_spl.print()
+
+    # ssc = SRTSampleCollection()
+    # ssc.read_csv(r"F:\ProjectSet\Shadow\Hierarchical\20231209\20240105H205307\20240105H205307_train_spl.csv")
+    # d = ssc.getFields()
+
+    pass
+
+
+if __name__ == "__main__":
+    main()

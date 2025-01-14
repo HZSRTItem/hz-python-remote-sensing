@@ -8,6 +8,7 @@ r"""----------------------------------------------------------------------------
 @Desc    : BaseCodes of Utils
 -----------------------------------------------------------------------------"""
 import csv
+import glob
 import inspect
 import json
 import math
@@ -17,12 +18,14 @@ import shutil
 import time
 import warnings
 from datetime import datetime
-from typing import Iterable
+from typing import Iterable, Union
 
-import numpy as np
+from tabulate import tabulate
 
 from SRTCodes.DEFINE import StrOrBytesPath
 from SRTCodes.SRTLinux import W2LF
+
+_PRINT_INIT = print
 
 
 def stoprun(fn, n_line):
@@ -274,6 +277,7 @@ class DirFileName:
     def mkdir(self):
         if not os.path.isdir(self.dirname):
             os.mkdir(self.dirname)
+        return self
 
     def fn(self, *names):
         """ add directory or file name in the end of cwd
@@ -301,8 +305,48 @@ class DirFileName:
             if os.path.isdir(ff):
                 print("    " + f)
 
+    def listdirnames(self, *_dirnames, is_join=True):
+        to_dirname = os.path.join(self.dirname, *_dirnames)
+        to_list = []
+        for name in os.listdir(to_dirname):
+            if not os.path.isdir(os.path.join(to_dirname, name)):
+                continue
+            if is_join:
+                name = os.path.join(to_dirname, name)
+            to_list.append(name)
+        return to_list
+
     def ddir(self, filename=""):
         return os.path.join(self._data_dir, filename)
+
+    def listfiles(self, *_dirnames, _glob=None, is_join=True):
+        to_dirname = os.path.join(self.dirname, *_dirnames)
+        if _glob is None:
+            to_list = []
+            for name in os.listdir(to_dirname):
+                if not os.path.isfile(os.path.join(to_dirname, name)):
+                    continue
+                if is_join:
+                    name = os.path.join(to_dirname, name)
+                to_list.append(name)
+            return to_list
+        else:
+            to_list = []
+            for fn in glob.glob(os.path.join(to_dirname, _glob)):
+                if not os.path.isfile(fn):
+                    continue
+                if not is_join:
+                    fn = os.path.split(fn)[1]
+                to_list.append(fn)
+            return to_list
+
+    def copyfile(self, filename):
+        to_filename = os.path.join(self.dirname, os.path.basename(filename))
+        shutil.copyfile(filename, to_filename)
+        return to_filename
+
+    def dfn(self, *names):
+        return DirFileName(self.fn(*names))
 
 
 def mkdir(dirname):
@@ -957,6 +1001,7 @@ class SRTDataFrame:
         return {k: self._data[k][row] for k in self.data()}
 
     def __setitem__(self, key, value):
+        import numpy as np
         if isinstance(value, np.ndarray):
             value = value.tolist()
         if self._n_length != len(value):
@@ -1467,6 +1512,90 @@ class RunList:
         return readJson(self.dfn.fn(name))
 
 
+class RunList_V2:
+
+    def __init__(self, init_json_fn=None):
+        self.init_json_fn = init_json_fn
+        self.list = []
+        self.global_args = {}
+        self.intiJson(init_json_fn)
+        self.dtime = 0
+
+    def add(self, **kwargs):
+        self.list.append({"run": False, "kwargs": kwargs})
+
+    def intiJson(self, json_fn=None):
+        if json_fn is None:
+            json_fn = self.init_json_fn
+        if json_fn is None:
+            return self
+        if not os.path.isfile(json_fn):
+            return self
+        json_dict = readJson(json_fn)
+        self.list = json_dict["list"]
+        self.global_args = json_dict["global_args"]
+        this_kwargs = json_dict["this_kwargs"]
+        self.dtime = this_kwargs["dtime"]
+        return self
+
+    def saveToJson(self, json_fn=None):
+        if json_fn is None:
+            json_fn = self.init_json_fn
+        if json_fn is None:
+            return self
+        saveJson({
+            "list": self.list,
+            "global_args": self.global_args,
+            "this_kwargs": {
+                "dtime": self.dtime
+            }
+        }, json_fn)
+
+    def fit(self, func_run):
+        kwargs = None
+        n_run = 0
+        for n_run in range(len(self.list)):
+            if not self.list[n_run]["run"]:
+                kwargs = self.list[n_run]["kwargs"]
+                break
+        if kwargs is None:
+            print("#", "-" * 30, "End Run", "-" * 30, "#")
+            return self
+        print("#", "-" * 30, "Run[{}]".format(n_run + 1), "-" * 30, "#")
+        t1 = time.time()
+        global_args = func_run(**kwargs, **self.global_args)
+        t2 = time.time()
+        for name in global_args:
+            self.global_args[name] = global_args[name]
+        dtime = (t2 - t1 + n_run * self.dtime) / (n_run + 1)
+        out_s = f"+ {n_run + 1}/{len(self.list)} "
+        out_s += RumTime.fmtTime(dtime) + "/it "
+        out_s += " RUN:"
+        out_s += RumTime.fmtTime(dtime * (n_run + 1))
+        out_s += " ALL:"
+        out_s += RumTime.fmtTime(dtime * len(self.list))
+        print("#", "-" * 10, out_s, "-" * 10, "#")
+        self.dtime = dtime
+        self.list[n_run]["run"] = True
+        return self
+
+    def show(self):
+        print("GLOBAL_ARGS:")
+        for name in self.global_args:
+            print("  + {}: {}".format(name, self.global_args[name]))
+        print("KWARGS:")
+        names = ["No.", "+Run", ]
+        lines = []
+        for i, _list_0 in enumerate(self.list):
+            line = ["{}.".format(i + 1), _list_0["run"], ]
+            for name in _list_0["kwargs"]:
+                if name not in names:
+                    names.append(name)
+                line.append(_list_0["kwargs"][name])
+            lines.append(line)
+        print(tabulate(lines, headers=names, tablefmt="simple"))
+
+
 class _FieldRecord:
 
     def __init__(self, name, n=0):
@@ -1649,6 +1778,85 @@ def printLinesStringTable(lines, loc="<", is_fist_line=True, print_func=print):
             print_func(*["-" * n for n in fmt_n], sep="-+-")
 
 
+def _COM(data1, f, data2):
+    if f == "==":
+        return data1 == data2
+    if f == ">":
+        return data1 > data2
+    if f == "<":
+        return data1 < data2
+    if f == ">=":
+        return data1 >= data2
+    if f == "<=":
+        return data1 <= data2
+    if f == "!=":
+        return data1 != data2
+    raise Exception("{}".format(f))
+
+
+def samplesFilterOR(samples, *filters):
+    to_list = []
+    for spl in samples:
+        for name, f, data in filters:
+            if _COM(spl[name], f, data):
+                to_list.append(spl)
+                break
+    return to_list
+
+
+def samplesFilterAnd(samples, *filters):
+    to_list = []
+    for spl in samples:
+        is_find = True
+        for name, f, data in filters:
+            if not _COM(spl[name], f, data):
+                is_find = False
+                break
+        if is_find:
+            to_list.append(spl)
+    return to_list
+
+
+class TableLinePrint:
+
+    def __init__(self, widths: Union[int, list] = 20, n_float: int = 6, alignment=">"):
+        self.widths = widths if isinstance(widths, list) else [widths]
+        self.n_float = n_float
+        self.alignment = alignment
+        self.float_fmts = None
+        self.other_fmts = None
+
+    def _getFmts(self):
+        self.float_fmts = ["{:" + self.alignment + str(self.widths[i]) + "." + str(self.n_float) + "f}" for i in
+                           range(len(self.widths))]
+        self.other_fmts = ["{:" + self.alignment + str(self.widths[i]) + "}" for i in range(len(self.widths))]
+
+    def separationLine(self, _type="-", sep=" ", end="\n", func_print=_PRINT_INIT):
+        texts = ["-" * width for width in self.widths]
+        func_print(*texts, sep=sep, end=end, )
+
+    def print(self, *texts, sep=" ", end="\n", func_print=_PRINT_INIT):
+        if len(texts) > len(self.widths):
+            for i in range(len(self.widths), len(texts)):
+                self.widths.append(self.widths[-1])
+            self._getFmts()
+        texts = list(texts)
+        for i, text in enumerate(texts):
+            if isinstance(text, float):
+                text = self.float_fmts[i].format(text)
+            else:
+                text = self.other_fmts[i].format(text)
+            texts[i] = text
+        func_print(*texts, sep=sep, end=end, )
+
+    def firstLine(self, *texts, sep=" ", end="\n", func_print=_PRINT_INIT,
+                  separation_line_type="-", separation_line_sep=" ", separation_line_end="\n"):
+        self.print(*texts, sep=sep, end=end, func_print=func_print)
+        self.separationLine(_type=separation_line_type, sep=separation_line_sep,
+                            end=separation_line_end, func_print=func_print)
+        return self
+
+
 def main():
     def func1():
         dir_QDS2RGBN_gee_2_deal = DirFileName(r"G:\ImageData\QingDao\20211023\qd20211023\QDS2RGBN_gee_2_deal")
@@ -1797,9 +2005,34 @@ def main():
         fr = FieldRecords()
         fr[1:2, 3] = 6
 
-    func4()
+    def func5():
+        run_list = RunList_V2(r"F:\Week\20240818\Data\RunList_V2.json")
+
+        def init():
+            run_list.add(name="RunList", number=1, )
+            run_list.add(name="RunList", number=2, )
+            run_list.add(name="RunListV2", number=1, )
+            run_list.add(name="RunListV2", number=2, )
+            run_list.global_args["_DIR_NAME"] = r"F:\Week\20240818\Data"
+            run_list.show()
+            run_list.saveToJson()
+
+        def func51(name, number, _DIR_NAME):
+            print("_DIR_NAME:", _DIR_NAME)
+            print("Name:", name)
+            print("Number:", number)
+            time.sleep(1)
+            return {"_DIR_NAME": os.path.join(_DIR_NAME, name, str(number))}
+
+        init()
+        # run_list.fit(func51).saveToJson()
+
+    func5()
     return
 
 
 if __name__ == "__main__":
     main()
+    r"""
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from SRTCodes.Utils import main; main()" 
+    """

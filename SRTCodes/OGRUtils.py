@@ -248,6 +248,7 @@ class SRTESRIShapeFileRead:
                 "attributes": attributes
             }
             self.feature_list.append(feature_data)
+
         return self.feature_list
 
     def getXList(self):

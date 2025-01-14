@@ -12,8 +12,10 @@ from shutil import copyfile
 
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 from osgeo import gdal
 
+from SRTCodes.GDALDraw import GDALDrawImages
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import RasterToVRTS, GDALSamplingFast
 from SRTCodes.OGRUtils import sampleSpaceUniform
@@ -22,6 +24,68 @@ from Shadow.Hierarchical import SHH2Config
 
 
 def main():
+    plt.rcParams.update({"font.size":16})
+
+    def func1():
+        gdi = GDALDrawImages(win_size=(201, 201))
+
+        qd_name = gdi.addGeoRange(SHH2Config.QD_ENVI_FN, SHH2Config.QD_RANGE_FN)
+        bj_name = gdi.addGeoRange(SHH2Config.BJ_ENVI_FN, SHH2Config.BJ_RANGE_FN)
+        cd_name = gdi.addGeoRange(SHH2Config.CD_ENVI_FN, SHH2Config.CD_RANGE_FN)
+        gdi.addCategoryColor("color", {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)})
+
+        # gdi.addRCC("RGB", bj_name, cd_name, qd_name, channel_list=["Red", "Green", "Blue"])
+        gdi.addRCC("NRG", bj_name, cd_name, qd_name, channel_list=["NIR", "Red", "Green"])
+        gdi.addRCC("AS_VV", bj_name, cd_name, qd_name, channel_list=["AS_VV"])
+        # gdi.addRCC("DE_VV", bj_name, cd_name, qd_name, channel_list=["DE_VV"])
+
+        gdi.addRCC("Opt",
+                   r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240813H104039\2\qd-o_imdc.tif",
+                   channel_list=[0], is_01=False, is_min_max=False, )
+
+        gdi.addRCC("OAD",
+                   r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240813H104039\2\qd-oad_imdc.tif",
+                   channel_list=[0], is_01=False, is_min_max=False, )
+
+        gdi.addRCC("DLoss",
+                   r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240813H104039\6\qd-ReduceLogits_imdc.tif",
+                   channel_list=[0], is_01=False, is_min_max=False, )
+
+        column_names = ["S2", "SAR", "Opt", "Opt AS DE", "DLoss"]
+        row_names = []
+
+        def add_row(name, x, y):
+            n_row = len(row_names)
+            gdi.addAxisDataXY(n_row, 0, "NRG", x, y, min_list=[200, 200, 200, ], max_list=[3000, 2000, 2000, ])
+            gdi.addAxisDataXY(n_row, 1, "AS_VV", x, y, min_list=[-14], max_list=[6])
+            gdi.addAxisDataXY(n_row, 2, "Opt", x, y, color_name="color")
+            gdi.addAxisDataXY(n_row, 3, "OAD", x, y, color_name="color")
+            gdi.addAxisDataXY(n_row, 4, "DLoss", x, y, color_name="color")
+            row_names.append(name)
+
+        add_row("(1)   ", 120.14923, 36.30117)
+        add_row("(2)   ", 120.27785, 36.38684)
+
+        gdi.draw(n_rows_ex=3.0, n_columns_ex=3.0, row_names=row_names, column_names=column_names)
+
+        plt.show()
+
+    def func2():
+        def sigmoid(_x):
+            return 1 / (1 + np.exp(-_x))
+        x0 = np.linspace(-10, 0, 100)
+        x1 = np.linspace(0, 10, 100)
+        plt.figure(figsize=(6,6))
+        plt.plot(x0, sigmoid(x0), "y")
+        plt.plot(x1, sigmoid(x1), "r")
+        plt.xlim([-10, 10])
+        plt.ylim([-0.05, 1.05])
+        plt.show()
+
+    return func1()
+
+
+def method_name6():
     def dirname_imdc_fn(_dirname):
         for fn in os.listdir(_dirname):
             if fn.endswith("_imdc.tif"):
@@ -35,13 +99,10 @@ def main():
         "BeiJing_ML_Category4": dirname_imdc_fn(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240806H102411"),
         "ChengDu_ML_Category4": dirname_imdc_fn(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240806H102804"),
     }
-
     gr = GDALRaster(raster_fns["ChengDu_ML_Category4"])
     data = gr.readGDALBand(1)
     categorys, n = np.unique(data, return_counts=True)
     print(n / np.sum(n))
-
-    return
 
 
 def method_name5():

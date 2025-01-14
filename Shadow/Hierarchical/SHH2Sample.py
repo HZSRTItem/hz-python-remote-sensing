@@ -804,7 +804,7 @@ def samplesFind():
         def nolook(to_df, look_csv_fn):
             look_df = to_df[to_df["LOOK"] == 0]
             look_df.to_csv(look_csv_fn, index=False)
-            SAMPLING_CITY_NAME("qd", look_csv_fn)
+            SAMPLING_CITY_NAME("bj", look_csv_fn)
             look_df = pd.read_csv(look_csv_fn)
             look_df = look_df.sort_values(by=["CNAME", "NDVI"], ascending=[True, False])
             look_df["CATEGORY"] = mapDict(look_df["CNAME"].to_list(), SHHConfig.CNAME_MAP_SH882)
@@ -875,49 +875,63 @@ def samplesFind():
             shh2_sn.add("VHL", "VEG", VEG=1039)
             shh2_sn.add("VHL", "LOW", WAT=313, IS_SH=203, VEG_SH=188, SOIL_SH=23, WAT_SH=25)
 
-            # original samples csv files
-            csv_fn = dfn.fn("sh2_spl30_bj1.csv")
-            df = pd.read_csv(csv_fn)
-            shh2_sn.addSamples(df[df["TEST"] == 1].to_dict("records"), {"LOOK": 1, "SOURCE": csv_fn})
-            # shadow 1 samples
-            csv_fn = dfn.fn("sh2_spl30_bj43.csv")
-            df_sh1 = pd.read_csv(csv_fn)
-            df_sh1_list = samplesFilterOR(
-                df_sh1.to_dict("records"),
-                ("CNAME", "==", "IS_SH"),
-                ("CNAME", "==", "VEG_SH"),
-                ("CNAME", "==", "SOIL_SH"),
-                ("CNAME", "==", "WAT_SH"),
-                ("CNAME", "==", "WAT"),
-                ("CNAME", "==", "SOIL"),
-            )
-            shh2_sn.addSamples(df_sh1_list, {"LOOK": 1, "SOURCE": csv_fn, "TEST": 1})
-            # # 10w random from func1() samples
-            # csv_fn = dfn.fn("sh2_spl30_bj3.csv")
-            # df_nolook = pd.read_csv(csv_fn).to_dict("records")
-            # shh2_sn.addSamples(df_nolook, {"LOOK": 0, "SOURCE": csv_fn, "TEST": 1})
-            # # select
-            # txt_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\qd\sh2_spl30_qd7.txt"
-            # shh2_sn.addSamplesQJY(txt_fn, {"LOOK": 1, "TEST": 1})
+            def tiaoshi():
+                # original samples csv files
+                csv_fn = dfn.fn("sh2_spl30_bj1.csv")
+                df = pd.read_csv(csv_fn)
+                shh2_sn.addSamples(df[df["TEST"] == 1].to_dict("records"), {"LOOK": 1, "SOURCE": csv_fn})
+                # shadow 1 samples
+                csv_fn = dfn.fn("sh2_spl30_bj43.csv")
+                df_sh1 = pd.read_csv(csv_fn)
+                df_sh1_list = samplesFilterOR(
+                    df_sh1.to_dict("records"),
+                    # ("CNAME", "==", "IS_SH"),
+                    # ("CNAME", "==", "VEG_SH"),
+                    # ("CNAME", "==", "SOIL_SH"),
+                    # ("CNAME", "==", "WAT_SH"),
+                    # ("CNAME", "==", "WAT"),
+                    # ("CNAME", "==", "SOIL"),
+                )
+                shh2_sn.addSamples(df_sh1_list, {"LOOK": 1, "SOURCE": csv_fn, "TEST": 1})
+                # 10w random from func1() samples
+                csv_fn = dfn.fn("sh2_spl30_bj3.csv")
+                df_nolook = pd.read_csv(csv_fn).to_dict("records")
+                shh2_sn.addSamples(df_nolook, {"LOOK": 0, "SOURCE": csv_fn, "TEST": 1})
+                # # select
+                # txt_fn = r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\qd\sh2_spl30_qd7.txt"
+                # shh2_sn.addSamplesQJY(txt_fn, {"LOOK": 1, "TEST": 1})
+                _to_df = shh2_sn.toCSV(
+                    to_csv_fn,
+                    select_names=["X", "Y", "CNAME", "FCNAME", "SUBNAME", "TEST", "OSRT", "LOOK", "SOURCE"],
+                    samples=df[df["TEST"] == 0].to_dict("records")
+                )
+                return _to_df
 
-            shh2_sn.show("current")
-            shh2_sn.scatter(color_dict=CNAME_COLORS)
+            def fubu():
+                csv_fn = dfn.fn("sh2_spl30_bj6.csv")
+                df = pd.read_csv(csv_fn)
+                shh2_sn.addSamples(df[df["TEST"] == 1].to_dict("records"), {"SOURCE": csv_fn})
+                _to_df = shh2_sn.toCSV(
+                    to_csv_fn,
+                    select_names=["X", "Y", "CNAME", "FCNAME", "SUBNAME", "TEST", "OSRT", "LOOK", "SOURCE"],
+                    samples=df[df["TEST"] == 0].to_dict("records")
+                )
+                return _to_df
 
             # save samples to csv file
             to_csv_fn = dfn.fn("sh2_spl30_bj.csv")
-            to_df = shh2_sn.toCSV(
-                to_csv_fn,
-                select_names=["X", "Y", "CNAME", "FCNAME", "SUBNAME", "TEST", "OSRT", "LOOK", "SOURCE"],
-                samples=df[df["TEST"] == 0].to_dict("records")
-            )
+            fubu()
+            shh2_sn.show("current")
+            shh2_sn.scatter(color_dict=CNAME_COLORS)
+
             to_df = pd.read_csv(to_csv_fn)
 
-            print("# LOOK TEST ------")
+            print("# LOOK ------")
             dfnumber(to_df, "CNAME", "LOOK")
             print("# FCNAME ------")
             dfnumber(to_df, "CNAME", "FCNAME")
 
-            # nolook(to_df, r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\qd\sh2_spl30_qd5_nolook.csv")
+            nolook(to_df, dfn.fn("sh2_spl30_bj_look.csv"))
 
         bj()
 

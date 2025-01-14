@@ -502,7 +502,7 @@ class ShadowTiaoTestAcc:
                 if all(f in k for f in filters):
                     column_names.append(k)
         print("FUNC:sumColumns --COLUMN_NAMES=", column_names)
-        self.spl_df[name] = self.spl_df[column_names].sum(axis=1)
+        self.spl_df[name] = self.spl_df[column_names].addFieldSum(axis=1)
         if is_to_csv:
             self.saveDFToCSV()
         return self.spl_df[name]

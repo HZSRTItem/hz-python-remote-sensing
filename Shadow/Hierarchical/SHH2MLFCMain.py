@@ -57,6 +57,40 @@ _F_D = SHH2Config.FEAT_NAMES.DE
 _F = SHH2Config.FEAT_NAMES
 
 
+class _F2:
+    OO = ["Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2", ]
+    OI = ["NDVI", "NDWI", "RNDWI", "MNDWI", "MBWI", "SAVI", "NDBI", "NBI", "MBI", "SEI", "CSI", "NSVDI", ]
+    OG = ["OPT_asm", "OPT_con", "OPT_cor", "OPT_dis", "OPT_ent", "OPT_hom", "OPT_mean", "OPT_var", ]
+
+    ABS = ["AS_VV", "AS_VH", "AS_VHDVV", ]
+    AC2 = ["AS_C11", "AS_C22", "AS_SPAN", ]
+    AHA = ["AS_H", "AS_Alpha", ]
+    AG = ["AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+          "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var", ]
+
+    EBS = ["DE_VV", "DE_VH", "DE_VHDVV", ]
+    EC2 = ["DE_C11", "DE_C22", "DE_SPAN", ]
+    EHA = ["DE_H", "DE_Alpha", ]
+    EG = ["DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+          "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var", ]
+
+    O = OO + OI + OG
+    AS = ABS + AC2 + AHA + AG
+    DE = EBS + EC2 + EHA + EG
+
+    ALL = [
+        "Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2",
+        "NDVI", "NDWI", "RNDWI", "MNDWI", "MBWI", "SAVI", "NDBI", "NBI", "MBI", "SEI", "CSI", "NSVDI",
+        "OPT_asm", "OPT_con", "OPT_cor", "OPT_dis", "OPT_ent", "OPT_hom", "OPT_mean", "OPT_var",
+        "AS_VV", "AS_VH", "AS_VHDVV", "AS_C11", "AS_C22", "AS_SPAN", "AS_H", "AS_Alpha",
+        "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+        "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
+        "DE_VV", "DE_VH", "DE_VHDVV", "DE_C11", "DE_C22", "DE_SPAN", "DE_H", "DE_Alpha",
+        "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+        "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
+    ]
+
+
 def _GET_MODEL(name):
     name = name.upper()
     if name == "RF":
@@ -324,7 +358,7 @@ class SHH2MLFC_TIC:
             self.models[name] = mod
         self.model = self.models[name]
 
-        self.model.samples.showCounts(self.log)
+        self.model.sampling.showCounts(self.log)
         self.model.train()
         acc_dict = self.accuracy()
         self.accuracy_dict[name] = acc_dict
@@ -346,12 +380,20 @@ class SHH2MLFC_TIC:
         for name in self.models:
             self.train(name, is_imdc=is_imdc)
 
-    def imdc(self, mod=None, to_imdc_fn=None):
+    def imdc(self, mod=None, to_imdc_fn=None, is_save_fc=False):
         if mod is None:
             mod = self.model
         self.log("\n# Image Classification ------")
-        mod.imdc(self.raster_fn, to_imdc_fn=to_imdc_fn)
+        to_imdc_fn = mod.imdc(self.raster_fn, to_imdc_fn=to_imdc_fn)
         self.kw("TO_IMDC_FN", to_imdc_fn)
+        if isinstance(mod, _MLFCModel):
+            if is_save_fc:
+                to_vhl_fn = changext(to_imdc_fn, "_vhl.tif")
+                mod.vhl_ml_mod.imdc(self.raster_fn, to_vhl_fn)
+                to_is_fn = changext(to_imdc_fn, "_is.tif")
+                mod.is_ml_mod.imdc(self.raster_fn, to_is_fn)
+                to_ws_fn = changext(to_imdc_fn, "_ws.tif")
+                mod.ws_ml_mod.imdc(self.raster_fn, to_ws_fn)
 
     def accuracyOA(self, mod=None):
         if mod is None:
@@ -396,50 +438,87 @@ class SHH2MLFC_TIC:
 
 
 def main():
-    td = TimeDirectory(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods").initLog()
-    tic = SHH2MLFC_TIC("qd", r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\qd\sh2_spl30_qd6.csv", td=td)
-    is_imdc = True
+    def func1():
+        td = TimeDirectory(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods").initLog()
+        tic = SHH2MLFC_TIC("qd", r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\qd\sh2_spl30_qd6.csv", td=td)
+        is_imdc = True
 
-    run_list = []
+        run_list = []
 
-    def nofc(*args, **kwargs):
-        run_list.append(("NOFC", args, kwargs))
+        def nofc(*args, **kwargs):
+            run_list.append(("NOFC", args, kwargs))
 
-    def fc(*args, **kwargs):
-        run_list.append(("FC", args, kwargs))
+        def fc(*args, **kwargs):
+            run_list.append(("FC", args, kwargs))
 
-    for clf_name in ["RF", "SVM"]:
-        nofc("{}_O".format(clf_name), clf_name, x_keys=_F_O)
-        nofc("{}_OA".format(clf_name), clf_name, x_keys=_F_O + _F.AS_BS)
-        nofc("{}_OD".format(clf_name), clf_name, x_keys=_F_O + _F.DE_BS)
-        nofc("{}_OAD_BS".format(clf_name), clf_name, x_keys=_F_O + _F.AS_BS + _F.DE_BS)
-        nofc("{}_OAD_HA".format(clf_name), clf_name, x_keys=_F_O + _F.AS_HA + _F.DE_HA)
-        nofc("{}_OAD_HABS".format(clf_name), clf_name, x_keys=_F_O + _F.AS_HA + _F.DE_HA + _F.AS_BS + _F.DE_BS)
-        fc("{}_FC_BS".format(clf_name), clf_name,
-           vhl_x_keys=_F_O,
-           iso_x_keys=_F_O + _F.AS_BS + _F.DE_BS,
-           ws_x_keys=_F_O + _F.AS_BS + _F.DE_BS, )
-        fc("{}_FC_HA".format(clf_name), clf_name,
-           vhl_x_keys=_F_O,
-           iso_x_keys=_F_O + _F.AS_HA + _F.DE_HA,
-           ws_x_keys=_F_O + _F.AS_HA + _F.DE_HA, )
-        fc("{}_FC_HABS".format(clf_name), clf_name,
-           vhl_x_keys=_F_O,
-           iso_x_keys=_F_O + _F.AS_HA + _F.DE_HA + _F.AS_BS + _F.DE_BS,
-           ws_x_keys=_F_O + _F.AS_HA + _F.DE_HA + _F.AS_BS + _F.DE_BS, )
+        def func11():
+            for clf_name in ["RF", "SVM"]:
+                nofc("{}_O".format(clf_name), clf_name, x_keys=_F_O)
+                nofc("{}_OA".format(clf_name), clf_name, x_keys=_F_O + _F.AS_BS)
+                nofc("{}_OD".format(clf_name), clf_name, x_keys=_F_O + _F.DE_BS)
+                nofc("{}_OAD_BS".format(clf_name), clf_name, x_keys=_F_O + _F.AS_BS + _F.DE_BS)
+                nofc("{}_OAD_HA".format(clf_name), clf_name, x_keys=_F_O + _F.AS_HA + _F.DE_HA)
+                nofc("{}_OAD_HABS".format(clf_name), clf_name, x_keys=_F_O + _F.AS_HA + _F.DE_HA + _F.AS_BS + _F.DE_BS)
+                fc("{}_FC_BS".format(clf_name), clf_name,
+                   vhl_x_keys=_F_O,
+                   iso_x_keys=_F_O + _F.AS_BS + _F.DE_BS,
+                   ws_x_keys=_F_O + _F.AS_BS + _F.DE_BS, )
+                fc("{}_FC_HA".format(clf_name), clf_name,
+                   vhl_x_keys=_F_O,
+                   iso_x_keys=_F_O + _F.AS_HA + _F.DE_HA,
+                   ws_x_keys=_F_O + _F.AS_HA + _F.DE_HA, )
+                fc("{}_FC_HABS".format(clf_name), clf_name,
+                   vhl_x_keys=_F_O,
+                   iso_x_keys=_F_O + _F.AS_HA + _F.DE_HA + _F.AS_BS + _F.DE_BS,
+                   ws_x_keys=_F_O + _F.AS_HA + _F.DE_HA + _F.AS_BS + _F.DE_BS, )
 
-    run_time = RumTime(len(run_list), tic.log).strat()
-    for name, _args, _kwargs in run_list:
-        if name.upper() == "NOFC":
-            tic.modelNOFC(*_args, **_kwargs)
-        elif name.upper() == "FC":
-            tic.modelFC(*_args, **_kwargs)
-        tic.train(is_imdc=is_imdc)
-        run_time.add().printInfo()
-    run_time.end()
+        def func12():
+            for clf_name in ["RF", "SVM"]:
+                nofc("{}_OA_A".format(clf_name), clf_name, x_keys=_F_O + _F.AS)
+                nofc("{}_OD_A".format(clf_name), clf_name, x_keys=_F_O + _F.DE)
+                nofc("{}_OAD_A".format(clf_name), clf_name, x_keys=_F.ALL)
+                fc("{}_FC_ALL".format(clf_name), clf_name, vhl_x_keys=_F_O, iso_x_keys=_F.ALL, ws_x_keys=_F.ALL)
 
-    tic.showAccuracy()
-    pass
+        def func13():
+            for clf_name in ["RF", "SVM"]:
+                nofc("O", clf_name, x_keys=_F2.O)
+                nofc("OA", clf_name, x_keys=_F2.O + _F2.AS)
+                nofc("OD", clf_name, x_keys=_F2.O + _F2.DE)
+                nofc("OAD", clf_name, x_keys=_F2.O + _F2.AS + _F2.DE)
+                fc("FC", clf_name,
+                   vhl_x_keys=_F2.O,
+                   iso_x_keys=_F2.O + _F2.AS + _F2.DE,
+                   ws_x_keys=_F2.O + _F2.AS + _F2.DE, )
+
+        func13()
+
+        run_time = RumTime(len(run_list), tic.log).strat()
+        for name, _args, _kwargs in run_list:
+            if name.upper() == "NOFC":
+                tic.modelNOFC(*_args, **_kwargs)
+            elif name.upper() == "FC":
+                tic.modelFC(*_args, **_kwargs)
+            tic.train(is_imdc=is_imdc)
+            run_time.add().printInfo()
+        run_time.end()
+
+        tic.showAccuracy()
+
+    def func2():
+        td = TimeDirectory(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods").initLog()
+        tic = SHH2MLFC_TIC("qd", r"F:\ProjectSet\Shadow\Hierarchical\Samples\30\qd\sh2_spl30_qd6.csv", td=td)
+        clf_name = "RF"
+        tic.modelFC(
+            "FC", clf_name,
+            vhl_x_keys=_F2.O,
+            iso_x_keys=_F2.ALL,
+            ws_x_keys=_F2.ALL,
+        )
+        tic.train(is_imdc=False)
+        tic.imdc(is_save_fc=True)
+
+    # print(SHH2Config.QD_GR().names)
+    return func2()
 
 
 if __name__ == "__main__":

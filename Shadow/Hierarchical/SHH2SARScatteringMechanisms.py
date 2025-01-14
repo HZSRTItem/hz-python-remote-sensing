@@ -13,10 +13,9 @@ import numpy as np
 import pandas as pd
 from matplotlib import colors
 
-from SRTCodes.GDALRasterIO import GDALRasterChannel, GDALRaster
-from SRTCodes.GDALUtils import dictRasterToVRT
-from SRTCodes.SRTSample import GeoJsonPolygonCoor
-from SRTCodes.Utils import CoorInPoly, DirFileName
+from SRTCodes.GDALRasterIO import GDALRasterChannel
+from SRTCodes.GDALUtils import dictRasterToVRT, getImageDataFromGeoJson
+from SRTCodes.Utils import DirFileName
 from Shadow.Hierarchical.SHHDraw import SHHGDALDrawImagesColumn, SHHGDALDrawImages
 
 plt.rc('font', family='Times New Roman')
@@ -72,77 +71,6 @@ class SHH2DrawImage_SSM(SHHGDALDrawImages):
             r"F:\ProjectSet\Shadow\Hierarchical\Images\HA\CD\DE_A.dat",
             r"F:\ProjectSet\Shadow\Hierarchical\Images\HA\QD\DE_A.dat",
             channel_list=["DE_A"])
-
-
-def getImageDataFromGeoJson(geo_json_fn, raster_fn):
-    d_range = GeoJsonPolygonCoor(geo_json_fn)
-
-    def get_range(_coors):
-        _data = np.array(_coors)
-        _x_min, _y_min = np.min(_data, axis=0)
-        _x_max, _y_max = np.max(_data, axis=0)
-        return _x_min, _y_min, _x_max, _y_max
-
-    class geojson_geom:
-
-        def __init__(self):
-            self.coors = None
-            self.fields = {}
-            self.x_min = 0.0
-            self.y_min = 0.0
-            self.x_max = 0.0
-            self.y_max = 0.0
-
-        def get_range(self):
-            self.x_min, self.y_min, self.x_max, self.y_max = get_range(self.coors)
-
-        def get_data(self, _gr: GDALRaster):
-            coorin = CoorInPoly(self.coors)
-            row1, column1 = _gr.coorGeo2Raster(self.x_min, self.y_min, is_int=True)
-            row2, column2 = _gr.coorGeo2Raster(self.x_max, self.y_max, is_int=True)
-
-            def get_jiaohuan(_d1, _d2):
-                if _d1 > _d2:
-                    return _d2, _d1
-                return _d1, _d2
-
-            row1, row2 = get_jiaohuan(row1, row2)
-            column1, column2 = get_jiaohuan(column1, column2)
-
-            row1 -= 2
-            column1 -= 2
-            row2 += 2
-            column2 += 2
-
-            to_dict = {"X": [], "Y": [], **{name: [] for name in self.fields}, **{name: [] for name in _gr.names}}
-
-            for row in range(row1, row2):
-                for column in range(column1, column2):
-                    x, y = _gr.coorRaster2Geo(row + 0.5, column + 0.5)
-                    if coorin.t2(x, y):
-                        to_dict["X"].append(x)
-                        to_dict["Y"].append(y)
-                        for k in self.fields:
-                            to_dict[k].append(self.fields[k])
-                        tmp_dict = gr.readAsDict(x, y, is_geo=True, )
-                        for k in tmp_dict:
-                            to_dict[k].append(tmp_dict[k])
-            return to_dict
-
-    geojson_geom_list = []
-
-    for feature in d_range.features:
-        geojson_geom_data = geojson_geom()
-        geojson_geom_data.coors = feature["geometry"]["coordinates"][0]
-        geojson_geom_data.fields = feature["properties"]
-        geojson_geom_data.get_range()
-        geojson_geom_list.append(geojson_geom_data)
-        continue
-
-    gr = GDALRaster(raster_fn)
-    df_list = [pd.DataFrame(geojson_geom_data.get_data(gr)) for geojson_geom_data in geojson_geom_list]
-    df = pd.concat(df_list, )
-    return df.to_dict("records")
 
 
 def main():

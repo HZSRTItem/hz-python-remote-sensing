@@ -823,17 +823,19 @@ class _GDALImdc(GDALImdc):
         self.feat_funcs = feat_funcs
 
     def readRaster(self, data, fit_names, gr, is_jdt, *args, **kwargs):
-        jdt = Jdt(len(fit_names), "Read Raster").start(is_jdt)
-        for i, name in enumerate(fit_names):
+        read_names, sfc = self.getReadNames(data, fit_names, gr)
+        jdt = Jdt(len(read_names), "Read Raster").start(is_jdt)
+        for name in read_names:
             data_i = gr.readGDALBand(name)
             data_i[np.isnan(data_i)] = 0
             if self.feat_funcs is not None:
                 data_i = self.feat_funcs.fit(name, data_i)
             if self.data_scale is not None:
                 data_i = self.data_scale.fit(name, data_i)
-            data[i] = data_i
+            sfc[name] = data_i
             jdt.add(is_jdt)
         jdt.end(is_jdt)
+        sfc.fit()
 
 
 def _imdc1(fn, mod, x_keys, raster_fns, data_scale, color_table, to_imdc_fn, feat_funcs=None):
@@ -852,7 +854,6 @@ def _imdc2(fn, mod, raster_fns, data_scale, win_size, to_imdc_fn,
 
     def func_predict(x):
         return mod.predict(x)
-        # return np.zeros(len(x))
 
     gimdc.imdc2(func_predict=func_predict, win_size=win_size, to_imdc_fn=to_imdc_fn,
                 fit_names=fit_names, data_deal=None, color_table=color_table, n=n)

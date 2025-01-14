@@ -104,11 +104,11 @@ class SHH2ML_TST_Init:
         self.td.log("Training samples categorys numbers:")
         df_des_data = _df[_df["TEST"] == 1].groupby("CNAME").count()["TEST"]
         self.td.log(df_des_data)
-        self.td.log(df_des_data.sum())
+        self.td.log(df_des_data.addFieldSum())
         self.td.log("Test samples categorys numbers:")
         df_des_data = _df[_df["TEST"] == 0].groupby("CNAME").count()["TEST"]
         self.td.log(df_des_data)
-        self.td.log(df_des_data.sum())
+        self.td.log(df_des_data.addFieldSum())
 
     def accRun(self, n_train):
         self.td.log("\n> ", n_train)
@@ -460,7 +460,7 @@ def sampling_tiao():
         print(_front_str)
         df_des_data = _df.groupby("CNAME").count()["TEST"]
         print(df_des_data)
-        print(df_des_data.sum())
+        print(df_des_data.addFieldSum())
 
     def get_csv_func(raster_fn, spl_type, city_name, to_fn):
 

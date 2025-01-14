@@ -17,6 +17,7 @@ from osgeo import gdal
 from osgeo import gdal_array
 from osgeo import osr
 
+from SRTCodes.DEFINE import StrOrBytesPath
 from SRTCodes.NumpyUtils import scaleMinMax
 from SRTCodes.RasterIO import GEORaster
 from SRTCodes.SRTCollection import SRTCollection
@@ -447,6 +448,17 @@ class GDALRasterIO(GEORaster):
         d = self._GRR(d, is_01, is_range, n_band)
         return d
 
+    def readGDALBands(self, *bands, ds: gdal.Dataset = None, ):
+        if ds is None:
+            ds = self.raster_ds
+        band_list = []
+        for n_band in bands:
+            if isinstance(n_band, str):
+                n_band = self.names.index(n_band) + 1
+            band_list.append(n_band)
+        data = gdal_array.DatasetReadAsArray(ds, band_list=band_list)
+        return data
+
     def getGDALBand(self, n_band, ds: gdal.Dataset = None, ) -> gdal.Band:
         if ds is None:
             ds = self.raster_ds
@@ -633,7 +645,8 @@ class GDALRaster(GDALRasterIO, SRTCollection):
             d[y0:y0 + row_size, x0:x0 + column_size, :] = d0
         return d
 
-    def save(self, d: np.array = None, save_geo_raster_fn=None, fmt="ENVI", dtype=None, geo_transform=None,
+    def save(self, d: np.array = None, save_geo_raster_fn: StrOrBytesPath = None, fmt="ENVI", dtype=None,
+             geo_transform=None,
              probing=None, start_xy=None, interleave='band', options=None, descriptions=None):
         """ Save geo image
         \
@@ -1314,8 +1327,12 @@ class GDALMBTiles(GDALRaster):
 def saveGTIFFImdc(gr: GDALRaster, data, to_fn, color_table=None, description="Category"):
     if color_table is None:
         color_table = {}
-    gr.save(data.astype("int8"), to_fn, fmt="GTiff", dtype=gdal.GDT_Byte, descriptions=[description],
-            options=["COMPRESS=PACKBITS"])
+    try:
+        data = data.astype("int8")
+    except:
+        ...
+    gr.save(data, to_fn, fmt="GTiff", dtype=gdal.GDT_Byte, descriptions=[description],
+            options=["COMPRESS=LZW"])
     tiffAddColorTable(to_fn, code_colors=color_table)
 
 
@@ -1351,6 +1368,7 @@ def tiffAddColorTable(gtif_fn, band_count=1, code_colors=None):
 
     color_table = gdal.ColorTable()
     for c_code, color in code_colors.items():
+        color = tuple([int(i) for i in color])
         color_table.SetColorEntry(c_code, color)
 
     input_ds = gdal.Open(gtif_fn, gdal.GA_Update)

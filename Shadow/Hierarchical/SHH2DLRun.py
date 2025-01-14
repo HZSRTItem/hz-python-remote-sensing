@@ -24,6 +24,7 @@ from DeepLearning.ResNet import resnext50_32x4d
 from DeepLearning.ShuffleNetV2 import shufflenet_v2_x0_5
 from DeepLearning.SqueezeNet import SqueezeNet
 from DeepLearning.VisionTransformer import VisionTransformerChannel
+from SRTCodes.GDALRasterIO import GDALRaster, saveGTIFFImdc
 from SRTCodes.SRTLinux import W2LF
 from SRTCodes.SRTModel import SamplesData, TorchModel
 from SRTCodes.SRTTimeDirectory import TimeDirectory
@@ -36,10 +37,10 @@ _DL_DFN = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods")
 _X_KEYS = [
     #  0  1  2  3  4  5
     "Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2",
-    #  6  7  8  9 10 11
-    "AS_VV", "AS_VH", "AS_C11", "AS_C22", "AS_H", "AS_Alpha",
-    # 12 13 14 15 16 17
-    "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_H", "DE_Alpha",
+    # #  6  7  8  9 10 11
+    # "AS_VV", "AS_VH", "AS_C11", "AS_C22", "AS_H", "AS_Alpha",
+    # # 12 13 14 15 16 17
+    # "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_H", "DE_Alpha",
 ]
 _MAP_DICT_4 = {
     "IS": 0, "VEG": 1, "SOIL": 2, "WAT": 3,
@@ -96,12 +97,12 @@ def _GET_DL_MODEL(_mod_name, win_size, _in_ch, _n_category):
 def X_DEAL_18(_x):
     for i in range(0, 6):
         _x[i] = _x[i] / 1600
-    for i in range(6, 10):
-        _x[i] = (_x[i] + 30) / 35
-    for i in range(12, 16):
-        _x[i] = (_x[i] + 30) / 35
-    _x[11] = _x[11] / 90
-    _x[17] = _x[11] / 90
+    # for i in range(6, 10):
+    #     _x[i] = (_x[i] + 30) / 35
+    # for i in range(12, 16):
+    #     _x[i] = (_x[i] + 30) / 35
+    # _x[11] = _x[11] / 90
+    # _x[17] = _x[11] / 90
     return _x
 
 
@@ -475,7 +476,7 @@ class SHH2DLRun_TIC:
         self.accuracy_dict = {}
 
         self.sd = None
-        self.torch_mod = None
+        self.torch_mod: TorchModel = TorchModel()
         self.dfn_tmp = DirFileName(_BACK_DIRNAME)
         self.epochs = None
 
@@ -509,7 +510,7 @@ class SHH2DLRun_TIC:
             self.dfn_tmp.mkdir()
 
     def initTorchModel(self, read_size, epochs=100, n_epoch_save=-1,
-                       criterion=None, test_filters=None, train_filters=None):
+                       criterion=None, test_filters=None, train_filters=None, batch_size=32):
 
         if train_filters is None:
             train_filters = []
@@ -528,6 +529,7 @@ class SHH2DLRun_TIC:
         torch_mod.win_size = self.win_size
         torch_mod.read_size = read_size
         torch_mod.epochs = epochs
+        torch_mod.batch_size = batch_size
         torch_mod.n_epoch_save = n_epoch_save
         torch_mod.train_filters.extend([("city", "==", self.city_name), *train_filters])
         torch_mod.test_filters.extend([("city", "==", self.city_name), *test_filters])
@@ -641,9 +643,22 @@ def modelT(init_model_name, win_size):
     print(init_model_name, x.shape, out_x.shape)
 
 
+def updateISOToVHL(iso_imdc_fn, vhl_imdc_fn, to_imdc_fn):
+    gr_iso = GDALRaster(iso_imdc_fn)
+    gr_vhl = GDALRaster(vhl_imdc_fn)
+    data_iso = gr_iso.readAsArray()
+    data_vhl = gr_vhl.readAsArray()
+    data_iso[data_iso == 2] = 3
+    data_vhl[data_vhl == 3] = 4
+    data_vhl[data_vhl == 1] = data_iso[data_vhl == 1]
+    saveGTIFFImdc(gr_vhl, data_vhl, to_imdc_fn, _COLOR_TABLE_4)
+
+
 def run(city_name, init_model_name, win_size, is_train, mod_fn=None):
-    td = TimeDirectory(_DL_DFN.fn(), time_dirname=W2LF(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240809H221443"))
+    # td = TimeDirectory(_DL_DFN.fn(), time_dirname=W2LF(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240809H221443"))
     # td = TimeDirectory(_DL_DFN.fn(), time_dirname=W2LF(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240810H210858"))
+    # td = TimeDirectory(_DL_DFN.fn(), time_dirname=W2LF(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240812H150307"))
+    td = TimeDirectory(_DL_DFN.fn(), time_dirname=W2LF(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240820H110425"))
     td.initLog(mode="a")
     td.kw("DIRNAME", td.time_dirname())
 
@@ -653,13 +668,13 @@ def run(city_name, init_model_name, win_size, is_train, mod_fn=None):
     tic = SHH2DLRun_TIC(
         city_name, csv_fn, td=td,
 
-        # map_dict={"IS": 0, "SOIL": 1},
-        # cm_names=["IS", "SOIL"],
-        # color_table={1: (255, 0, 0), 2: (255, 255, 0)},
+        map_dict={"IS": 0, "SOIL": 1},
+        cm_names=["IS", "SOIL"],
+        color_table={1: (255, 0, 0), 2: (255, 255, 0)},
 
     )
     tic.initModel(init_model_name, win_size)
-    tic.initTorchModel(read_size)
+    tic.initTorchModel(read_size, train_filters=[("FCNAME", "==", "ISO")])
     if is_train:
         tic.train()
     else:
@@ -680,18 +695,40 @@ def running():
 def main():
     win_size_list = [
         ("ResNet18", (7, 7)),
-        ("VIT", (28, 28)),
+        ("ResNeXt5032x4d", (7, 7)),
+        ("DenseNet121", (28, 28)),
         # ("SqueezeNet", (24, 24)),
         ("GoogLeNet", (28, 28)),
-        ("DenseNet121", (28, 28)),
         ("Inception3", (35, 35)),  # size small
         # ("ShuffleNetV2X05", (7, 7)),  # 轻量化
         # ("MobileNetV2", (7, 7)),  # 轻量化
         # ("MobileNetV3Small", (7, 7)),  # 轻量化
-        ("ResNeXt5032x4d", (7, 7)),
         # ("EfficientNetB7", (7, 7)), # 单独弄，因为它主打一个在图片分类精度最高，Google的一个网络，Google出了好多网络
         # ("EfficientNetV2M", (7, 7)),
+        ("VIT", (28, 28)),
     ]
+
+    # run_list = RunList_V2(r"F:\Week\20240818\Data\RunList_V2.json")
+    #
+    # def init():
+    #     run_list.add(name="RunList", number=1, )
+    #     run_list.add(name="RunList", number=2, )
+    #     run_list.add(name="RunListV2", number=1, )
+    #     run_list.add(name="RunListV2", number=2, )
+    #     run_list.global_args["_DIR_NAME"] = r"F:\Week\20240818\Data"
+    #     run_list.show()
+    #     run_list.saveToJson()
+    #
+    # def func51(name, number, _DIR_NAME):
+    #     print("_DIR_NAME:", _DIR_NAME)
+    #     print("Name:", name)
+    #     print("Number:", number)
+    #     time.sleep(1)
+    #     return {"_DIR_NAME": os.path.join(_DIR_NAME, name, str(number))}
+    #
+    # init()
+
+    # run_list.fit(func51).saveToJson()
 
     # for name, win_size in win_size_list:
     #     modelT(name, win_size)
@@ -714,11 +751,17 @@ def main():
                   "run('{}', '{}', {}, False)\"".format(
                 city_name, name, win_size
             ))
+        print("\n")
 
 
 if __name__ == "__main__":
-    running()
+    main()
     # run2('qd', 'ResNet18', (7, 7), True)
+    # updateISOToVHL(
+    #     iso_imdc_fn=r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240810H210858\QD-ResNeXt5032x4d-7_7\QD-ResNeXt5032x4d-7_7_100_imdc.tif",
+    #     vhl_imdc_fn=r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods\20240812H144454\VHL-QD-O_imdc.tif",
+    #     to_imdc_fn=r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240810H210858\QD-ResNeXt5032x4d-7_7\QD-ResNeXt5032x4d-7_7_100_upateVHL_imdc.tif"
+    # )
     r"""
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2DLRun import main; main()"
 

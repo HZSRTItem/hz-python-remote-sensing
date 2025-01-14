@@ -32,11 +32,12 @@ from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import GDALSamplingFast, RasterToVRTS, dictRasterToVRT, RasterRandomCoors
 from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.NumpyUtils import update10EDivide10, eig2
+from SRTCodes.SRTDraw import showHist, showData
 from SRTCodes.SRTModel import SamplesData, MLModel, DataScale, SVM_RGS, RF_RGS, FeatFuncs
 from SRTCodes.SRTSample import samplesDescription
 from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.Utils import saveJson, changext, mkdir, DirFileName, getfilenamewithoutext, printDict, \
-    readJson, SRTWriteText, timeStringNow, timeDirName, readLines, savecsv, filterFileEndWith, printList
+    readJson, SRTWriteText, timeStringNow, timeDirName, readLines, savecsv, filterFileEndWith, printList, Jdt
 from Shadow.Hierarchical.SHH2Config import FEAT_NAMES_CLS
 from Shadow.ShadowMainBeiJing import bjFeatureDeal
 from Shadow.ShadowMainChengDu import cdFeatureDeal
@@ -1847,7 +1848,7 @@ def draw():
                         prop={"size": 14}, frameon=False, ncol=2,
                     )
 
-            fn = r"F:\ASDEWrite\Images\4.1\ADDE_SH_mean2.svg"
+            fn = r"F:\ASDEWrite\Images\Fig-8-ADDE_SH_mean2.jpg"
             plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0)
             plt.show()
 
@@ -1919,7 +1920,747 @@ def draw():
         remove_white_border(fn, fn)
         plt.show()
 
-    func5()
+    func2()
+
+
+def adsi():
+    plt.rcParams['font.family'] = 'serif'
+    plt.rcParams['font.serif'] = ['Times New Roman']
+
+    def _filter_cnames(df, *_names):
+        _to_list = []
+        for _name in _names:
+            _to_list.extend(df[df["CNAME"] == _name].to_dict("records"))
+        return _to_list
+
+    def get_df(show_cnames, show_counts):
+
+        def add_spl(city_name):
+            _df_list = pd.read_csv(_SPLING_FN(city_name)).to_dict("records")
+            for spl in _df_list:
+                spl["_CITY_NAME"] = city_name
+            return _df_list
+
+        df_list = [*add_spl("qd"), *add_spl("bj"), *add_spl("cd"), ]
+        df = pd.DataFrame(df_list)
+
+        names = ['VEG_SH', 'VEG', 'VEG_AS_SH', 'IS_SH', 'IS', 'IS_DE_SH', 'IS_AS_SH', 'WAT_SH', 'WAT', 'SOIL_SH',
+                 'SOIL', 'SOIL_AS_SH', 'VEG_DE_SH', 'SOIL_DE_SH', 'WAT_AS_SH', 'WAT_DE_SH']
+
+        data_range = {
+            'AS_VV': {'min': -38.10087, 'max': 34.239323}, 'AS_VH': {'min': -39.907673, 'max': 32.629154},
+            'AS_C11': {'min': -32.445213, 'max': 39.68869}, 'AS_C22': {'min': -38.354107, 'max': 34.476883},
+            'AS_H': {'min': -0.21112157, 'max': 0.9999959}, 'AS_Alpha': {'min': 2.0017843, 'max': 89.97329},
+            'DE_VV': {'min': -38.27294, 'max': 34.071774}, 'DE_VH': {'min': -39.893894, 'max': 31.277845},
+            'DE_C11': {'min': -33.856297, 'max': 39.72574}, 'DE_C22': {'min': -37.858547, 'max': 32.804817},
+            'DE_H': {'min': -2.0701306, 'max': 1.0}, 'DE_Alpha': {'min': 1.1695069, 'max': 96.58143}
+        }
+
+        for k in data_range:
+            df[k] = (df[k] - data_range[k]["min"]) / (data_range[k]["max"] - data_range[k]["min"] + 0.0000001)
+
+        df["D_VV"] = df["AS_VV"] - df["DE_VV"]
+        df["D_VH"] = df["AS_VH"] - df["DE_VH"]
+        df["D_C11"] = df["AS_C11"] - df["DE_C11"]
+        df["D_C22"] = df["AS_C22"] - df["DE_C22"]
+        df["D_H"] = df["AS_H"] - df["DE_H"]
+        df["D_Alpha"] = df["AS_Alpha"] - df["DE_Alpha"]
+
+        to_spls = []
+        for name in show_cnames:
+            df_show = _filter_cnames(df, *show_cnames[name])
+            print(name, len(df_show))
+            df_show = random.sample(df_show, show_counts[name])
+            to_spls.extend(df_show)
+
+        return pd.DataFrame(to_spls)
+
+    def func1():
+
+        to_dfn = DirFileName(r"F:\ASDEWrite\Images")
+
+        show_cnames = {
+            "AS": ['IS_AS_SH', 'VEG_AS_SH', 'SOIL_AS_SH', 'WAT_AS_SH', ],
+            "DE": ['IS_DE_SH', 'VEG_DE_SH', 'SOIL_DE_SH', 'WAT_DE_SH', ],
+            "Opt": ['VEG_SH', 'IS_SH', 'WAT_SH', 'SOIL_SH', ],
+            "NON": ['VEG_SH', 'VEG', 'IS_SH', 'IS', 'WAT_SH', 'WAT', 'SOIL_SH', 'SOIL', ]
+        }
+
+        show_args = {
+            "AS": [("-",),
+                   {"color": "#BF1D2D", "marker": "^", "ms": 8, "markerfacecolor": 'none', "label": "AS SAR Shadows"}],
+            "DE": [("-",),
+                   {"color": "#293890", "marker": "o", "ms": 8, "markerfacecolor": 'none', "label": "DE SAR Shadows"}],
+            "Opt": [("-",),
+                    {"color": "gray", "marker": "s", "ms": 8, "markerfacecolor": 'none', "label": "Optical Shadows"}],
+            "NON": [("-",),
+                    {"color": "black", "marker": "x", "ms": 8, "markerfacecolor": 'none', "label": "Non Shadows"}]
+        }
+
+        show_cnames_tmp = {
+            "AS": ['IS_AS_SH', 'VEG_AS_SH', 'SOIL_AS_SH', 'WAT_AS_SH', ],
+            "DE": ['IS_DE_SH', 'VEG_DE_SH', 'SOIL_DE_SH', 'WAT_DE_SH', ],
+            "Opt": ['VEG_SH', 'IS_SH', 'WAT_SH', 'SOIL_SH', ],
+            "NON": ['VEG', 'IS', 'WAT', 'SOIL', ],
+        }
+
+        show_counts = {"AS": 312, "DE": 309, "NON": 621, "Opt": 596}
+
+        to_name = "adsi5"
+        csv_fn = to_dfn.fn("{}.csv".format(to_name))
+        if not os.path.isfile(csv_fn):
+            df = get_df(show_cnames_tmp, show_counts)
+            df.to_csv(csv_fn, index=False)
+        else:
+            df = pd.read_csv(csv_fn)
+
+        df_list = df.to_dict("records")
+        n_data = {"qd": {"NON": 0, "Opt": 0, "AS": 0, "DE": 0, }, "bj": {"NON": 0, "Opt": 0, "AS": 0, "DE": 0, },
+                  "cd": {"NON": 0, "Opt": 0, "AS": 0, "DE": 0, }, }
+
+        for spl in df_list:
+            c_name = None
+            for _name in show_cnames_tmp:
+                if spl["CNAME"] in show_cnames_tmp[_name]:
+                    c_name = _name
+                    break
+            n_data[spl["_CITY_NAME"]][c_name] += 1
+        print(pd.DataFrame(n_data).T)
+
+        def show(show_keys):
+            for name in show_cnames:
+                df_show = pd.DataFrame(_filter_cnames(df, *show_cnames[name]))
+                print(name, len(df_show))
+                data = df_show[show_keys].values
+                data = np.mean(data, axis=0)
+                plt.plot(data, *show_args[name][0], **show_args[name][1])
+
+        def show_1():
+
+            show_keys = [
+                "AS_VV", "AS_VH",
+                "AS_C11", "AS_C22",
+                "AS_H", "AS_Alpha",
+                "DE_VV", "DE_VH",
+                "DE_C11", "DE_C22",
+                "DE_H", "DE_Alpha",
+            ]
+
+            plt.rcParams['font.size'] = 16
+            plt.rc('text', usetex=True)
+            plt.figure(figsize=(12, 5))
+            plt.subplots_adjust(top=0.9, bottom=0.2, left=0.1, right=0.9, hspace=0.4, wspace=0.4)
+
+            show(show_keys)
+
+            plt.xticks([i / 10.0 for i in range(0, 11, 1)])
+            plt.xticks(
+                ticks=[i for i in range(len(show_keys))],
+                labels=[f"${name}$" for name in [
+                    "VV_{AS}", "VH_{AS}",
+                    "C11_{AS}", "C22_{AS}",
+                    "H_{AS}", "{\\alpha}_{AS}",
+                    "VV_{DE}", "VH_{DE}",
+                    "C11_{DE}", "C22_{DE}",
+                    "H_{DE}", "{\\alpha}_{DE}",
+                ]],
+            )
+
+            plt.xlabel("SAR features")
+            plt.ylabel("Pixel values")
+            plt.legend(frameon=False)
+
+            plt.savefig(to_dfn.fn("{}_1.jpg".format(to_name)), bbox_inches='tight', pad_inches=0.05, dpi=300)
+
+        def show_2():
+
+            show_keys = [
+                "D_VV", "D_VH",
+                "D_C11", "D_C22",
+                "D_H", "D_Alpha",
+            ]
+
+            plt.rcParams['font.size'] = 16
+            plt.rc('text', usetex=True)
+            plt.figure(figsize=(12, 5))
+            plt.subplots_adjust(top=0.9, bottom=0.2, left=0.1, right=0.9, hspace=0.4, wspace=0.4)
+
+            show(show_keys)
+
+            plt.xticks([i / 10.0 for i in range(0, 11, 1)])
+            plt.xticks(
+                ticks=[i for i in range(len(show_keys))],
+                labels=[f"${name}$" for name in [
+                    "VV", "VH",
+                    "C11", "C22",
+                    "H", "\\alpha",
+                ]],
+            )
+
+            plt.xlabel("SAR features")
+            plt.ylabel("Pixel values of (AS-DE)")
+
+            plt.legend(frameon=False, bbox_to_anchor=(0.6, 0.60), borderaxespad=0.05, )
+
+            plt.savefig(to_dfn.fn("{}_2.jpg".format(to_name)), bbox_inches='tight', pad_inches=0.05, dpi=300)
+
+        show_1()
+
+        plt.show()
+
+        show_2()
+
+        plt.show()
+
+    def func2():
+        show_keys = [
+            "AS_VV", "AS_VH", "AS_C11", "AS_C22", "AS_H", "AS_Alpha",
+            "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_H", "DE_Alpha",
+        ]
+        grs = [
+            GDALRaster(_RASTER_FN("qd")),
+            GDALRaster(_RASTER_FN("bj")),
+            GDALRaster(_RASTER_FN("cd")),
+        ]
+        d_min, d_max = [], []
+        jdt = Jdt(len(show_keys), "").start()
+        for name in show_keys:
+            d_min_tmp, d_max_tmp = [], []
+            for gr in grs:
+                data = gr.readGDALBand(name)
+                d_min_tmp.append(data.min())
+                d_max_tmp.append(data.max())
+            d_min.append(d_min_tmp)
+            d_max.append(d_max_tmp)
+            jdt.add()
+        jdt.end()
+
+        d_min, d_max = np.min(np.array(d_min), axis=1), np.max(np.array(d_max), axis=1)
+        to_dict = {show_keys[i]: {"min": d_min[i], "max": d_max[i]} for i in range(len(show_keys))}
+        print(to_dict)
+
+    def func3():
+
+        df_list = [
+            *pd.read_csv(_SPLING_FN("qd")).to_dict("records"),
+            *pd.read_csv(_SPLING_FN("bj")).to_dict("records"),
+            *pd.read_csv(_SPLING_FN("cd")).to_dict("records"),
+        ]
+        df = pd.DataFrame(df_list)
+
+        names = ['VEG_SH', 'VEG', 'VEG_AS_SH', 'IS_SH', 'IS', 'IS_DE_SH', 'IS_AS_SH', 'WAT_SH', 'WAT', 'SOIL_SH',
+                 'SOIL', 'SOIL_AS_SH', 'VEG_DE_SH', 'SOIL_DE_SH', 'WAT_AS_SH', 'WAT_DE_SH']
+
+        data_range = {
+            'AS_VV': {'min': -38.10087, 'max': 34.239323}, 'AS_VH': {'min': -39.907673, 'max': 32.629154},
+            'AS_C11': {'min': -32.445213, 'max': 39.68869}, 'AS_C22': {'min': -38.354107, 'max': 34.476883},
+            'AS_H': {'min': -0.21112157, 'max': 0.9999959}, 'AS_Alpha': {'min': 2.0017843, 'max': 89.97329},
+            'DE_VV': {'min': -38.27294, 'max': 34.071774}, 'DE_VH': {'min': -39.893894, 'max': 31.277845},
+            'DE_C11': {'min': -33.856297, 'max': 39.72574}, 'DE_C22': {'min': -37.858547, 'max': 32.804817},
+            'DE_H': {'min': -2.0701306, 'max': 1.0}, 'DE_Alpha': {'min': 1.1695069, 'max': 96.58143}
+        }
+        for k in data_range:
+            df[k] = (df[k] - data_range[k]["min"]) / (data_range[k]["max"] - data_range[k]["min"] + 0.0000001)
+
+        df["D_VV"] = df["AS_VV"] - df["DE_VV"]
+        df["D_VH"] = df["AS_VH"] - df["DE_VH"]
+        df["D_C11"] = df["AS_C11"] - df["DE_C11"]
+        df["D_C22"] = df["AS_C22"] - df["DE_C22"]
+        df["D_H"] = df["AS_H"] - df["DE_H"]
+        df["D_Alpha"] = df["AS_Alpha"] - df["DE_Alpha"]
+
+        show_cnames = {
+            "AS": ['IS_AS_SH', 'VEG_AS_SH', 'SOIL_AS_SH', 'WAT_AS_SH', ],
+            "DE": ['IS_DE_SH', 'VEG_DE_SH', 'SOIL_DE_SH', 'WAT_DE_SH', ],
+            "NON": ['VEG_SH', 'VEG', 'IS_SH', 'IS', 'WAT_SH', 'WAT', 'SOIL_SH', 'SOIL', ]
+        }
+        show_counts = {"AS": 189, "DE": 186, "NON": 203}
+
+        show_keys1 = [
+            "AS_VV", "AS_VH",
+            "AS_C11", "AS_C22",
+            "AS_H", "AS_Alpha", ]
+
+        show_keys2 = [
+            "DE_VV", "DE_VH",
+            "DE_C11", "DE_C22",
+            "DE_H", "DE_Alpha",
+        ]
+
+        show_keys3 = [
+            "D_VV", "D_VH",
+            "D_C11", "D_C22",
+            "D_H", "D_Alpha",
+        ]
+
+        show_args = {
+            "AS": [("-",),
+                   {"color": "#BF1D2D", "marker": "^", "ms": 8, "markerfacecolor": 'none', "label": "AS SAR shadows"}],
+            "DE": [("-",),
+                   {"color": "#293890", "marker": "o", "ms": 8, "markerfacecolor": 'none', "label": "DE SAR shadows"}],
+            "NON": [("-",),
+                    {"color": "black", "marker": "x", "ms": 8, "markerfacecolor": 'none', "label": "Non-shadows"}]
+        }
+
+        def _filter_cnames(*_names):
+            _to_list = []
+            for _name in _names:
+                _to_list.extend(df[df["CNAME"] == _name].to_dict("records"))
+            return _to_list
+
+        plt.rcParams['font.size'] = 16
+        plt.rc('text', usetex=True)
+        plt.figure(figsize=(12, 4))
+        plt.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.9, hspace=0.4, wspace=0.4)
+
+        to_spls = []
+
+        def show(_name):
+            df_show = _filter_cnames(*show_cnames[_name])
+            df_show = random.sample(df_show, show_counts[_name])
+            to_spls.extend(df_show)
+            df_show = pd.DataFrame(df_show)
+
+            print(_name, len(df_show))
+
+            data = df_show[show_keys3].values
+            data = np.mean(data, axis=0)
+            plt.plot(data, *show_args[_name][0], **show_args[_name][1])
+
+        show("AS")
+        show("DE")
+        show("NON")
+
+        plt.xticks([i / 10.0 for i in range(0, 11, 1)])
+        plt.xticks(
+            ticks=[i for i in range(len(show_keys1))],
+            labels=[f"${name}$" for name in [
+                "VV", "VH",
+                "C11", "C22",
+                "H", "\\alpha",
+            ]],
+        )
+
+        plt.xlabel("SAR features")
+        plt.ylabel("Pixel value of (AS-DE)")
+
+        plt.legend(frameon=False, bbox_to_anchor=(0.6, 0.66), borderaxespad=0.05, )
+
+        to_df = pd.DataFrame(to_spls)
+        print(to_df)
+        to_df.to_csv(r"F:\ASDEWrite\Images\samples_adsi2.csv", index=False)
+        plt.savefig(r"F:\ASDEWrite\Images\image_adsi2.jpg", dpi=300)
+        plt.show()
+
+    return func1()
+
+
+def adsiThreshold():
+    eps = 0.0000001
+
+    def OTSU(img_gray, GrayScale):
+        img_gray = np.array(img_gray).ravel()
+        u1 = 0.0  # 背景像素的平均灰度值
+        u2 = 0.0  # 前景像素的平均灰度值
+        th = 0.0
+
+        PixRate, bin_edges = np.histogram(img_gray, bins=GrayScale)
+        PixRate = PixRate / np.sum(PixRate)
+
+        Max_var = 0
+        # 确定最大类间方差对应的阈值
+        for i in range(1, GrayScale):  # 从1开始是为了避免w1为0.
+            u1_tem = 0.0
+            u2_tem = 0.0
+            # 背景像素的比列
+            w1 = np.sum(PixRate[:i])
+            # 前景像素的比例
+            w2 = 1.0 - w1
+            if w1 == 0 or w2 == 0:
+                pass
+            else:  # 背景像素的平均灰度值
+                for m in range(i):
+                    u1_tem = u1_tem + PixRate[m] * m
+                u1 = u1_tem * 1.0 / w1
+                # 前景像素的平均灰度值
+                for n in range(i, GrayScale):
+                    u2_tem = u2_tem + PixRate[n] * n
+                u2 = u2_tem / w2
+                # print(u1)
+                # 类间方差公式：G=w1*w2*(u1-u2)**2
+                tem_var = w1 * w2 * np.power((u1 - u2), 2)
+                # print(tem_var)
+                # 判断当前类间方差是否为最大值。
+                if Max_var < tem_var:
+                    Max_var = tem_var  # 深拷贝，Max_var与tem_var占用不同的内存空间。
+                    th = i
+
+        return bin_edges[th]
+
+    def to01(_data):
+        return (_data - np.min(_data)) / (np.max(_data) - np.min(_data))
+
+    def show_hist_1(_loc, _data, _name, _data_range=None):
+        plt.subplot(_loc)
+        plt.title(_name)
+        _data = showHist(to01(_data), data_range=_data_range)
+        return to01(_data)
+
+    def show_hist_2(_loc, _data, _name, _data_range=None):
+        plt.subplot(_loc)
+        plt.title(_name)
+        _data = showHist(_data, data_range=_data_range)
+        return _data
+
+    def func1():
+        def read_data(_name):
+            _data = gr.readGDALBand(_name)
+            if np.sum(np.isnan(_data)) != 0:
+                print(_name, np.where(np.isnan(_data)))
+                _data[np.isnan(_data)] = 0
+            return _data
+
+        city_name = "cd"
+
+        gr = GDALRaster(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\cd_adsi.tif")
+
+        data_b1 = read_data("B1")
+        data_b9 = read_data("B9")
+        data_b3 = read_data("B3")
+        data_b8 = read_data("B8")
+
+        sei = ((data_b1 + data_b9) - (data_b3 + data_b8)) / ((data_b1 + data_b9) + (data_b3 + data_b8) + eps)
+        ndwi = (data_b3 - data_b8) / (data_b3 + data_b8 + eps)
+
+        show_hist = show_hist_1
+        plt.figure(figsize=(16, 4))
+        sei = show_hist(
+            141, sei, "SEI",
+            # _data_range=(0.13, 0.9)
+        )
+        ndwi = show_hist(
+            142, ndwi, "NDWI",
+            # _data_range=(0.11, 0.92)
+        )
+        data_b8 = show_hist(
+            143, data_b8, "NIR",
+            # _data_range=(0, 0.23)
+        )
+        csi = np.zeros_like(sei)
+        d1 = sei - data_b8
+        d2 = sei - ndwi
+        csi[data_b8 >= ndwi] = d1[data_b8 >= ndwi]
+        csi[data_b8 < ndwi] = d2[data_b8 < ndwi]
+        csi = show_hist_1(144, csi, "CSI")
+        plt.show()
+
+        showData(csi, [-1], [1])
+        plt.show()
+
+        print("SEI", OTSU(sei, 256))
+        print("CSI", OTSU(csi, 256))
+
+        gr.save(csi, r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\{}_csi.dat".format(city_name))
+        gr.save(ndwi, r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\{}_ndwi.dat".format(city_name))
+        gr.save(data_b8, r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\{}_data_b8.dat".format(city_name))
+        gr.save(sei, r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\{}_sei.dat".format(city_name))
+
+        # np.save(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\qd_csi.npy", csi)
+        # np.save(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\qd_ndwi.npy", ndwi)
+        # np.save(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\qd_data_b8.npy", data_b8)
+        # np.save(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\qd_sei.npy", sei)
+
+    def func2():
+        def read_data(_name):
+            _data = gr.readGDALBand(_name)
+            print("{:>15} {:>20.6f} {:>20.6f}".format(_name, _data.min(), _data.max()))
+            return _data
+
+        city_name = "qd"
+        gr = GDALRaster(_QD_RASTER_FN)
+        as_vv = update10EDivide10(read_data("AS_VV"))
+        de_vv = update10EDivide10(read_data("DE_VV"))
+        adsi_data = (as_vv - de_vv) / (as_vv + de_vv)
+        adsi_data = np.abs(adsi_data)
+
+        print("ADSI", OTSU(adsi_data, 256))
+        # gr.save(adsi_data, r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\{}_adsi4.dat".format(city_name))
+
+    def cal1(city_name):
+        dfn = DirFileName(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold")
+
+        gr1 = GDALRaster(dfn.fn("{}_adsi.tif".format(city_name)))
+
+        def read_data_1(_name):
+            _data = gr1.readGDALBand(_name)
+            if np.sum(np.isnan(_data)) != 0:
+                print(_name, np.where(np.isnan(_data)))
+                _data[np.isnan(_data)] = 0
+            return _data
+
+        def read_data_2(_name):
+            _data = gr2.readGDALBand(_name)
+            print("{:>15} {:>20.6f} {:>20.6f}".format(_name, _data.min(), _data.max()))
+            return _data
+
+        data_b1 = read_data_1("B1")
+        data_b9 = read_data_1("B9")
+        data_b3 = read_data_1("B3")
+        data_b8 = read_data_1("B8")
+
+        sei = ((data_b1 + data_b9) - (data_b3 + data_b8)) / ((data_b1 + data_b9) + (data_b3 + data_b8) + eps)
+        ndwi = (data_b3 - data_b8) / (data_b3 + data_b8 + eps)
+
+        data_b8 = data_b8 / 10000
+        csi = np.zeros_like(sei)
+        d1 = sei - data_b8
+        d2 = sei - ndwi
+        csi[data_b8 >= ndwi] = d1[data_b8 >= ndwi]
+        csi[data_b8 < ndwi] = d2[data_b8 < ndwi]
+
+        gr2 = GDALRaster(_RASTER_FN(city_name))
+        as_vv = update10EDivide10(read_data_2("AS_VV"))
+        de_vv = update10EDivide10(read_data_2("DE_VV"))
+        adsi_data = (as_vv - de_vv) / (as_vv + de_vv)
+        adsi_data = np.abs(adsi_data)
+
+        def _sampling(_x_list, _y_list, _gr: GDALRaster, data):
+            _list = []
+            for i in range(len(_x_list)):
+                _x, _y = _x_list[i], _y_list[i]
+                _row, _column = _gr.coorGeo2Raster(_x, _y, is_int=True)
+                _list.append(data[_row, _column])
+            return _list
+
+        df = _DFFilter(pd.read_csv(dfn.fn("adsi5_samples.csv"))).all(("_CITY_NAME", "==", city_name)).df()
+        x, y = df["X"].tolist(), df["Y"].tolist()
+        to_dict = {
+            "SEI": _sampling(x, y, gr1, sei),
+            "CSI": _sampling(x, y, gr1, csi),
+            "ADSI": _sampling(x, y, gr2, adsi_data),
+            "NIR2": _sampling(x, y, gr2, data_b8),
+            **df.to_dict("list")
+        }
+
+        # gr1.save(sei, dfn.fn(r"1\{}_sei.dat".format(city_name)))
+        # gr1.save(csi, dfn.fn(r"1\{}_csi.dat".format(city_name)))
+        # gr2.save(adsi_data, dfn.fn(r"1\{}_adsi.dat".format(city_name)))
+        # gr2.save(data_b8, dfn.fn(r"1\{}_nir.dat".format(city_name)))
+
+        return sei, csi, adsi_data, gr1, gr2, pd.DataFrame(to_dict).to_dict("records")
+
+    def func3():
+        dfn = DirFileName(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold")
+
+        qd_sei, qd_csi, qd_adsi_data, qd_gr1, qd_gr2, qd_spls = cal1("qd")
+        bj_sei, bj_csi, bj_adsi_data, bj_gr1, bj_gr2, bj_spls = cal1("bj")
+        cd_sei, cd_csi, cd_adsi_data, cd_gr1, cd_gr2, cd_spls = cal1("cd")
+
+        samples = [
+            *qd_spls,
+            # *bj_spls,
+            # *cd_spls,
+        ]
+
+        show_cnames_tmp = {
+            "AS": ['IS_AS_SH', 'VEG_AS_SH', 'SOIL_AS_SH', 'WAT_AS_SH', ],
+            "DE": ['IS_DE_SH', 'VEG_DE_SH', 'SOIL_DE_SH', 'WAT_DE_SH', ],
+            "Opt": ['VEG_SH', 'IS_SH', 'WAT_SH', 'SOIL_SH', ],
+            "NON": ['VEG', 'IS', 'WAT', 'SOIL', ],
+        }
+
+        for spl in samples:
+            for name in show_cnames_tmp:
+                if spl["CNAME"] in show_cnames_tmp[name]:
+                    spl["TYPE2"] = name
+                    break
+
+        df = pd.DataFrame(samples)
+
+        print(df[["TYPE2", "SEI", "ADSI"]])
+
+        def show_1(_type, _key, *args, **kwargs):
+            if isinstance(_type, str):
+                data = df[df["TYPE2"] == _type][_key].values
+            else:
+                data = _DFFilter(df).any(*[("TYPE2", "==", _d) for _d in _type]).df()[_key].values
+
+            hist_data, bin_edges = np.histogram(data, bins=20)
+            hist_data = hist_data / np.sum(hist_data)
+            plt.plot(bin_edges[1:], hist_data, label="{}-{}".format(_type, _key), *args, **kwargs)
+
+        def show_2(_type, _key, *args, **kwargs):
+            if isinstance(_type, str):
+                data = df[df["TYPE2"] == _type][_key].values
+            else:
+                data = _DFFilter(df).any(*[("TYPE2", "==", _d) for _d in _type]).df()[_key].values
+
+            plt.hist(data, *args, bins=50, density=True, label="{}-{}".format(_type, _key), **kwargs)
+
+        # show_1("AS", "SEI", "r")
+        # show_1("DE", "SEI", "g")
+        # show_1("Opt", "SEI", "b")
+        # show_1("NON", "SEI", "y")
+
+        # show_1("AS", "ADSI", "r")
+        # show_1("DE", "ADSI", "g")
+        # show_1("Opt", "ADSI", "b")
+        # show_1("NON", "ADSI", "y")
+
+        plt.subplot(121)
+        show_2("Opt", "SEI", )
+        show_2("NON", "SEI", )
+        plt.legend()
+
+        plt.subplot(122)
+        show_2(["AS", "DE"], "ADSI", )
+        show_2("NON", "ADSI", )
+        plt.legend()
+
+        plt.show()
+
+    def deal_df(_spls):
+        show_cnames_tmp = {
+            "AS": ['IS_AS_SH', 'VEG_AS_SH', 'SOIL_AS_SH', 'WAT_AS_SH', ],
+            "DE": ['IS_DE_SH', 'VEG_DE_SH', 'SOIL_DE_SH', 'WAT_DE_SH', ],
+            "Opt": ['VEG_SH', 'IS_SH', 'WAT_SH', 'SOIL_SH', ],
+            "NON": ['VEG', 'IS', 'WAT', 'SOIL', ],
+        }
+
+        for spl in _spls:
+            for name in show_cnames_tmp:
+                if spl["CNAME"] in show_cnames_tmp[name]:
+                    spl["TYPE2"] = name
+                    break
+
+        return pd.DataFrame(_spls)
+
+    def func4():
+        plt.rcParams['font.size'] = 14
+        plt.rcParams['font.family'] = 'serif'
+        plt.rcParams['font.serif'] = ['Times New Roman']
+
+        def cal_city(city_name):
+            qd_sei, qd_csi, qd_adsi_data, qd_gr1, qd_gr2, qd_spls = cal1(city_name)
+
+            df = deal_df(qd_spls)
+
+            def get_data(_type, _key):
+                if isinstance(_type, str):
+                    data = df[df["TYPE2"] == _type][_key].values
+                else:
+                    data = _DFFilter(df).any(*[("TYPE2", "==", _d) for _d in _type]).df()[_key].values
+                return data
+
+            data_opt = get_data("Opt", "NIR2", )
+            print("data_opt", data_opt, data_opt.shape)
+            plt.hist(data_opt, bins=50, density=True, label="Opt")
+            data_non = get_data("NON", "NIR2", )
+            print("data_non", data_non, data_non.shape)
+            plt.hist(data_non, bins=50, density=True, label="NON")
+
+            data_cat = np.concatenate([data_non, data_opt])
+            print("data_cat", data_cat, data_cat.shape)
+            print("OTSU", OTSU(data_cat, 100))
+
+            plt.legend()
+            plt.show()
+
+        def cal_city2(city_name):
+            qd_sei, qd_csi, qd_adsi_data, qd_gr1, qd_gr2, qd_spls = cal1(city_name)
+
+            df = deal_df(qd_spls)
+
+            def get_data(_type, _key):
+                if isinstance(_type, str):
+                    data = df[df["TYPE2"] == _type][_key].values
+                else:
+                    data = _DFFilter(df).any(*[("TYPE2", "==", _d) for _d in _type]).df()[_key].values
+                return data
+
+            data_opt = get_data(["AS", "DE"], "ADSI", )
+            print("data_opt", data_opt, data_opt.shape)
+            plt.hist(data_opt, bins=50, density=True, label="Opt")
+            data_non = get_data("NON", "ADSI", )
+            print("data_non", data_non, data_non.shape)
+            plt.hist(data_non, bins=50, density=True, label="NON")
+
+            data_cat = np.concatenate([data_non, data_opt])
+            print("data_cat", data_cat, data_cat.shape)
+            print("OTSU", OTSU(data_cat, 100))
+
+            plt.legend()
+            plt.show()
+
+        def cal_city3(city_name, subplot):
+
+            qd_sei, qd_csi, qd_adsi_data, qd_gr1, qd_gr2, qd_spls = cal1(city_name)
+
+            df = deal_df(qd_spls)
+
+            def get_data(_type, _key):
+                if isinstance(_type, str):
+                    data = df[df["TYPE2"] == _type][_key].values
+                else:
+                    data = _DFFilter(df).any(*[("TYPE2", "==", _d) for _d in _type]).df()[_key].values
+                return data
+
+            def show_t(_data, _n=1):
+                plt.axvline(_data, color="red")
+                if _n == 1:
+                    plt.text(0.1, 0.65, "T1={:.3f}".format(_data), transform=plt.gca().transAxes)
+                if _n == 2:
+                    plt.text(0.55, 0.68, "T2={:.3f}".format(_data), transform=plt.gca().transAxes)
+
+            plt.subplot(2, 3, subplot)
+            data_opt = get_data("Opt", "CSI", )
+            plt.hist(data_opt, bins=50, density=True, label="Optical shadows", color="lightgray")
+            data_non = get_data("NON", "CSI", )
+            plt.hist(data_non, bins=50, density=True, label="Non-shadows", color="dimgray")
+            data_cat = np.concatenate([data_non, data_opt])
+            ts["{} OTSU CSI".format(city_name)] = OTSU(data_cat, 100)
+            show_t(ts["{} OTSU CSI".format(city_name)], 1)
+            print(city_name, "OTSU CSI", ts["{} OTSU CSI".format(city_name)])
+
+            plt.title(title_list[subplot - 1])
+            plt.ylabel("frequency (%)")
+            plt.xlabel("CSI values")
+            plt.legend(loc='upper left', prop={"size": 10}, frameon=True,
+                       fancybox=True, facecolor='white', edgecolor='black', )
+
+            plt.subplot(2, 3, subplot + 3)
+            data_opt = get_data(["AS", "DE"], "ADSI", )
+            plt.hist(data_opt, bins=50, density=True, label="AS\\DE SAR shadows", color="saddlebrown")
+            data_non = get_data("NON", "ADSI", )
+            plt.hist(data_non, bins=50, density=True, label="Non-shadows", color="dimgray")
+            data_cat = np.concatenate([data_non, data_opt])
+            ts["{} OTSU ADSI".format(city_name)] = OTSU(data_cat, 100)
+            show_t(ts["{} OTSU ADSI".format(city_name)], 2)
+            print(city_name, "OTSU ADSI", ts["{} OTSU ADSI".format(city_name)])
+
+            plt.title(title_list[subplot - 1 + 3])
+            plt.ylabel("frequency (%)")
+            plt.xlabel("ADSI's absolute values")
+            plt.legend(loc='upper left', prop={"size": 10}, frameon=True,
+                       fancybox=True, facecolor='white', edgecolor='black', )
+
+        title_list = ["(a) Qingdao", "(b) Beijing", "(c) Chengdu",
+                      "(d) Qingdao", "(e) Beijing", "(f) Chengdu", ]
+
+        ts = {}
+        plt.figure(figsize=(14, 9))
+        plt.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.9, hspace=0.3, wspace=0.3)
+
+        cal_city3("qd", 1)
+        cal_city3("bj", 2)
+        cal_city3("cd", 3)
+
+        printDict("OTSU", ts)
+        fn = r"F:\ASDEWrite\Images\Up\Fig-6-OptimalThreshold.jpg"
+        plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0)
+        plt.show()
+
+    func4()
 
 
 if __name__ == "__main__":

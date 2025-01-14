@@ -22,9 +22,9 @@ from SRTCodes.GDALDraw import GDALDrawImages
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GDALUtils import RasterRandomCoors, GDALSamplingFast
 from SRTCodes.SRTDraw import SRTDrawImages
+from SRTCodes.SRTModel import mapDict
 from SRTCodes.Utils import changext, DirFileName, FRW, saveJson, readJson, SRTWriteText, writeTexts
 from Shadow.Hierarchical import SHH2Config
-from Shadow.Hierarchical.SHH2ML2 import mapDict
 
 
 # plt.rcParams['font.sans-serif'] = ['SimHei']
@@ -39,6 +39,24 @@ from Shadow.Hierarchical.SHH2ML2 import mapDict
 #
 
 def main():
+    gr = GDALRaster(SHH2Config.CD_ENVI_FN)
+    x_keys = [
+        #  0  1  2  3  4  5
+        "Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2",
+        #  6  7  8  9 10 11
+        "AS_VV", "AS_VH", "AS_C11", "AS_C22", "AS_H", "AS_Alpha",
+        # 12 13 14 15 16 17
+        "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_H", "DE_Alpha",
+    ]
+    data = gr.readGDALBands(*x_keys)
+    print(data.shape)
+    gr.save(data, r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_18_gtif.tif", fmt="GTiff",
+            dtype=gdal.GDT_Float32, descriptions=x_keys, options=["COMPRESS=PACKBITS"])
+
+    return
+
+
+def method_name6():
     dfn = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\GDMLMods")
     raster_fn = dfn.fn("20240703H125230", "VHL3_ML_imdc.tif")
 
@@ -62,7 +80,6 @@ def main():
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.Hierarchical.SHH2Temp import main; main()"
     """
     func2()
-    return
 
 
 def method_name5():
