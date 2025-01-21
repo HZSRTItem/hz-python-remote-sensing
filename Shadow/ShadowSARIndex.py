@@ -7,6 +7,7 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2024, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ShadowSARIndex
 -----------------------------------------------------------------------------"""
+import csv
 import math
 import os
 from shutil import copyfile
@@ -15,7 +16,10 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from matplotlib import pyplot as plt
+from onedal.svm import SVC
 from osgeo import gdal
+from scipy.ndimage import gaussian_filter1d
+from sklearn.ensemble import RandomForestClassifier
 from tabulate import tabulate
 
 from RUN.RUNFucs import splTxt2Dict
@@ -30,7 +34,7 @@ from SRTCodes.SRTSample import SRTSampleSelect
 from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.SampleUtils import SamplesUtil
 from SRTCodes.Utils import DirFileName, FRW, changext, getfilenamewithoutext, RumTime, savecsv, readJson, \
-    TableLinePrint, printDict, printList, readLines, saveJson
+    TableLinePrint, printDict, printList, readLines, saveJson, filterFileEndWith
 from Shadow.Hierarchical import SHH2Config
 
 _RASTER_FN_1 = r"F:\ProjectSet\Shadow\ASDEIndex\Images\QD_SI_BS_1.tif"
@@ -46,6 +50,13 @@ _CD_RASTER_FN_2 = r"F:\ProjectSet\Shadow\ASDEIndex\Images\CD_SI_BS_2.dat"
 _QD_RANGE_FN_2 = changext(_QD_RASTER_FN_2, "_range.json")
 _BJ_RANGE_FN_2 = changext(_BJ_RASTER_FN_2, "_range.json")
 _CD_RANGE_FN_2 = changext(_CD_RASTER_FN_2, "_range.json")
+
+_QD_RASTER_FN_3 = r"G:\SHImages\QD_SHImages2.vrt"
+_BJ_RASTER_FN_3 = r"G:\SHImages\BJ_SHImages2.vrt"
+_CD_RASTER_FN_3 = r"G:\SHImages\CD_SHImages2.vrt"
+_QD_RANGE_FN_3 = changext(_QD_RASTER_FN_3, "_range2.json")
+_BJ_RANGE_FN_3 = changext(_BJ_RASTER_FN_3, "_range2.json")
+_CD_RANGE_FN_3 = changext(_CD_RASTER_FN_3, "_range2.json")
 
 _QD_ENVI_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat"
 _BJ_ENVI_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_envi.dat"
@@ -85,11 +96,22 @@ def _SAMPLING(raster_fn, csv_fn, to_csv_fn=None):
 
 def _GET_MODEL(name):
     name = name.upper()
-    if name == "RF":
-        return RF_RGS()
-    if name == "SVM":
-        return SVM_RGS()
-    return None
+
+    def func1():
+        if name == "RF":
+            return RF_RGS()
+        if name == "SVM":
+            return SVM_RGS()
+        return None
+
+    def func2():
+        if name == "RF":
+            return RandomForestClassifier()
+        if name == "SVM":
+            return SVC()
+        return None
+
+    return func1()
 
 
 def show1(_name, _data):
@@ -409,12 +431,15 @@ def run(city_name):
     # csv_fn = _GET_CITY_NAME(city_name, _QD_SPL_FN, _BJ_SPL_FN, _CD_SPL_FN)
     csv_fn = _GET_CITY_NAME(
         city_name,
-        r"F:\GraduationDesign\Result\run\Samples\1\qd_spl1.csv",
-        r"F:\GraduationDesign\Result\run\Samples\1\bj_spl1.csv",
-        r"F:\GraduationDesign\Result\run\Samples\1\cd_spl1.csv",
+        r"F:\GraduationDesign\Result\run\Samples\1\qd_spl2.csv",
+        r"F:\GraduationDesign\Result\run\Samples\1\bj_spl2.csv",
+        r"F:\GraduationDesign\Result\run\Samples\1\cd_spl2.csv",
     )
-    raster_fn = _GET_CITY_NAME(city_name, _QD_RASTER_FN_2, _BJ_RASTER_FN_2, _CD_RASTER_FN_2)
-    range_fn = _GET_CITY_NAME(city_name, _QD_RANGE_FN_2, _BJ_RANGE_FN_2, _CD_RANGE_FN_2)
+    # raster_fn = _GET_CITY_NAME(city_name, _QD_RASTER_FN_2, _BJ_RASTER_FN_2, _CD_RASTER_FN_2)
+    # range_fn = _GET_CITY_NAME(city_name, _QD_RANGE_FN_2, _BJ_RANGE_FN_2, _CD_RANGE_FN_2)
+
+    raster_fn = _GET_CITY_NAME(city_name, _QD_RASTER_FN_3, _BJ_RASTER_FN_3, _CD_RASTER_FN_3)
+    range_fn = _GET_CITY_NAME(city_name, _QD_RANGE_FN_3, _BJ_RANGE_FN_3, _CD_RANGE_FN_3)
 
     td = TimeDirectory(_MODEL_DIRNAME).initLog()
     tic = SH1SI_TIC(city_name, csv_fn, td=td, raster_fn=raster_fn, range_fn=range_fn)
@@ -442,19 +467,33 @@ def run(city_name):
         "E2_mean", "E2_var", "E2_hom", "E2_con", "E2_dis", "E2_ent", "E2_asm", "E2_cor",
     ]
 
+    f = [
+        "AS_A", "AS_Alpha", "AS_angle", "AS_Beta", "AS_C11", "AS_C12_imag", "AS_C12_real", "AS_C22", "AS_Epsilon",
+        "AS_H", "AS_Lambda1", "AS_Lambda2", "AS_m", "AS_Mu", "AS_RVI", "AS_SPAN", "AS_VH", "AS_VHDVV", "AS_VH_asm",
+        "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var", "AS_VV",
+        "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var", "Blue",
+        "DE_A", "DE_Alpha", "DE_angle", "DE_Beta", "DE_C11", "DE_C12_imag", "DE_C12_real", "DE_C22", "DE_Epsilon",
+        "DE_H", "DE_Lambda1", "DE_Lambda2", "DE_m", "DE_Mu", "DE_RVI", "DE_SPAN", "DE_VH", "DE_VHDVV", "DE_VH_asm",
+        "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var", "DE_VV",
+        "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var", "E1",
+        "E1_asm", "E1_con", "E1_cor", "E1_dis", "E1_ent", "E1_hom", "E1_mean", "E1_var", "E2", "E2_asm", "E2_con",
+        "E2_cor", "E2_dis", "E2_ent", "E2_hom", "E2_mean", "E2_var", "Green", "MNDWI", "NDVI", "NDWI", "NIR", "OPT_asm",
+        "OPT_con", "OPT_cor", "OPT_dis", "OPT_ent", "OPT_hom", "OPT_mean", "OPT_var", "Red", "SWIR1", "SWIR2",
+    ]
+
     def model_func(*args, **kwargs):
         run_list.append((args, kwargs))
 
     for clf_name in ["RF"]:
-        model_func("{}_1AS".format(clf_name), clf_name, x_keys=f_as)
-        model_func("{}_2DE".format(clf_name), clf_name, x_keys=f_as)
-        model_func("{}_3ASDE".format(clf_name), clf_name, x_keys=f_as + f_de)
-        model_func("{}_4O".format(clf_name), clf_name, x_keys=f_opt)
-        model_func("{}_5OA".format(clf_name), clf_name, x_keys=f_opt + f_as)
-        model_func("{}_6OD".format(clf_name), clf_name, x_keys=f_opt + f_de)
-        model_func("{}_7OAD".format(clf_name), clf_name, x_keys=f_opt + f_as + f_de)
-        model_func("{}_10E".format(clf_name), clf_name, x_keys=f_e)
-        model_func("{}_11E".format(clf_name), clf_name, x_keys=f_opt + f_e)
+        # model_func("{}_1AS".format(clf_name), clf_name, x_keys=f_as)
+        # model_func("{}_2DE".format(clf_name), clf_name, x_keys=f_as)
+        # model_func("{}_3ASDE".format(clf_name), clf_name, x_keys=f_as + f_de)
+        # model_func("{}_4O".format(clf_name), clf_name, x_keys=f_opt)
+        # model_func("{}_5OA".format(clf_name), clf_name, x_keys=f_opt + f_as)
+        # model_func("{}_6OD".format(clf_name), clf_name, x_keys=f_opt + f_de)
+        # model_func("{}_7OAD".format(clf_name), clf_name, x_keys=f_opt + f_as + f_de)
+        # model_func("{}_10E".format(clf_name), clf_name, x_keys=f_e)
+        # model_func("{}_11E".format(clf_name), clf_name, x_keys=f_opt + f_e)
 
         # model_func("{}_E2".format(clf_name), clf_name, x_keys=f_e)
         # model_func("{}_OD2".format(clf_name), clf_name, x_keys=f_de)
@@ -467,11 +506,25 @@ def run(city_name):
         # model_func("{}_AD1".format(clf_name), clf_name, x_keys=["AS_VV", "AS_VH", "DE_VV", "DE_VH", ])
         # model_func("{}_OA1".format(clf_name), clf_name, x_keys=["AS_VV", "AS_VH", ])
         # model_func("{}_OD1".format(clf_name), clf_name, x_keys=["DE_VV", "DE_VH", ])
-        #
+
         # model_func("{}_E2".format(clf_name), clf_name, x_keys=f_e)
         # model_func("{}_AD2".format(clf_name), clf_name, x_keys=f_as + f_de)
         # model_func("{}_OA2".format(clf_name), clf_name, x_keys=f_as)
         # model_func("{}_OD2".format(clf_name), clf_name, x_keys=f_de)
+
+        # model_func("{}_1ADESI".format(clf_name), clf_name, x_keys=["E1", "E2", ])
+        #
+        # model_func("{}_2AS".format(clf_name), clf_name, x_keys=["AS_VV", "AS_VH", ])
+        # model_func("{}_3DE".format(clf_name), clf_name, x_keys=["DE_VV", "DE_VH", ])
+        #
+        # model_func("{}_4ASC2".format(clf_name), clf_name, x_keys=["AS_C11", "AS_C22", ])
+        # model_func("{}_5DEC2".format(clf_name), clf_name, x_keys=["DE_C11", "DE_C22", ])
+
+        model_func("{}_6ASH".format(clf_name), clf_name, x_keys=["AS_H", "AS_A", ])
+        model_func("{}_7DEH".format(clf_name), clf_name, x_keys=["DE_H", "DE_A", ])
+
+        # model_func("{}_8ADESI_GLCM".format(clf_name), clf_name, x_keys=f_e)
+        # model_func("{}_9ADESI_GLCM_OPT".format(clf_name), clf_name, x_keys=f_e + f_opt)
 
     run_time = RumTime(len(run_list), tic.log).strat()
     for _args, _kwargs in run_list:
@@ -650,6 +703,7 @@ def draw():
 
     def add_imdc_grs(gdi: GDALDrawImage, mod_name="RF"):
         json_dict = readJson(r"F:\SARIndex\Draw\result_fns.json")
+
         data_dict = json_dict[mod_name]
         to_dict = {name: [] for name in [
             "O", "OA", "OAD", "OD", "OE", "OG", "OAG",
@@ -810,7 +864,7 @@ def draw():
 
         add_imdc_grs(gdi)
 
-        n_rows, n_columns = 1, 6
+        n_rows, n_columns = 5, 6
         n = 13
         fig = plt.figure(figsize=(n_columns / n_columns * n, n_rows / n_columns * n,), )
         fig.subplots_adjust(top=0.92, bottom=0.08, left=0.1, right=0.90, hspace=0.03, wspace=0.03)
@@ -863,9 +917,9 @@ def draw():
         column = draw_column()
 
         column.fit(r"  ", 120.32396, 36.35739)
-        # column.fit(r"(b) Beijing", 116.348373, 39.782519)
-        # column.fit(r"(c) Chengdu", 104.101211, 30.788077)
-        # column.fit(r"(d) Chengdu", 104.065650, 30.696051)
+        column.fit(r"(b) Beijing", 116.348373, 39.782519)
+        column.fit(r"(c) Chengdu", 104.101211, 30.788077)
+        column.fit(r"(d) Chengdu", 104.065650, 30.696051)
 
         plt.show()
 
@@ -882,6 +936,7 @@ def draw():
         qd = gdi.addGR(raster_fn=_QD_RASTER_FN_2, geo_range=_QD_RANGE_FN_2)
         bj = gdi.addGR(raster_fn=_BJ_RASTER_FN_2, geo_range=_BJ_RANGE_FN_2)
         cd = gdi.addGR(raster_fn=_CD_RASTER_FN_2, geo_range=_CD_RANGE_FN_2)
+
         gdi.addRCC("RGB", qd, bj, cd, channel_list=["Red", "Green", "Blue"])
         gdi.addRCC("NRG", qd, bj, cd, channel_list=["NIR", "Red", "Green"])
 
@@ -896,7 +951,165 @@ def draw():
 
         gdis.add()
 
-    return func6()
+    def func8():
+
+        def get_tif(*_dirnames):
+            _fn_dict = {}
+            for _dirname in _dirnames:
+                _fns = filterFileEndWith(_dirname, ".tif")
+                for _fn in _fns:
+                    _name = getfilenamewithoutext(_fn)
+                    _name = _name.split("-")[1][3:]
+                    if _name not in _fn_dict:
+                        _fn_dict[_name] = _fn
+            return _fn_dict
+
+        to_dict = {
+            "qd": get_tif(
+                r"F:\GraduationDesign\Result\QingDao\20250120H183522",
+                r"F:\GraduationDesign\Result\QingDao\20250120H202054",
+            ),
+            "bj": get_tif(
+                r"F:\GraduationDesign\Result\BeiJing\20250120H190546",
+                r"F:\GraduationDesign\Result\BeiJing\20250120H202608",
+            ),
+            "cd": get_tif(
+                r"F:\GraduationDesign\Result\ChengDu\20250120H193443",
+                r"F:\GraduationDesign\Result\ChengDu\20250120H203155",
+            ),
+        }
+
+        printDict("Qingdao", to_dict["qd"])
+        printDict("Beijing", to_dict["bj"])
+        printDict("Chengdu", to_dict["cd"])
+
+        # saveJson(to_dict, r"F:\GraduationDesign\Result\results.json")
+
+        to_dict1 = pd.DataFrame(to_dict).T.to_dict()
+        print(to_dict1)
+
+        return
+
+    def func9():
+
+        # plt.rcParams.update({'font.size': 16})
+        # # plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+        # plt.rcParams['font.family'] = ["Times New Roman", "SimSun"]
+        # plt.rcParams['mathtext.fontset'] = 'stix'
+        #
+        # fig = plt.figure()
+        #
+        # axes = fig.add_subplot(1, 1, 1)
+        #
+        # # axes.text(0.2, 0.2, r"1 -> $ \mathrm{ \mu \alpha \tau \pi \lambda \omega  \iota \beta } $")
+        # # axes.text(0.2, 0.4, r"$ \lim_{x \rightarrow \infty} \frac{1}{x} $")
+        # # axes.text(0.2, 0.8, r"$ a \leq  b  \leq  c  \Rightarrow  a  \leq  c$")
+        # # axes.text(0.4, 0.2, r"$ \sum_{i=1}^{\infty}\ x_i^3$")
+        # # axes.text(0.4, 0.4, r"$ \sin(\frac{3\pi}{2}) = \cos(\pi)$")
+        # # axes.text(0.4, 0.6, r"$ \sqrt[3]{x} = \sqrt{y}$")
+        # # axes.text(0.6, 0.6, r"$ \neg (a \wedge b) \Leftrightarrow \neg a \ \vee \neg b$")
+        # axes.text(0.6, 0.6, r" 这是一段中文 Italic  $ \rm  Italic $ $\neg (a \wedge b) \Leftrightarrow \neg a \ \vee \neg b$"
+        #           , family=["SimSun", "Times New Roman", ])
+        # # axes.text(0.6, 0.2, r"$ \int_a^b f(x)dx$")
+        # # axes.text(0.6, 0.1, r'$ s(t) = \mathrm{A}\/\sin(2 \omega t) $')
+        #
+        # plt.text(
+        #     0.5,
+        #     0.8,
+        #     r"中英文混编：This is English. 这是中文",
+        #     fontdict=getFont(family=["Times New Roman", "SimSun"]),
+        #     size=20,
+        #     ha="center",
+        #     va="center",
+        # )
+
+        FONT_SIZE = 14
+
+        plt.rcParams.update({'font.size': FONT_SIZE})
+        plt.rcParams['font.family'] = ["Times New Roman", 'SimSun', ] + plt.rcParams['font.family']
+
+        win_size = (231, 231)
+        gi_win_size = int(win_size[0] * 2640.0 / 121.0), int(win_size[1] * 2026.0 / 121.0)
+        print("win_size", win_size)
+        print("gi_win_size", gi_win_size)
+
+        gdi = GDALDrawImage(win_size)
+
+        qd = gdi.addGR(raster_fn=_QD_RASTER_FN_2, geo_range=_QD_RANGE_FN_2)
+        bj = gdi.addGR(raster_fn=_BJ_RASTER_FN_2, geo_range=_BJ_RANGE_FN_2)
+        cd = gdi.addGR(raster_fn=_CD_RASTER_FN_2, geo_range=_CD_RANGE_FN_2)
+        gdi.addRCC("RGB", qd, bj, cd, channel_list=["Red", "Green", "Blue"])
+        gdi.addRCC("NRG", qd, bj, cd, channel_list=["NIR", "Red", "Green"])
+        to_dict = pd.DataFrame(readJson(r"F:\GraduationDesign\Result\results.json")).T.to_dict("list")
+        for name in to_dict:
+            gdi.addRCC(name, *to_dict[name], channel_list=[0], is_01=False, is_min_max=False, )
+        print(gdi.keys())
+
+        names = [
+            'RGB', 'NRG',
+            '1ADESI', '2AS', '3DE', '4ASC2', '5DEC2', '6ASH', '7DEH', '8ADESI_GLCM', '9ADESI_GLCM_OPT'
+        ]
+
+        column_names = ["S2", "ADESI-IS", "σ-AS-IS", "σ-DE-IS", "C2-AS-IS", "C2-DE-IS",
+                        "H/α-AS-IS", "H/α-AS-IS", "ADESI-G-IS", "ADESI-GO-IS", ]
+
+        imdc_color_dict = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
+
+        n_rows, n_columns = 6, len(column_names)
+        n = 16
+        n2 = 0.06
+        fig = plt.figure(figsize=(n, n_rows / n_columns * n,), )
+        fig.subplots_adjust(top=1 - n2, bottom=n2, left=n2, right=1 - n2, hspace=0.03, wspace=0.03)
+
+        class draw_column:
+
+            def __init__(self):
+                self.row = 1
+                self.column = 1
+                self.name = ""
+                self.n = 1
+
+            def fit(self, name, x, y, ):
+                self.column = 1
+                self.name = name
+                self.n = 1
+
+                self._readDraw("NRG", x, y, min_list=[300, 300, 300], max_list=[2900, 1500, 1500])
+
+                for _name in [
+                    '1ADESI', '2AS', '3DE', '4ASC2', '5DEC2',
+                    '6ASH', '7DEH', '8ADESI_GLCM', '9ADESI_GLCM_OPT'
+                ]:
+                    self._readDraw(_name, x, y, color_dict=imdc_color_dict)
+
+                self.row += 1
+
+            def _readDraw(self, *args, **kwargs):
+                plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + self.n)
+                gdi.readDraw(*args, **kwargs)
+                self.column_draw()
+                self.n += 1
+
+            def column_draw(self):
+                ax = plt.gca()
+                if self.row == 1:
+                    ax.set_title(column_names[self.column - 1], fontdict={"size": FONT_SIZE})
+                if self.column == 1:
+                    ax.set_ylabel(self.name, rotation=0, labelpad=10, fontdict={"size": FONT_SIZE})
+                self.column += 1
+
+        column = draw_column()
+
+        column.fit(r"(1)", 120.32396, 36.35739)
+        column.fit(r"(2)", 120.194134,36.301147)
+        column.fit(r"(3)", 116.348373, 39.782519)
+        column.fit(r"(4)", 116.701712,39.721282)
+        column.fit(r"(5)", 104.101211, 30.788077)
+        column.fit(r"(6)", 104.065650, 30.696051)
+
+        plt.show()
+
+    return func9()
 
 
 class _SampleUpdate:
@@ -1001,12 +1214,18 @@ class _SI_AngleDiagram:
 
     def __init__(self):
         self.dfn = DirFileName(r"F:\ProjectSet\Shadow\ASDEIndex\AngleDiagram")
-        self.angle_fn = self.dfn.fn("adsi_angle.geojson")
-        self.angle_spls_fn = self.dfn.fn("adsi_angle_spls.geojson")
-        self.data_fn = self.dfn.fn("adsi_data.csv")
+        self.angle_fn = self.dfn.fn("adsi_angle_qd.geojson")
+        self.angle_spls_fn = self.dfn.fn("adsi_angle_spls_qd.geojson")
+        self.data_fn = self.dfn.fn("adsi_data_qd.csv")
         self.data = None
 
-    def read(self):
+    def read(self, angle_fn=None, angle_spls_fn=None, data_fn=None):
+        if angle_fn is not None:
+            self.angle_fn = angle_fn
+        if angle_spls_fn is not None:
+            self.angle_spls_fn = angle_spls_fn
+        if data_fn is not None:
+            self.data_fn = data_fn
 
         def _read_geojson(_fn):
             _data = readJson(_fn)
@@ -1077,43 +1296,129 @@ class _SI_AngleDiagram:
             to_data_dict[n]["ANGLE"] = angle_data_dict[n]
         to_df = pd.DataFrame(to_data_dict).T
         print(tabulate(to_df, headers="keys"))
-        self.data = to_df
+
+        if self.data is None:
+            self.data = to_df
+        else:
+            self.data = pd.DataFrame(self.data.to_dict("records") + to_df.to_dict("records"))
 
     def plot(self):
 
         plt.rc('font', family='Times New Roman')
         plt.rcParams.update({'font.size': 16})
 
-        fig = plt.figure(figsize=(14, 10))
-        fig.subplots_adjust(top=0.955, bottom=0.15, left=0.08, right=0.969, hspace=0.2, wspace=0.2)
+        fig = plt.figure(figsize=(12, 9))
+        fig.subplots_adjust(top=0.983, bottom=0.143, left=0.087, right=0.648, hspace=0.396, wspace=0.203)
+
+        angle_split = 0.5
+        is_show_1 = True
+        is_line = False
+        is_fft = False
+        is_gauss = True
 
         def _plot(_field_name, marker, label, color):
-            plt.scatter(self.data["ANGLE"], self.data[_field_name], marker=marker,
-                        edgecolors="black", color=color, s=50, label=label)
+            _data = self.data[["ANGLE", _field_name]]
+            _x = [i * angle_split for i in range(0, int(180 / angle_split))]
+            _y = []
+            for i in range(len(_x) - 1):
+                _y_list = []
+                for j in _data.index:
+                    if (_data["ANGLE"][j] < 55) or (_data["ANGLE"][j] > 115):
+                        continue
+                    if _x[i] < _data["ANGLE"][j] <= _x[i + 1]:
+                        _y_list.append(float(_data[_field_name][j]))
+                if _y_list:
+                    _y.append(np.mean(_y_list))
+                else:
+                    _y.append(None)
 
-        plt.subplot(121)
+            _x_show = [_x[i] + angle_split / 2.0 for i in range(len(_y)) if _y[i] is not None]
+            _y_show = [_y[i] for i in range(len(_y)) if _y[i] is not None]
+
+            if is_show_1:
+                plt.scatter(_x_show, _y_show, marker=marker,
+                            edgecolors="black", color=color, s=50, label=label)
+
+            if is_fft:
+                y_fft = np.fft.fft(_y_show)
+                threshold = np.sort(np.abs(np.real(y_fft)))[-5]
+                y_filtered = np.where(np.abs(np.real(y_fft)) > threshold, y_fft, 0)
+                y_reconstructed = np.real(np.fft.ifft(y_filtered))
+                plt.plot(_x_show, y_reconstructed, color=color, label=label + " Line")
+
+            if is_gauss:
+                y_gauss = gaussian_filter1d(_y_show, 2.5)
+                plt.plot(_x_show, y_gauss, color=color, label=label + " Line")
+
+            if is_line:
+                an = np.polyfit(_x_show, _y_show, 2)  # 用3次多项式拟合
+                # 如果源数据点不够要自己扩充，否则直接使用源数据点即可
+                x1 = np.arange(np.min(_x_show), np.max(_x_show), 0.1)  # 画曲线用的数据点
+                yvals = np.polyval(an, x1)  # 根据多项式系数计算拟合后的值
+
+                plt.plot(x1, yvals, color=color, label=label + " Line")
+
+        def _as_de_line():
+            plt.plot([90 - 8.18, 90 - 8.18], [-0.1, 1.1], "--", color="black")
+            plt.plot([90 + 8.18, 90 + 8.18], [-0.1, 1.1], "--", color="black")
+
+        plt.subplot(211)
         _plot("AS1", "o", "Ascending-VV", "red")
         _plot("DE1", "^", "Descending-VV", "lightgreen")
-        _plot("E1", "s", "ADSI-VV", "blue")
-        plt.xlim([40, 150])
-        plt.ylim([-0.1, 1.1])
+        _plot("E1", "s", "ADESI-1", "blue")
+        plt.xlim([60, 120])
+        plt.ylim([0, 0.8])
         plt.xlabel("Angle (°)")
-        plt.legend(facecolor="lightgray", edgecolor="black", )
+        plt.ylabel("Value")
+        plt.xticks([60, 70, 80, 90 - 8.18, 90, 90 + 8.18, 100, 110, 120], rotation=45)
+        plt.legend(
+            # facecolor="lightgray", edgecolor="black",
+            frameon=False,
+            # loc='upper center', bbox_to_anchor=(-0.1, -0.15), ncol=6,
+            loc='center left', bbox_to_anchor=(1.05, 0.2), ncol=1,
+        )
+        _as_de_line()
 
-        plt.subplot(122)
+        plt.subplot(212)
         _plot("AS2", "o", "Ascending-VH", "red")
         _plot("DE2", "^", "Descending-VH", "lightgreen")
-        _plot("E2", "s", "ADSI-VH", "blue")
-        plt.xlim([40, 150])
-        plt.ylim([-0.1, 1.1])
+        _plot("E2", "s", "ADESI-2", "blue")
+        plt.xlim([60, 120])
+        plt.ylim([0, 0.7])
         plt.xlabel("Angle (°)")
-        plt.legend(facecolor="lightgray", edgecolor="black", )
+        plt.ylabel("Value")
+        plt.xticks([60, 70, 80, 90 - 8.18, 90, 90 + 8.18, 100, 110, 120], rotation=45)
+        plt.legend(
+            # facecolor="lightgray", edgecolor="black",
+            frameon=False,
+            # loc='upper center', bbox_to_anchor=(-0.1, -0.15), ncol=6,
+            loc='center left', bbox_to_anchor=(1.05, 0.2), ncol=1,
+        )
+        _as_de_line()
+
+    def showData(self):
+        print(tabulate(self.data, headers="keys"))
 
 
 def angleDiagram_Funcs():
     def func1():
         si_ad = _SI_AngleDiagram()
-        si_ad.read()
+        si_ad.read(
+            angle_fn=si_ad.dfn.fn("adsi_angle_qd.geojson"),
+            angle_spls_fn=si_ad.dfn.fn("adsi_angle_spls_qd.geojson"),
+            data_fn=si_ad.dfn.fn("adsi_data_qd.csv"),
+        )
+        si_ad.read(
+            angle_fn=si_ad.dfn.fn("adsi_angle_bj.geojson"),
+            angle_spls_fn=si_ad.dfn.fn("adsi_angle_spls_bj.geojson"),
+            data_fn=si_ad.dfn.fn("adsi_data_bj.csv"),
+        )
+        si_ad.read(
+            angle_fn=si_ad.dfn.fn("adsi_angle_cd.geojson"),
+            angle_spls_fn=si_ad.dfn.fn("adsi_angle_spls_cd.geojson"),
+            data_fn=si_ad.dfn.fn("adsi_data_cd.csv"),
+        )
+        si_ad.showData()
         si_ad.plot()
         plt.show()
 
@@ -1250,7 +1555,145 @@ def funcs():
         getRange(_BJ_RASTER_FN_2)
         getRange(_CD_RASTER_FN_2)
 
-    return func4()
+    def func5():
+
+        class _accuracy:
+
+            def __init__(self, _city_name):
+                self.city_name = _city_name
+                self.acc = None
+                self.cm = {}
+
+            def add(self, _dirname):
+                _log_fn = os.path.join(_dirname, "log.txt")
+                with open(_log_fn, "r", encoding="utf-8") as f:
+                    is_cm = False
+                    name = None
+                    for line in f:
+                        if line.startswith("#") and line.endswith("#\n"):
+                            if name is not None:
+                                if self.cm[name] == "":
+                                    self.cm.pop(name)
+                            name = " ".join(line.split(" ")[2:-3])
+                            self.cm[name] = ""
+
+                        if is_cm:
+                            if not line.startswith(" "):
+                                is_cm = False
+                            else:
+                                self.cm[name] += line
+                        else:
+                            if line.strip() == "IS_CM:":
+                                is_cm = True
+
+                acc = pd.read_csv(os.path.join(_dirname, "accuracy"), index_col=0).T.to_dict("dict")
+                if self.acc is None:
+                    self.acc = acc
+                    return
+                for name in acc:
+                    self.acc[name] = acc[name]
+
+            def show_acc(self):
+                print(self.city_name)
+                print(pd.DataFrame(self.acc).T)
+                print()
+
+            def show_cm(self):
+                for name in self.cm:
+                    print(name)
+                    print(self.cm[name])
+                    print()
+
+        qd = _accuracy("qd")
+        qd.add(r"F:\GraduationDesign\Result\QingDao\20250120H183522")
+        qd.add(r"F:\GraduationDesign\Result\QingDao\20250120H202054")
+        qd.show_cm()
+
+        bj = _accuracy("bj")
+        bj.add(r"F:\GraduationDesign\Result\BeiJing\20250120H190546")
+        bj.add(r"F:\GraduationDesign\Result\BeiJing\20250120H202608")
+        bj.show_cm()
+
+        cd = _accuracy("cd")
+        cd.add(r"F:\GraduationDesign\Result\ChengDu\20250120H193443")
+        cd.add(r"F:\GraduationDesign\Result\ChengDu\20250120H203155")
+        cd.show_cm()
+
+    def func6():
+        csv_fn = r"F:\GraduationDesign\Result\cm.csv"
+        cms = {}
+
+        def is_string_identical(text_string):
+            i = 0
+            while i < len(text_string):
+                if text_string[i] == text_string[i + 1]:
+                    i += 1
+                    return True
+                else:
+                    return False
+
+        with open(csv_fn, "r", encoding="utf-8") as f:
+            is_cm = False
+            for line in f:
+                line = line.strip()
+
+                if is_cm:
+                    if not is_string_identical(line):
+                        lines = line.split(",")[1:]
+                        print(lines)
+                        cms[city_name][name].append(lines)
+
+                if not line.startswith(","):
+                    city_name, _, name = tuple(line.split(",")[:3])
+                    if city_name not in cms:
+                        cms[city_name] = {}
+                    cms[city_name][name] = []
+                    print("#", city_name, name, "-" * 60)
+                    is_cm = True
+
+                if is_string_identical(line):
+                    is_cm = False
+
+        cms.pop('\ufeff')
+
+        for city_name in cms:
+            for name in cms[city_name]:
+                lines = cms[city_name][name]
+                for i in range(1, len(lines) - 1):
+                    for j in range(1, len(lines[i]) - 1):
+                        lines[i][j] = int(lines[i][j])
+
+        for city_name in cms:
+            for name in cms[city_name]:
+                lines = cms[city_name][name]
+                for i in range(1, len(lines)):
+                    lines[i][-1] = "{:.2f}%".format(float(lines[i][-1]))
+                for i in range(1, len(lines[-1]) - 1):
+                    lines[-1][i] = "{:.2f}%".format(float(lines[-1][i]))
+
+        for city_name in cms:
+            for name in cms[city_name]:
+                print("#", city_name, name, "-" * 60)
+                lines = cms[city_name][name]
+                print(*lines, sep="\n")
+
+        with open(r"F:\GraduationDesign\Result\cm2.csv", "w", encoding="utf-8", newline="") as fr:
+            cw = csv.writer(fr)
+
+            for city_name in cms:
+                to_lines = [[] for i in range(7)]
+                for name in cms[city_name]:
+                    print(name)
+                    to_lines[0].append(name)
+                    to_lines[0].extend([" " for i in range(5)])
+                    for i in range(1, 7):
+                        to_lines[i].extend(cms[city_name][name][i - 1])
+
+                for line in to_lines:
+                    cw.writerow(line)
+                fr.write("\n")
+
+    return func6()
 
 
 class _MakeADSI(SamplesUtil):
@@ -1275,6 +1718,9 @@ class _MakeADSI(SamplesUtil):
 
 def makeADSI():
     def func1():
+        plt.rc('font', family='Times New Roman')
+        plt.rcParams.update({'font.size': 9})
+
         dfn = DirFileName(r"F:\ProjectSet\Shadow\ASDEIndex\MakeIndex")
         gsu = _MakeADSI()
         gsu.addCSV(dfn.fn(r"adsi_makeindex_spls4.csv"), field_datas={"CNAME": "IS", "CITY": "qd"})
@@ -1321,12 +1767,12 @@ def makeADSI():
                 _name = "{}".format(_cname, _field_name)
             plt.plot(x[:-1], y, color=_color, label=_name)
 
-        def _hist_1(_field_name):
+        def _hist_1(_field_name, title_fmt="{}"):
             _hist("IS", _field_name, "darkred")
             _hist("VEG", _field_name, "green")
             _hist("SOIL", _field_name, "yellow")
             _hist("WAT", _field_name, "blue")
-            plt.title(_field_name)
+            plt.title(title_fmt.format(_field_name))
             # if _field_name == "E2":
             #     plt.ylim([0, 0.30])
 
@@ -1335,7 +1781,7 @@ def makeADSI():
                 "E1", "AS_{}".format(_field_name1), "DE_{}".format(_field_name1),
                 "E2", "AS_{}".format(_field_name2), "DE_{}".format(_field_name2),
             ]
-            plt.figure(figsize=(12, 7))
+            plt.figure(figsize=(10, 6))
             for i in range(1, 7):
                 plt.subplot(230 + i)
                 plt.subplots_adjust(top=0.95, bottom=0.055, left=0.046, right=0.988, hspace=0.208, wspace=0.194)
@@ -1343,9 +1789,43 @@ def makeADSI():
             plt.legend()
             plt.show()
 
-        _hist_2("VV", "VH")
-        _hist_2("C11", "C22")
-        _hist_2("H", "Alpha")
+        def _hist_3():
+            def _get_field_names(_field_name1, _field_name2):
+                return [
+                    "AS_{}".format(_field_name1), "DE_{}".format(_field_name1),
+                    "AS_{}".format(_field_name2), "DE_{}".format(_field_name2),
+                ]
+
+            _field_names = [
+                "E1", "E2",
+                *_get_field_names("VV", "VH"),
+                *_get_field_names("C11", "C22"),
+                *_get_field_names("H", "Alpha"),
+            ]
+            plt.figure(figsize=(9, 9))
+            plt.subplots_adjust(top=0.964, bottom=0.059, left=0.059, right=0.982, hspace=0.482, wspace=0.339)
+
+            xuhao = "abcdefghijklmnopqrstuvwxyz"
+
+            for i in range(1, len(_field_names) + 1):
+                plt.subplot(4, 4, i)
+                _hist_1(_field_names[i - 1], title_fmt="({})".format(xuhao[i - 1]) + " {}")
+                plt.xlabel("Value")
+                plt.ylabel("Frequency(%)")
+
+            plt.legend(
+                frameon=False,
+                # loc='upper center', bbox_to_anchor=(-0.1, -0.15), ncol=6,
+                loc='center left', bbox_to_anchor=(1.1, 0.2), ncol=1,
+            )
+            plt.savefig(dfn.fn("sar_index.jpg", is_show=True), dpi=300)
+            plt.show()
+
+        # _hist_2("VV", "VH")
+        # _hist_2("C11", "C22")
+        # _hist_2("H", "Alpha")
+
+        _hist_3()
 
         df = df[[
             "SRT", "X", "Y", "CITY", "CNAME",
@@ -1361,7 +1841,7 @@ def makeADSI():
                 to_list.append(spl)
 
         df = pd.DataFrame(to_list)
-        df.to_csv(r"F:\ProjectSet\Shadow\ASDEIndex\MakeIndex\save_samples2.csv", index=False)
+        df.to_csv(r"F:\ProjectSet\Shadow\ASDEIndex\MakeIndex\save_samples3.csv", index=False)
 
         vLookUpCount(df, "CITY", "CNAME", is_print=True)
 
@@ -1448,11 +1928,11 @@ def makeADSI():
 
         vLookUpCount(df, "CITY", "CNAME", is_print=True)
 
-    return func5()
+    return func1()
 
 
 if __name__ == "__main__":
-    makeADSI()
+    draw()
     r"""
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowSARIndex import getRange; getRange()"
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowSARIndex import run; run('qd')"

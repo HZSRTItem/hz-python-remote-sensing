@@ -86,6 +86,9 @@ class GDALDrawImage(DrawImage):
     def draws(self, loc=0):
         return _GDIDraws(self, loc=loc)
 
+    def keys(self):
+        return self.grcd.keys()
+
 
 class GDALDrawImages(GDALRasterCenterDatas, DrawImage):
 

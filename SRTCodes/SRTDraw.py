@@ -345,9 +345,19 @@ def showData(data, min_list=None, max_list=None, color_table=None):
 def showHist(data, n=256, data_range=None, *args, **kwargs):
     if data_range is not None:
         data = np.clip(data, data_range[0], data_range[1])
-    hist, bin_edges = np.histogram(data,n, density=True)
+    hist, bin_edges = np.histogram(data, n, density=True)
     plt.plot(bin_edges[:-1] + (bin_edges[1] - bin_edges[0]) / 2, hist, *args, **kwargs)
     return data
+
+
+def getFont(**kwargs):
+    to_dict = {}
+    for name in [ "font.family",  "font.sans-serif", "font.serif",
+                 "font.size", "font.stretch", "font.style", "font.variant", "font.weight", ]:
+        to_dict[name[5:]] = plt.rcParams[name]
+    for name in kwargs:
+        to_dict[name] = kwargs[name]
+    return to_dict
 
 
 def main():

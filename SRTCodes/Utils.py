@@ -279,14 +279,17 @@ class DirFileName:
             os.mkdir(self.dirname)
         return self
 
-    def fn(self, *names):
+    def fn(self, *names, is_show=False):
         """ add directory or file name in the end of cwd
         /
+        :param is_show:
         :param names:
         :return:
         """
         if len(names) == 0:
             return self.dirname
+        if is_show:
+            print(os.path.join(self.dirname, *names))
         return os.path.join(self.dirname, *names)
 
     def listdir(self, ext=None):
