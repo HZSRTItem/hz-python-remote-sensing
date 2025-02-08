@@ -666,9 +666,20 @@ class GDALRaster(GDALRasterIO, SRTCollection):
             if self.d is None:
                 self.d = self.readAsArray()
             d = self.d
+        if dtype is None:
+            dtype = self.NpType2GDALType[d.dtype.__str__()]
         self._save(d=d, save_geo_raster_fn=save_geo_raster_fn, fmt=fmt, dtype=dtype, geo_transform=geo_transform,
                    probing=probing, start_xy=start_xy, interleave=interleave, options=options,
                    descriptions=descriptions)
+
+    def saveGTiff(self, d: np.array = None, save_geo_raster_fn: StrOrBytesPath = None, dtype="float32",
+                  geo_transform=None,
+                  probing=None, start_xy=None, interleave='band', options=None, descriptions=None):
+        fmt = "GTiff"
+        if isinstance(dtype, str):
+            dtype = self.NpType2GDALType[dtype]
+        self.save(d=d, save_geo_raster_fn=save_geo_raster_fn, fmt="GTiff", dtype=dtype, geo_transform=geo_transform,
+                  probing=probing, start_xy=start_xy, interleave=interleave, options=options, descriptions=descriptions)
 
     def __getitem__(self, feat_name_or_number):
         if self.d is None:

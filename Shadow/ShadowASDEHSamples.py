@@ -37,40 +37,44 @@ from SRTCodes.SRTModel import SamplesData, MLModel, DataScale, SVM_RGS, RF_RGS, 
 from SRTCodes.SRTSample import samplesDescription
 from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.Utils import saveJson, changext, mkdir, DirFileName, getfilenamewithoutext, printDict, \
-    readJson, SRTWriteText, timeStringNow, timeDirName, readLines, savecsv, filterFileEndWith, printList, Jdt
+    readJson, SRTWriteText, timeStringNow, timeDirName, readLines, savecsv, filterFileEndWith, printList, Jdt, \
+    ChangeInitDirname
 from Shadow.Hierarchical.SHH2Config import FEAT_NAMES_CLS
 from Shadow.ShadowMainBeiJing import bjFeatureDeal
 from Shadow.ShadowMainChengDu import cdFeatureDeal
 from Shadow.ShadowMainQingDao import qdFeatureDeal
 
-_MODEL_DIRNAME = r"F:\ProjectSet\Shadow\ASDEHSamples\Models"
+_cid = ChangeInitDirname().initTrack(r"F:\F")
+_cid_G = ChangeInitDirname().initTrack(r"F:\G")
 
-_BJ_RASTER_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Images\BeiJing\HSPL_BJ_envi.dat"
-_CD_RASTER_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Images\ChengDu\HSPL_CD_envi.dat"
-_QD_RASTER_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Images\QingDao\HSPL_QD_envi.dat"
+_MODEL_DIRNAME = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Models")
 
-_BJ_RANGE_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Images\BeiJing\HSPL_BJ.range"
-_CD_RANGE_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Images\ChengDu\HSPL_CD.range"
-_QD_RANGE_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Images\QingDao\HSPL_QD.range"
+_BJ_RASTER_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\BeiJing\HSPL_BJ_envi.dat")
+_CD_RASTER_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\ChengDu\HSPL_CD_envi.dat")
+_QD_RASTER_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\QingDao\HSPL_QD_envi.dat")
 
-_BJ_OSPL_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\BeiJing\sh_bj_sample.csv"
-_CD_OSPL_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\ChengDu\sh_cd_sample.csv"
-_QD_OSPL_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\QingDao\sh_qd_sample.csv"
+_BJ_RANGE_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\BeiJing\HSPL_BJ.range")
+_CD_RANGE_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\ChengDu\HSPL_CD.range")
+_QD_RANGE_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\QingDao\HSPL_QD.range")
 
-_BJ_SPL_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\HSPL_BJ.csv"
-_CD_SPL_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\HSPL_CD.csv"
-_QD_SPL_FN = r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\HSPL_QD.csv"
+_BJ_OSPL_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\BeiJing\sh_bj_sample.csv")
+_CD_OSPL_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\ChengDu\sh_cd_sample.csv")
+_QD_OSPL_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\QingDao\sh_qd_sample.csv")
 
-_SAMPLES_DFN = DirFileName(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples")
-_QD_SAMPLES_DFN = DirFileName(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\QingDao")
-_BJ_SAMPLES_DFN = DirFileName(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\BeiJing")
-_CD_SAMPLES_DFN = DirFileName(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\ChengDu")
+_BJ_SPL_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\HSPL_BJ.csv")
+_CD_SPL_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\HSPL_CD.csv")
+_QD_SPL_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\HSPL_QD.csv")
+
+_SAMPLES_DFN = DirFileName(_cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples"))
+_QD_SAMPLES_DFN = DirFileName(_cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\QingDao"))
+_BJ_SAMPLES_DFN = DirFileName(_cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\BeiJing"))
+_CD_SAMPLES_DFN = DirFileName(_cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\ChengDu"))
 
 _CATEGORY_NAMES = ["IS", "VEG", "SOIL", "WAT"]
 
 _CITY_NAMES_FULL = ["QingDao", "BeiJing", "ChengDu"]
 
-_MODEL_LOG_DIRNAME = r"F:\ProjectSet\Shadow\ASDEHSamples\Models\Logs"
+_MODEL_LOG_DIRNAME = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Models\Logs")
 _MODEL_DFN = DirFileName(_MODEL_DIRNAME)
 
 _C_NAME_CODE_MAP_DICT = {
@@ -1977,7 +1981,9 @@ def adsi():
 
     def func1():
 
-        to_dfn = DirFileName(r"F:\ASDEWrite\Images")
+        is_chinese = True
+
+        to_dfn = DirFileName(r"F:\F\ASDEWrite\Images")
 
         show_cnames = {
             "AS": ['IS_AS_SH', 'VEG_AS_SH', 'SOIL_AS_SH', 'WAT_AS_SH', ],
@@ -1996,6 +2002,18 @@ def adsi():
             "NON": [("-",),
                     {"color": "black", "marker": "x", "ms": 8, "markerfacecolor": 'none', "label": "Non Shadows"}]
         }
+
+        if is_chinese:
+            show_args = {
+                "AS": [("-",),
+                       {"color": "#BF1D2D", "marker": "^", "ms": 8, "markerfacecolor": 'none', "label": "升轨SAR阴影"}],
+                "DE": [("-",),
+                       {"color": "#293890", "marker": "o", "ms": 8, "markerfacecolor": 'none', "label": "降轨SAR阴影"}],
+                "Opt": [("-",),
+                        {"color": "gray", "marker": "s", "ms": 8, "markerfacecolor": 'none', "label": "光学阴影"}],
+                "NON": [("-",),
+                        {"color": "black", "marker": "x", "ms": 8, "markerfacecolor": 'none', "label": "非阴影"}]
+            }
 
         show_cnames_tmp = {
             "AS": ['IS_AS_SH', 'VEG_AS_SH', 'SOIL_AS_SH', 'WAT_AS_SH', ],
@@ -2047,7 +2065,9 @@ def adsi():
             ]
 
             plt.rcParams['font.size'] = 16
-            plt.rc('text', usetex=True)
+            plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+            plt.rcParams['mathtext.fontset'] = 'stix'
+            # plt.rc('text', usetex=True)
             plt.figure(figsize=(12, 5))
             plt.subplots_adjust(top=0.9, bottom=0.2, left=0.1, right=0.9, hspace=0.4, wspace=0.4)
 
@@ -2066,11 +2086,15 @@ def adsi():
                 ]],
             )
 
-            plt.xlabel("SAR features")
-            plt.ylabel("Pixel values")
+            if is_chinese:
+                plt.xlabel("特征")
+                plt.ylabel("特征均值")
+            else:
+                plt.xlabel("SAR features")
+                plt.ylabel("Pixel values")
             plt.legend(frameon=False)
 
-            plt.savefig(to_dfn.fn("{}_1.jpg".format(to_name)), bbox_inches='tight', pad_inches=0.05, dpi=300)
+            plt.savefig(to_dfn.fn("{}_11.jpg".format(to_name)), bbox_inches='tight', pad_inches=0.05, dpi=300)
 
         def show_2():
 
@@ -2081,7 +2105,9 @@ def adsi():
             ]
 
             plt.rcParams['font.size'] = 16
-            plt.rc('text', usetex=True)
+            plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+            plt.rcParams['mathtext.fontset'] = 'stix'
+            # plt.rc('text', usetex=True)
             plt.figure(figsize=(12, 5))
             plt.subplots_adjust(top=0.9, bottom=0.2, left=0.1, right=0.9, hspace=0.4, wspace=0.4)
 
@@ -2097,12 +2123,16 @@ def adsi():
                 ]],
             )
 
-            plt.xlabel("SAR features")
-            plt.ylabel("Pixel values of (AS-DE)")
+            if is_chinese:
+                plt.xlabel("特征")
+                plt.ylabel("特征均值（升轨-降轨）")
+            else:
+                plt.xlabel("SAR features")
+                plt.ylabel("Pixel values of (AS-DE)")
 
             plt.legend(frameon=False, bbox_to_anchor=(0.6, 0.60), borderaxespad=0.05, )
 
-            plt.savefig(to_dfn.fn("{}_2.jpg".format(to_name)), bbox_inches='tight', pad_inches=0.05, dpi=300)
+            plt.savefig(to_dfn.fn("{}_21.jpg".format(to_name)), bbox_inches='tight', pad_inches=0.05, dpi=300)
 
         show_1()
 
@@ -2387,7 +2417,7 @@ def adsiThreshold():
         # gr.save(adsi_data, r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\{}_adsi4.dat".format(city_name))
 
     def cal1(city_name):
-        dfn = DirFileName(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold")
+        dfn = DirFileName(r"F:\F\ProjectSet\Shadow\ASDEHSamples\Threshold")
 
         gr1 = GDALRaster(dfn.fn("{}_adsi.tif".format(city_name)))
 
@@ -2537,8 +2567,11 @@ def adsiThreshold():
 
     def func4():
         plt.rcParams['font.size'] = 14
-        plt.rcParams['font.family'] = 'serif'
-        plt.rcParams['font.serif'] = ['Times New Roman']
+        # plt.rcParams['font.family'] = 'serif'
+        # plt.rcParams['font.serif'] = ['Times New Roman']
+
+        plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+        plt.rcParams['mathtext.fontset'] = 'stix'
 
         def cal_city(city_name):
             qd_sei, qd_csi, qd_adsi_data, qd_gr1, qd_gr2, qd_spls = cal1(city_name)
@@ -2608,44 +2641,74 @@ def adsiThreshold():
             def show_t(_data, _n=1):
                 plt.axvline(_data, color="red")
                 if _n == 1:
-                    plt.text(0.1, 0.65, "T1={:.3f}".format(_data), transform=plt.gca().transAxes)
+                    plt.text(0.1, 0.65, "$T1={:.3f}$".format(_data), transform=plt.gca().transAxes)
                 if _n == 2:
-                    plt.text(0.55, 0.68, "T2={:.3f}".format(_data), transform=plt.gca().transAxes)
+                    plt.text(0.55, 0.68, "$T2={:.3f}$".format(_data), transform=plt.gca().transAxes)
 
             plt.subplot(2, 3, subplot)
             data_opt = get_data("Opt", "CSI", )
-            plt.hist(data_opt, bins=50, density=True, label="Optical shadows", color="lightgray")
+            if is_chinese:
+                label = "光学阴影"
+            else:
+                label = "Optical shadows"
+            plt.hist(data_opt, bins=50, density=True, label=label, color="lightgray")
             data_non = get_data("NON", "CSI", )
-            plt.hist(data_non, bins=50, density=True, label="Non-shadows", color="dimgray")
+            if is_chinese:
+                label = "非阴影"
+            else:
+                label = "Non-shadows"
+            plt.hist(data_non, bins=50, density=True, label=label, color="dimgray")
             data_cat = np.concatenate([data_non, data_opt])
             ts["{} OTSU CSI".format(city_name)] = OTSU(data_cat, 100)
             show_t(ts["{} OTSU CSI".format(city_name)], 1)
             print(city_name, "OTSU CSI", ts["{} OTSU CSI".format(city_name)])
 
             plt.title(title_list[subplot - 1])
-            plt.ylabel("frequency (%)")
-            plt.xlabel("CSI values")
+            if is_chinese:
+                plt.ylabel("频率 (%)")
+                plt.xlabel("$CSI$")
+            else:
+                plt.ylabel("frequency (%)")
+                plt.xlabel("CSI values")
             plt.legend(loc='upper left', prop={"size": 10}, frameon=True,
                        fancybox=True, facecolor='white', edgecolor='black', )
 
             plt.subplot(2, 3, subplot + 3)
             data_opt = get_data(["AS", "DE"], "ADSI", )
-            plt.hist(data_opt, bins=50, density=True, label="AS\\DE SAR shadows", color="saddlebrown")
+            if is_chinese:
+                label = "升降轨阴影"
+            else:
+                label = "AS\\DE SAR shadows"
+            plt.hist(data_opt, bins=50, density=True, label=label, color="saddlebrown")
             data_non = get_data("NON", "ADSI", )
-            plt.hist(data_non, bins=50, density=True, label="Non-shadows", color="dimgray")
+            if is_chinese:
+                label = "非阴影"
+            else:
+                label = "Non-shadows"
+            plt.hist(data_non, bins=50, density=True, label=label, color="dimgray")
             data_cat = np.concatenate([data_non, data_opt])
             ts["{} OTSU ADSI".format(city_name)] = OTSU(data_cat, 100)
             show_t(ts["{} OTSU ADSI".format(city_name)], 2)
             print(city_name, "OTSU ADSI", ts["{} OTSU ADSI".format(city_name)])
 
             plt.title(title_list[subplot - 1 + 3])
-            plt.ylabel("frequency (%)")
-            plt.xlabel("ADSI's absolute values")
+            if is_chinese:
+                plt.ylabel("频率 (%)")
+                plt.xlabel("$ADSI$ 的绝对值")
+            else:
+                plt.ylabel("frequency (%)")
+                plt.xlabel("ADSI's absolute values")
             plt.legend(loc='upper left', prop={"size": 10}, frameon=True,
                        fancybox=True, facecolor='white', edgecolor='black', )
 
-        title_list = ["(a) Qingdao", "(b) Beijing", "(c) Chengdu",
-                      "(d) Qingdao", "(e) Beijing", "(f) Chengdu", ]
+        is_chinese=True
+
+        if is_chinese:
+            title_list = ["$(a)$ 青岛", "$(b)$ 北京", "$(c)$ 成都",
+                          "$(d)$ 青岛", "$(e)$ 北京", "$(f)$ 成都", ]
+        else:
+            title_list = ["$(a)$ Qingdao", "$(b)$ Beijing", "$(c)$ Chengdu",
+                      "$(d)$ Qingdao", "$(e)$ Beijing", "$(f)$ Chengdu", ]
 
         ts = {}
         plt.figure(figsize=(14, 9))
@@ -2656,7 +2719,8 @@ def adsiThreshold():
         cal_city3("cd", 3)
 
         printDict("OTSU", ts)
-        fn = r"F:\ASDEWrite\Images\Up\Fig-6-OptimalThreshold.jpg"
+        fn = r"F:\F\GraduationDesign\MkTu\Fig-6-OptimalThreshold.jpg"
+        print(fn)
         plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0)
         plt.show()
 
@@ -2664,7 +2728,7 @@ def adsiThreshold():
 
 
 if __name__ == "__main__":
-    draw()
+    adsiThreshold()
 
 r"""
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowASDEHSamples import trainimdcMain; trainimdcMain()"

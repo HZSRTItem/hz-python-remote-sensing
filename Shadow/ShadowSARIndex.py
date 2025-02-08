@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from matplotlib import pyplot as plt
-from onedal.svm import SVC
+from sklearn.svm import SVC
 from osgeo import gdal
 from scipy.ndimage import gaussian_filter1d
 from sklearn.ensemble import RandomForestClassifier
@@ -34,33 +34,35 @@ from SRTCodes.SRTSample import SRTSampleSelect
 from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.SampleUtils import SamplesUtil
 from SRTCodes.Utils import DirFileName, FRW, changext, getfilenamewithoutext, RumTime, savecsv, readJson, \
-    TableLinePrint, printDict, printList, readLines, saveJson, filterFileEndWith
+    TableLinePrint, printDict, printList, readLines, saveJson, filterFileEndWith, ChangeInitDirname
 from Shadow.Hierarchical import SHH2Config
 
-_RASTER_FN_1 = r"F:\ProjectSet\Shadow\ASDEIndex\Images\QD_SI_BS_1.tif"
+_cid = ChangeInitDirname().initTrack(r"F:\F")
+
+_RASTER_FN_1 = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Images\QD_SI_BS_1.tif")
 _RANGE_FN_1 = changext(_RASTER_FN_1, "_range.json")
-_BJ_RASTER_FN = r"F:\ProjectSet\Shadow\ASDEIndex\Images\BJ_SI_BS_1.tif"
+_BJ_RASTER_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Images\BJ_SI_BS_1.tif")
 _BJ_RANGE_FN = changext(_BJ_RASTER_FN, "_range.json")
-_CD_RASTER_FN = r"F:\ProjectSet\Shadow\ASDEIndex\Images\CD_SI_BS_1.tif"
+_CD_RASTER_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Images\CD_SI_BS_1.tif")
 _CD_RANGE_FN = changext(_CD_RASTER_FN, "_range.json")
 
-_QD_RASTER_FN_2 = r"F:\ProjectSet\Shadow\ASDEIndex\Images\QD_SI_BS_2.dat"
-_BJ_RASTER_FN_2 = r"F:\ProjectSet\Shadow\ASDEIndex\Images\BJ_SI_BS_2.dat"
-_CD_RASTER_FN_2 = r"F:\ProjectSet\Shadow\ASDEIndex\Images\CD_SI_BS_2.dat"
+_QD_RASTER_FN_2 = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Images\QD_SI_BS_2.dat")
+_BJ_RASTER_FN_2 = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Images\BJ_SI_BS_2.dat")
+_CD_RASTER_FN_2 = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Images\CD_SI_BS_2.dat")
 _QD_RANGE_FN_2 = changext(_QD_RASTER_FN_2, "_range.json")
 _BJ_RANGE_FN_2 = changext(_BJ_RASTER_FN_2, "_range.json")
 _CD_RANGE_FN_2 = changext(_CD_RASTER_FN_2, "_range.json")
 
-_QD_RASTER_FN_3 = r"G:\SHImages\QD_SHImages2.vrt"
-_BJ_RASTER_FN_3 = r"G:\SHImages\BJ_SHImages2.vrt"
-_CD_RASTER_FN_3 = r"G:\SHImages\CD_SHImages2.vrt"
+_QD_RASTER_FN_3 = _cid.change(r"G:\SHImages\QD_SHImages2.vrt")
+_BJ_RASTER_FN_3 = _cid.change(r"G:\SHImages\BJ_SHImages2.vrt")
+_CD_RASTER_FN_3 = _cid.change(r"G:\SHImages\CD_SHImages2.vrt")
 _QD_RANGE_FN_3 = changext(_QD_RASTER_FN_3, "_range2.json")
 _BJ_RANGE_FN_3 = changext(_BJ_RASTER_FN_3, "_range2.json")
 _CD_RANGE_FN_3 = changext(_CD_RASTER_FN_3, "_range2.json")
 
-_QD_ENVI_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat"
-_BJ_ENVI_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_envi.dat"
-_CD_ENVI_FN = r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_envi.dat"
+_QD_ENVI_FN = _cid.change(r"F:\ProjectSet\Shadow\Hierarchical\Images\QingDao\SH22\SHH2_QD2_envi.dat")
+_BJ_ENVI_FN = _cid.change(r"F:\ProjectSet\Shadow\Hierarchical\Images\BeiJing\SH22\SHH2_BJ2_envi.dat")
+_CD_ENVI_FN = _cid.change(r"F:\ProjectSet\Shadow\Hierarchical\Images\ChengDu\SH22\SHH2_CD2_envi.dat")
 
 _RASTER_NAMES_1 = [
     "Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2", "NDVI", "NDWI", "MNDWI",
@@ -73,9 +75,9 @@ _MODEL_DIRNAME = r"F:\ProjectSet\Shadow\ASDEIndex\Models"
 _MAP_DICT = {"IS": 1, "VEG": 2, "SOIL": 3, "WAT": 4, "IS_SH": 1, "VEG_SH": 2, "SOIL_SH": 3, "WAT_SH": 4}
 _COLOR_TABLE_4 = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255), }
 
-_QD_SPL_FN = r"F:\ProjectSet\Shadow\ASDEIndex\Samples\sh2_spl30_qd6.csv"
-_BJ_SPL_FN = r"F:\ProjectSet\Shadow\ASDEIndex\Samples\sh2_spl30_bj1.csv"
-_CD_SPL_FN = r"F:\ProjectSet\Shadow\ASDEIndex\Samples\sh2_spl30_cd6.csv"
+_QD_SPL_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Samples\sh2_spl30_qd6.csv")
+_BJ_SPL_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Samples\sh2_spl30_bj1.csv")
+_CD_SPL_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Samples\sh2_spl30_cd6.csv")
 
 
 def _GET_CITY_NAME(city_name, _qd, _bj, _cd):
@@ -1040,9 +1042,9 @@ def draw():
         cd = gdi.addGR(raster_fn=_CD_RASTER_FN_2, geo_range=_CD_RANGE_FN_2)
         gdi.addRCC("RGB", qd, bj, cd, channel_list=["Red", "Green", "Blue"])
         gdi.addRCC("NRG", qd, bj, cd, channel_list=["NIR", "Red", "Green"])
-        to_dict = pd.DataFrame(readJson(r"F:\GraduationDesign\Result\results.json")).T.to_dict("list")
+        to_dict = pd.DataFrame(readJson(_cid.change(r"F:\GraduationDesign\Result\results.json"))).T.to_dict("list")
         for name in to_dict:
-            gdi.addRCC(name, *to_dict[name], channel_list=[0], is_01=False, is_min_max=False, )
+            gdi.addRCC(name, *list(map(_cid.change,to_dict[name])), channel_list=[0], is_01=False, is_min_max=False, )
         print(gdi.keys())
 
         names = [
@@ -1101,9 +1103,9 @@ def draw():
         column = draw_column()
 
         column.fit(r"(1)", 120.32396, 36.35739)
-        column.fit(r"(2)", 120.194134,36.301147)
+        column.fit(r"(2)", 120.194134, 36.301147)
         column.fit(r"(3)", 116.348373, 39.782519)
-        column.fit(r"(4)", 116.701712,39.721282)
+        column.fit(r"(4)", 116.701712, 39.721282)
         column.fit(r"(5)", 104.101211, 30.788077)
         column.fit(r"(6)", 104.065650, 30.696051)
 

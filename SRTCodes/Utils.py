@@ -267,6 +267,8 @@ class DirFileName:
 
     def _getDataDir(self):
         dir_list = []
+        if not os.path.isdir(self._week_dir):
+            return None
         for f in os.listdir(self._week_dir):
             ff = os.path.join(self._week_dir, f)
             if os.path.isdir(ff):
@@ -1857,6 +1859,22 @@ class TableLinePrint:
         self.print(*texts, sep=sep, end=end, func_print=func_print)
         self.separationLine(_type=separation_line_type, sep=separation_line_sep,
                             end=separation_line_end, func_print=func_print)
+        return self
+
+
+class ChangeInitDirname:
+
+    def __init__(self):
+        self._change_func = lambda x: x
+
+    def change(self, *names):
+        return self._change_func(os.path.join(*names))
+
+    def initTrack(self, to_name):
+        def _func(_fn):
+            return to_name + _fn[2:]
+
+        self._change_func = _func
         return self
 
 

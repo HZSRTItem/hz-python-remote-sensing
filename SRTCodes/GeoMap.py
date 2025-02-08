@@ -7,10 +7,13 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2024, ZhengHan. All rights reserved.
 @Desc    : PyCodes of GeoMap
 -----------------------------------------------------------------------------"""
+import matplotlib.axes
+import matplotlib.transforms
 import matplotlib.pyplot as plt
 import numpy as np
 from osgeo.gdal_array import BandReadAsArray
-
+from osgeo import ogr
+from osgeo import osr
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.Utils import datasCaiFen
 
@@ -80,7 +83,7 @@ class GMCoorTrans:
         data = datasCaiFen(data)
         to_list = []
         for d in data:
-            row, column = self.gr.coorGeo2Raster(d, y0)
+            row, column = self.gr.coorGeo2Raster(x0, d)
             to_list.append(row - row0)
         return to_list
 
@@ -90,7 +93,7 @@ class GMCoorTrans:
         data = datasCaiFen(data)
         to_list = []
         for d in data:
-            row, column = self.gr.coorGeo2Raster(x0, d)
+            row, column = self.gr.coorGeo2Raster(d, y0)
             to_list.append(column - colum0)
         return to_list
 
@@ -155,7 +158,7 @@ class DMS:
         return (self.degrees, self.minutes, self.seconds) >= (other.degrees, other.minutes, other.seconds)
 
 
-def coors(gm_coor, x_major_len, y_major_len, x_minor_len, y_minor_len, fontdict=None, ):
+def coors(gm_coor, x_major_len, y_major_len, x_minor_len, y_minor_len, fontdict=None, ax=None):
     def getlen(lim, major_len, minor_len):
         lim0, lim1 = DMS.fromDecimalDegrees(lim[0]), DMS.fromDecimalDegrees(lim[1])
         if lim0 > lim1:
@@ -177,13 +180,12 @@ def coors(gm_coor, x_major_len, y_major_len, x_minor_len, y_minor_len, fontdict=
 
         return get_list(major_len), get_list(minor_len)
 
-    xlim, ylim = plt.xlim(), plt.ylim()
+    xlim, ylim = ax.get_xlim(), ax.get_ylim()
 
     def x_coors():
-        ax = plt.gca()
         if xlim is not None:
-            plt.xlim(xlim)
-        column_lim = plt.xlim()
+            ax.set_xlim(xlim)
+        column_lim = ax.get_xlim()
 
         xticks1, xticks2 = getlen(tuple(gm_coor.y(xlim[0] + 0.5, xlim[1] - 0.5)), x_major_len, x_minor_len)
         xticks1, xticks2 = gm_coor.column(xticks1), gm_coor.column(xticks2)
@@ -200,11 +202,10 @@ def coors(gm_coor, x_major_len, y_major_len, x_minor_len, y_minor_len, fontdict=
         return column_lim
 
     def y_coors():
-        ax = plt.gca()
         if ylim is not None:
-            plt.ylim(ylim)
-        row_lim = plt.ylim()
-        yticks1, yticks2 = getlen(tuple(gm_coor.x(ylim[0] + 0.5, ylim[0] - 0.5)), y_major_len, y_minor_len)
+            ax.set_ylim(ylim)
+        row_lim = ax.get_ylim()
+        yticks1, yticks2 = getlen(tuple(gm_coor.x(ylim[1] - 0.5, ylim[0] + 0.5)), y_major_len, y_minor_len)
         yticks1, yticks2 = gm_coor.row(yticks1), gm_coor.row(yticks2)
         ax.set_yticks(yticks1)
         ax.set_yticks(yticks2, minor=True)
@@ -219,18 +220,17 @@ def coors(gm_coor, x_major_len, y_major_len, x_minor_len, y_minor_len, fontdict=
         return row_lim
 
     xlim, ylim = x_coors(), y_coors()
-    print(xlim, ylim)
-    plt.twinx()
-    xlim, ylim = x_coors(), y_coors()
-    print(xlim, ylim)
-    plt.twiny()
-    xlim, ylim = x_coors(), y_coors()
-    print(xlim, ylim)
+
+    ax = ax.twinx()
+    xlim = y_coors()
+
+    ax = ax.twiny()
+    ylim = x_coors()
 
 
 def toDFM(data, is_miao=False):
     degrees = float(data)
-    deg = int(round(degrees))
+    deg = int(degrees)
     minutes = (degrees - deg) * 60
     min_tmp = int(minutes)
     sec = (minutes - min_tmp) * 60
@@ -241,15 +241,17 @@ def toDFM(data, is_miao=False):
 
 class GMRaster:
 
-    def __init__(self, raster_fn):
+    def __init__(self, raster_fn, ax=None):
         self.raster_fn = raster_fn
         self.gr = GDALRaster(raster_fn)
         self.data = None
         self.geo_region = None
         self.raster_region = None
         self._initRegion()
+        self.ax = ax
 
-    def read(self, channels, geo_region=None, raster_region=None, min_list=None, max_list=None):
+    def read(self, channels, geo_region=None, raster_region=None,
+             min_list=None, max_list=None, color_table=None, _func=None):
         self._initRegion(geo_region=geo_region, raster_region=raster_region)
         if isinstance(channels, int):
             channels = [channels]
@@ -278,13 +280,30 @@ class GMRaster:
                 else:
                     max_list_tmp.append(max_list)
 
-            data_tmp = np.clip(data_tmp, min_list_tmp[i], max_list_tmp[i], )
-            data_tmp = (data_tmp - min_list_tmp[i]) / (max_list_tmp[i] - min_list_tmp[i])
+            if _func is not None:
+                data_tmp = _func(data_tmp)
+
+            if color_table is None:
+                data_tmp = np.clip(data_tmp, min_list_tmp[i], max_list_tmp[i], )
+                data_tmp = (data_tmp - min_list_tmp[i]) / (max_list_tmp[i] - min_list_tmp[i])
+
             data.append([data_tmp])
+
         if len(data) == 1:
-            data = data * 3
-        self.data = np.concatenate(data)
-        self.data = self.data.transpose((1, 2, 0))
+            if color_table is not None:
+                data = data[0][0]
+                to_data = np.zeros((data.shape[0], data.shape[1], 3,), )
+                for n, color in color_table.items():
+                    to_data[data == n, :] = np.array(color)
+                to_data = to_data / 255.0
+                self.data = to_data
+            else:
+                data = data * 3
+                self.data = np.concatenate(data)
+                self.data = self.data.transpose((1, 2, 0))
+        else:
+            self.data = np.concatenate(data)
+            self.data = self.data.transpose((1, 2, 0))
 
     def _initRegion(self, geo_region=None, raster_region=None, ):
         if geo_region is None and raster_region is None:
@@ -304,25 +323,101 @@ class GMRaster:
 
         return
 
-    def draw(self, n_ex=2, fontdict=None):
+    def draw(self, n_ex=2,
+             x_major_len=(0, 6, 0), y_major_len=(0, 6, 0),
+             x_minor_len=(0, 0, 20), y_minor_len=(0, 0, 20),
+             fontdict=None):
+
         if fontdict is None:
             fontdict = {}
 
-        fig = plt.figure(figsize=(self.data.shape[1] / self.data.shape[0] * n_ex, n_ex), )
-        fig.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.9, hspace=0.04, wspace=0.03)
+        ax=None
+        if n_ex is not None:
+            fig = plt.figure(figsize=(self.data.shape[1] / self.data.shape[0] * n_ex, n_ex), )
+            fig.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.9, hspace=0.04, wspace=0.03)
+            self.ax = plt.gca()
+            ax = plt.gca()
 
-        plt.imshow(self.data)
+        self.ax.imshow(self.data)
 
         gm_coor = GMCoorTrans(self.gr, self.geo_region, self.raster_region)
-        coors(gm_coor, (0, 6, 0), (0, 6, 0), (0, 0, 20), (0, 0, 20), fontdict=fontdict)
+        coors(gm_coor, x_major_len, y_major_len, x_minor_len, y_minor_len, fontdict=fontdict, ax=self.ax)
+
+        return ax
+
+    def scale(self, loc=(0.5, 0.1), length=0.3, offset=0.05, offset2=0.05, offset3=0.3,
+              high=0.05, high2=0.016, fontdict=None):
+        if fontdict is None:
+            fontdict = {'family': 'Times New Roman', "size": 14}
+        self.ax: matplotlib.axes.Axes
+        xlim, ylim = self.ax.get_xlim(), self.ax.get_ylim()
+        loc1 = (xlim[0] + loc[0] * (xlim[1] - xlim[0]), ylim[0] + loc[1] * (ylim[1] - ylim[0]),)
+        length = length * (xlim[1] - xlim[0])
+        loc2 = (loc1[0] + length, loc1[1])
+        offset1 = offset * length
+        loc11 = loc1[0] + offset1, loc1[1]
+        loc22 = loc2[0] - offset1 - offset2 * (xlim[1] - xlim[0]), loc2[1]
+        self.ax.plot((loc11[0], loc22[0]), (loc11[1], loc22[1]), color='black', )
+        high = high * (ylim[1] - ylim[0])
+        self.ax.fill(
+            [loc1[0], loc1[0], loc2[0], loc2[0], loc1[0]],
+            [loc1[1] - high * 0.1, loc1[1] + high, loc2[1] + high, loc2[1] - high * 0.1, loc1[1] - high * 0.1],
+            color='white',
+        )
+        self.ax.text(loc22[0] + 0.01 * (xlim[1] - xlim[0]), loc22[1], "kilometers", fontdict=fontdict)
+        x_list = [loc11[0],
+                  loc11[0] + (loc22[0] - loc11[0]) / 4.0,
+                  loc11[0] + (loc22[0] - loc11[0]) / 2.0,
+                  loc22[0]]
+        high2 = high2 * (ylim[1] - ylim[0])
+        for x in x_list:
+            self.ax.plot((x, x), (loc11[1], loc11[1] + high2), color="black")
+        if self.gr.dst_srs.IsGeographic():
+            resolution = abs(111319.489700 * self.gr.geo_transform[1])
+        else:
+            resolution = abs(self.gr.geo_transform[1])
+        numbers = [0, (loc22[0] - loc11[0]) / 4.0 * resolution, (loc22[0] - loc11[0]) / 2.0 * resolution,
+                   loc22[0] * resolution]
+        numbers = np.array(numbers) / 1000
+        for i, number in enumerate(numbers):
+            self.ax.text(x_list[i], loc11[1] + high2 + high * offset3, "{:.1f}".format(float(number)),
+                         fontdict=fontdict, horizontalalignment="center")
+
+    def compass(self, loc=(0.5, 0.5), size=1.0, fontdict=None):
+        if fontdict is None:
+            fontdict = {'family': 'Times New Roman', "size": 14 * size}
+        t1 = 0.1
+        plt.axes((loc[0], loc[1], (t1 * 2 * 0.1) * size, 0.1 * size))
+        plt.fill(
+            [0.5, 0.5 - t1, 0.5, 0.5 + t1, 0.5],
+            [0.6, 0.05, 0.15, 0.05, 0.6],
+            color='black',
+        )
+        plt.text(0.5, 0.69, "N", fontdict=fontdict, verticalalignment="center", horizontalalignment="center")
+        plt.xlim([0.5 - t1, 0.5 + t1])
+        plt.ylim([0, 1])
+
+        plt.gca().spines['right'].set_visible(False)
+        plt.gca().spines['left'].set_visible(False)
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['bottom'].set_visible(False)
+
+        plt.xticks([])
+        plt.yticks([])
 
 
 def main():
-    gmr = GMRaster(r"G:\SHImages\QD_AS_VV.tif")
+    gmr = GMRaster(r"F:\G\SHImages\QD_AS_VV.tif")
     gmr.read(1)
     gmr.draw(8, fontdict={"size": 16})
+    gmr.scale(
+        loc=(0.40, 0.02), length=0.5269,
+        offset=0.06, offset2=0.13, offset3=0.3, high=0.08, high2=0.016,
+        fontdict={'family': 'Times New Roman', "size": 21}
+    )
+    gmr.compass(loc=(0.94, 0.76), size=1.8)
+    print(plt.gcf().get_axes())
     plt.show()
-    pass
 
 
 if __name__ == "__main__":

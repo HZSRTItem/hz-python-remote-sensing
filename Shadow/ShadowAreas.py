@@ -13,11 +13,11 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axisartist import AxesZero
 from matplotlib import rcParams
 
-plt.rc('font', family='Times New Roman')
-plt.rc('text', usetex=True)
-plt.rc('font', size=12)
+# plt.rc('font', family='Times New Roman')
+# plt.rc('text', usetex=True)
+# plt.rc('font', size=12)
 # plt.rc('mathtext', default='regular')
-FONT_SIZE = 14
+FONT_SIZE = 16
 #
 # config = {
 #     "font.family": 'serif',
@@ -134,32 +134,59 @@ def main():
     plt.show()
 
 
-def show11(number_fig="a"):
-    ax = plt.subplot(141, axes_class=AxesZero)
-    ax.set_aspect('equal', adjustable='box')
-    plt.xlim([0, 1.0])
-    plt.ylim([0, (1.2 + 0.9) / 2.4])
-    plt.xticks([])
-    plt.yticks([])
-    dy = 0.30
-    y0 = 0.0
-    as_line = SHADC(0.35, 0.6, 0.95, y0).addY(dy).line(
-        color="#BF1D2D", label="AS incident wave").addArrow(2, fx=0, color="#BF1D2D")
-    SHADC(0.58, y0 + 0.02, 0.58, y0 - 0.05).addY(dy).line(color="#BF1D2D")
-    SHADC(0.95, y0 + 0.02, 0.95, y0 - 0.05).addY(dy).line(color="#BF1D2D")
-    de_line = SHADC(0.65, 0.6, 0.05, y0).addY(dy).line(
-        color="#293890", label="DE incident wave").addArrow(2, fx=0, color="#293890")
-    SHADC(0.42, y0 + 0.02, 0.42, y0 - 0.05).addY(dy).line(color="#293890")
-    SHADC(0.05, y0 + 0.02, 0.05, y0 - 0.05).addY(dy).line(color="#293890")
-    building = SHADC().initRt(0.42, 0.58, y0, 0.66 - dy, ).addY(dy).line(
-        color="black").fill(color="lightgrey", label="Building")
-    ground = SHADC(0.02, y0, 0.98, y0).addY(dy).line(color="black")
-    plt.text(0.58 + 0.02, dy - 0.05, "AS Shadow Area", )
-    plt.text(0.7, 0.40, "East", )
-    plt.text(0.05 + 0.02, dy - 0.05, "DE Shadow Area", )
-    plt.text(0.2, 0.40, "West", )
-    plt.text(0.05, 0.75, "({0})".format(number_fig), fontdict={"size": 16})
-    plt.legend(loc="lower center", frameon=False)
+def show11(number_fig="a", is_chinese=False):
+    if not is_chinese:
+        ax = plt.subplot(141, axes_class=AxesZero)
+        ax.set_aspect('equal', adjustable='box')
+        plt.xlim([0, 1.0])
+        plt.ylim([0, (1.2 + 0.9) / 2.4])
+        plt.xticks([])
+        plt.yticks([])
+        dy = 0.30
+        y0 = 0.0
+        as_line = SHADC(0.35, 0.6, 0.95, y0).addY(dy).line(
+            color="#BF1D2D", label="AS incident wave").addArrow(2, fx=0, color="#BF1D2D")
+        SHADC(0.58, y0 + 0.02, 0.58, y0 - 0.05).addY(dy).line(color="#BF1D2D")
+        SHADC(0.95, y0 + 0.02, 0.95, y0 - 0.05).addY(dy).line(color="#BF1D2D")
+        de_line = SHADC(0.65, 0.6, 0.05, y0).addY(dy).line(
+            color="#293890", label="DE incident wave").addArrow(2, fx=0, color="#293890")
+        SHADC(0.42, y0 + 0.02, 0.42, y0 - 0.05).addY(dy).line(color="#293890")
+        SHADC(0.05, y0 + 0.02, 0.05, y0 - 0.05).addY(dy).line(color="#293890")
+        building = SHADC().initRt(0.42, 0.58, y0, 0.66 - dy, ).addY(dy).line(
+            color="black").fill(color="lightgrey", label="Building")
+        ground = SHADC(0.02, y0, 0.98, y0).addY(dy).line(color="black")
+        plt.text(0.58 + 0.02, dy - 0.05, "AS Shadow Area", )
+        plt.text(0.7, 0.40, "East", )
+        plt.text(0.05 + 0.02, dy - 0.05, "DE Shadow Area", )
+        plt.text(0.2, 0.40, "West", )
+        plt.text(0.05, 0.75, "({0})".format(number_fig), fontdict={"size": 16})
+        plt.legend(loc="lower center", frameon=False)
+    else:
+        ax = plt.subplot(221, axes_class=AxesZero)
+        ax.set_aspect('equal', adjustable='box')
+        plt.xlim([0, 1.0])
+        plt.ylim([0, (1.2 + 0.9) / 2.4])
+        plt.xticks([])
+        plt.yticks([])
+        dy = 0.30
+        y0 = 0.0
+        as_line = SHADC(0.35, 0.6, 0.95, y0).addY(dy).line(
+            color="#BF1D2D", label="升轨卫星入射波").addArrow(2, fx=0, color="#BF1D2D")
+        SHADC(0.58, y0 + 0.02, 0.58, y0 - 0.05).addY(dy).line(color="#BF1D2D")
+        SHADC(0.95, y0 + 0.02, 0.95, y0 - 0.05).addY(dy).line(color="#BF1D2D")
+        de_line = SHADC(0.65, 0.6, 0.05, y0).addY(dy).line(
+            color="#293890", label="降轨卫星入射波").addArrow(2, fx=0, color="#293890")
+        SHADC(0.42, y0 + 0.02, 0.42, y0 - 0.05).addY(dy).line(color="#293890")
+        SHADC(0.05, y0 + 0.02, 0.05, y0 - 0.05).addY(dy).line(color="#293890")
+        building = SHADC().initRt(0.42, 0.58, y0, 0.66 - dy, ).addY(dy).line(
+            color="black").fill(color="lightgrey", label="建筑物")
+        ground = SHADC(0.02, y0, 0.98, y0).addY(dy).line(color="black")
+        plt.text(0.58 + 0.02, dy - 0.05, "升轨SAR阴影区域", fontdict={"size": 14})
+        plt.text(0.7, 0.40, "东", fontdict={"size": 14})
+        plt.text(0.05 + 0.02, dy - 0.05, "降轨SAR阴影区域", fontdict={"size": 14})
+        plt.text(0.2, 0.40, "西", fontdict={"size": 14})
+        plt.text(0.05, 0.75, "({0})".format(number_fig), fontdict={"size": 14})
+        plt.legend(loc="lower center", frameon=False, prop={"size": 14})
 
 
 if __name__ == "__main__":
