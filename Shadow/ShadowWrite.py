@@ -23,10 +23,13 @@ def main():
     images_dfn = DirFileName(r"F:\ASDEWrite\Images")
     result_dfn = DirFileName(r"F:\ASDEWrite\Result")
 
-    plt.rcParams['font.family'] = 'serif'
-    plt.rcParams['font.serif'] = ['Times New Roman']
+    # plt.rcParams['font.family'] = 'serif'
+    # plt.rcParams['font.serif'] = ['Times New Roman']
 
-    plt.rc('text', usetex=True)
+    # plt.rc('text', usetex=True)
+
+    plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+    plt.rcParams['mathtext.fontset'] = 'stix'
 
     def func1():
         fn = dfn.fn("ChengDuImages", "SH_CD_envi.dat")
@@ -58,6 +61,8 @@ def main():
 
     def func2():
         FONT_SIZE = 16
+
+        is_chinese = True
 
         win_size = (31, 31)
         gi_win_size = int(win_size[0] * 2640.0 / 121.0), int(win_size[1] * 2026.0 / 121.0)
@@ -92,7 +97,11 @@ def main():
         fig = plt.figure(figsize=(10, 8), )
         fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.03, wspace=0.03)
         n_rows, n_columns = 4, 5
-        column_names = ["Google Earth", "S2", "S1 AS", "S1 DE"]
+
+        if is_chinese:
+            column_names = ["谷歌地球影像", "光学影像", "升轨$SAR$影像", "降轨$SAR$影像"]
+        else:
+            column_names = ["Google Earth", "S2", "S1 AS", "S1 DE"]
 
         from matplotlib import colors
         color_dict = {
@@ -101,12 +110,24 @@ def main():
             3: colors.to_hex((1, 1, 0)),
             4: colors.to_hex((0, 0, 1)),
         }
-        cname_dict = {1: "IS", 2: "VEG", 3: "SO", 4: "WAT"}
-        sh_type_dict = {
-            1: "Optical Shadow",
-            2: "AS SAR Shadow",
-            3: "DE SAR Shadow",
-        }
+
+        if is_chinese:
+            cname_dict = {1: "不透水面", 2: "植被", 3: "裸土", 4: "水体"}
+        else:
+            cname_dict = {1: "IS", 2: "VEG", 3: "SO", 4: "WAT"}
+
+        if is_chinese:
+            sh_type_dict = {
+                1: "光学阴影",
+                2: "升轨$SAR$阴影",
+                3: "降轨$SAR$阴影",
+            }
+        else:
+            sh_type_dict = {
+                1: "Optical Shadow",
+                2: "AS SAR Shadow",
+                3: "DE SAR Shadow",
+            }
 
         class draw_column:
 
@@ -185,22 +206,23 @@ def main():
                 self.column += 1
 
         column = draw_column()
-        column.fit(r"(a)", 104.0629481, 30.6528887,
+        column.fit(r"$(a)$", 104.0629481, 30.6528887,
                    opt_list=[(12, 13, 1)], as_list=[(20.5, 11, 1)], de_list=[(11, 12, 1)])
-        column.fit(r"(b)", 116.4121497, 39.8492792,
+        column.fit(r"$(b)$", 116.4121497, 39.8492792,
                    opt_list=[(15, 12, 2)], as_list=[(17, 11, 2)], de_list=[(15, 19, 2)])
-        column.fit(r"(c)", 116.3555112, 39.7940205,
+        column.fit(r"$(c)$", 116.3555112, 39.7940205,
                    opt_list=[(12, 15, 3)], as_list=[(19, 15, 3)], de_list=[(7, 16, 3)])
-        column.fit(r"(d)", 104.061904, 30.649237,
+        column.fit(r"$(d)$", 104.061904, 30.649237,
                    opt_list=[(13, 14, 4)], as_list=[(18, 14.5, 4)], de_list=[(9, 13.5, 4)])
         # column.fit("(5)    ", 116.4340498, 39.9156977,
         #            opt_list=[(9.5, 24, 1)], as_list=[(18, 12, 1)], de_list=[(10, 14, 1)])
 
-        plt.savefig(images_dfn.fn("fig4112.jpg"), dpi=300, bbox_inches='tight', pad_inches=0.05)
+        plt.savefig(r"F:\GraduationDesign\MkTu\fig4-5.jpg", dpi=300, bbox_inches='tight', pad_inches=0.05)
         plt.show()
 
     def func3():
         FONT_SIZE = 16
+        is_chinese = True
 
         win_size = (41, 41)
         gi_win_size = int(win_size[0] * 2640.0 / 121.0), int(win_size[1] * 2026.0 / 121.0)
@@ -249,12 +271,15 @@ def main():
                 result_dfn.fn("Chengdu", "cd_{}".format(fn)),
                 channel_list=[0], is_01=False, is_min_max=False,
             )
-            imdc_column_names.append(name)
+            imdc_column_names.append("${}$".format(name))
 
         fig = plt.figure(figsize=(14 * 0.75, 12 * 0.75), )
         fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.03, wspace=0.03)
         n_rows, n_columns = 6, 7
-        column_names = ["Google Earth", "S2", "S1 AS", "S1 DE"] + imdc_column_names
+        if is_chinese:
+            column_names = ["谷歌地球影像", "光学影像", "升轨SAR影像", "降轨SAR影像"] + imdc_column_names
+        else:
+            column_names = ["Google Earth", "S2", "S1 AS", "S1 DE"] + imdc_column_names
 
         from matplotlib import colors
 
@@ -272,6 +297,7 @@ def main():
             2: "AS SAR Shadow",
             3: "DE SAR Shadow",
         }
+
 
         class draw_column:
 
@@ -344,10 +370,18 @@ def main():
                             ax.add_patch(ell.fit())
 
                 if (self.row == n_rows) and (self.column == n_columns):
-                    plt.scatter([1], [1], marker=",", color=color_dict[1], edgecolors="black", s=100, label="IS")
-                    plt.scatter([1], [1], marker=",", color=color_dict[2], edgecolors="black", s=100, label="VEG")
-                    plt.scatter([1], [1], marker=",", color=color_dict[3], edgecolors="black", s=100, label="SO")
-                    plt.scatter([1], [1], marker=",", color=color_dict[4], edgecolors="black", s=100, label="WAT")
+                    if is_chinese:
+                        plt.scatter([1], [1], marker=",", color=color_dict[1], edgecolors="black", s=100,
+                                    label="不透水面")
+                        plt.scatter([1], [1], marker=",", color=color_dict[2], edgecolors="black", s=100, label="植被")
+                        plt.scatter([1], [1], marker=",", color=color_dict[3], edgecolors="black", s=100, label="裸土")
+                        plt.scatter([1], [1], marker=",", color=color_dict[4], edgecolors="black", s=100, label="水体")
+                    else:
+                        plt.scatter([1], [1], marker=",", color=color_dict[1], edgecolors="black", s=100, label="IS")
+                        plt.scatter([1], [1], marker=",", color=color_dict[2], edgecolors="black", s=100, label="VEG")
+                        plt.scatter([1], [1], marker=",", color=color_dict[3], edgecolors="black", s=100, label="SO")
+                        plt.scatter([1], [1], marker=",", color=color_dict[4], edgecolors="black", s=100, label="WAT")
+
                     plt.legend(
                         loc='lower left', bbox_to_anchor=(-4.6, -0.4),
                         prop={"size": FONT_SIZE}, frameon=False, ncol=4,
@@ -362,24 +396,25 @@ def main():
             return ell
 
         column = draw_column()
-        column.fit(r"(a)", 120.429395, 36.114999, ells=[_ell((16, 18), 20, 20)])
-        column.fit(r"(d)", 120.414563, 36.160460, ells=[_ell((17, 17))])
+        column.fit(r"$(a)$", 120.429395, 36.114999, ells=[_ell((16, 18), 20, 20)])
+        column.fit(r"$(d)$", 120.414563, 36.160460, ells=[_ell((17, 17))])
         # column.fit(r"(b)", 120.393296,36.134271 )
         # column.fit(r"(b)", 120.439103,36.114294)
         # column.fit(r"(c)", 116.483022,39.886159 )
-        column.fit(r"(c)", 116.393431, 39.858198, ells=[_ell((23, 23), 16, 32)])
+        column.fit(r"$(c)$", 116.393431, 39.858198, ells=[_ell((23, 23), 16, 32)])
         # column.fit(r"(c)", 116.363135,39.948879)
-        column.fit(r"(d)", 116.491673, 39.890778, ells=[_ell((22, 12), 28, 16)])
-        column.fit(r"(e)", 104.076017, 30.645997, ells=[_ell((13, 10), 16, 16), _ell((8, 30), 10, 16, 20)])
-        column.fit(r"(f)", 104.004844, 30.703297, ells=[_ell((19, 15), 10, 36, 50)])
+        column.fit(r"$(d)$", 116.491673, 39.890778, ells=[_ell((22, 12), 28, 16)])
+        column.fit(r"$(e)$", 104.076017, 30.645997, ells=[_ell((13, 10), 16, 16), _ell((8, 30), 10, 16, 20)])
+        column.fit(r"$(f)$", 104.004844, 30.703297, ells=[_ell((19, 15), 10, 36, 50)])
 
-        fn = images_dfn.fn("fig4131.jpg")
+        fn = r"F:\GraduationDesign\MkTu\Images\images\fig4131.jpg"
         plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0.05)
         print(fn)
         plt.show()
 
     def func4():
         FONT_SIZE = 16
+        is_chinese = True
 
         win_size = (61, 61)
         gi_win_size = int(win_size[0] * 2640.0 / 121.0), int(win_size[1] * 2026.0 / 121.0)
@@ -432,12 +467,16 @@ def main():
                 result_dfn.fn("Chengdu", "cd_{}".format(fn)),
                 channel_list=[0], is_01=False, is_min_max=False,
             )
-            imdc_column_names.append(name)
+            imdc_column_names.append("${}$".format(name))
 
         fig = plt.figure(figsize=(9, 9), )
         fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.03, wspace=0.03)
         n_rows, n_columns = 6, 6
-        column_names = ["Google Earth", "S2", ] + imdc_column_names
+
+        if is_chinese:
+            column_names = ["谷歌地球影像", "光学影像", ] + imdc_column_names
+        else:
+            column_names = ["Google Earth", "S2", ] + imdc_column_names
 
         from matplotlib import colors
 
@@ -502,10 +541,18 @@ def main():
                     ax.set_ylabel(self.name, rotation=0, labelpad=10, fontdict={"size": FONT_SIZE})
 
                 if (self.row == n_rows) and (self.column == n_columns):
-                    plt.scatter([1], [1], marker=",", color=color_dict[1], edgecolors="black", s=100, label="IS")
-                    plt.scatter([1], [1], marker=",", color=color_dict[2], edgecolors="black", s=100, label="VEG")
-                    plt.scatter([1], [1], marker=",", color=color_dict[3], edgecolors="black", s=100, label="SO")
-                    plt.scatter([1], [1], marker=",", color=color_dict[4], edgecolors="black", s=100, label="WAT")
+                    if is_chinese:
+                        plt.scatter([1], [1], marker=",", color=color_dict[1], edgecolors="black", s=100,
+                                    label="不透水面")
+                        plt.scatter([1], [1], marker=",", color=color_dict[2], edgecolors="black", s=100, label="植被")
+                        plt.scatter([1], [1], marker=",", color=color_dict[3], edgecolors="black", s=100, label="裸土")
+                        plt.scatter([1], [1], marker=",", color=color_dict[4], edgecolors="black", s=100, label="水体")
+                    else:
+                        plt.scatter([1], [1], marker=",", color=color_dict[1], edgecolors="black", s=100, label="IS")
+                        plt.scatter([1], [1], marker=",", color=color_dict[2], edgecolors="black", s=100, label="VEG")
+                        plt.scatter([1], [1], marker=",", color=color_dict[3], edgecolors="black", s=100, label="SO")
+                        plt.scatter([1], [1], marker=",", color=color_dict[4], edgecolors="black", s=100, label="WAT")
+
                     plt.legend(
                         loc='lower left', bbox_to_anchor=(-4.0, -0.4),
                         prop={"size": FONT_SIZE}, frameon=False, ncol=4,
@@ -515,19 +562,19 @@ def main():
                 self.column += 1
 
         column = draw_column()
-        column.fit(r"(a)", 120.346020, 36.120435)
-        column.fit(r"(b)", 120.387358, 36.125549)
-        column.fit(r"(c)", 116.441548, 39.906636)
-        column.fit(r"(d)", 116.516795, 39.920875)
-        column.fit(r"(e)", 104.066101, 30.656686)
-        column.fit(r"(f)", 104.110842, 30.647660)
+        column.fit(r"$(a)$", 120.346020, 36.120435)
+        column.fit(r"$(b)$", 120.387358, 36.125549)
+        column.fit(r"$(c)$", 116.441548, 39.906636)
+        column.fit(r"$(d)$", 116.516795, 39.920875)
+        column.fit(r"$(e)$", 104.066101, 30.656686)
+        column.fit(r"$(f)$", 104.110842, 30.647660)
 
-        fn = images_dfn.fn("fig4132.jpg")
+        fn = r"F:\GraduationDesign\MkTu\Images\images\fig4132.jpg"
         plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0.05)
         print(fn)
         plt.show()
 
-    return func2()
+    return func3()
 
 
 def method_name1():

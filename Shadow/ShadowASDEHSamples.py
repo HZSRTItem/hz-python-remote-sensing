@@ -44,8 +44,8 @@ from Shadow.ShadowMainBeiJing import bjFeatureDeal
 from Shadow.ShadowMainChengDu import cdFeatureDeal
 from Shadow.ShadowMainQingDao import qdFeatureDeal
 
-_cid = ChangeInitDirname().initTrack(r"F:\F")
-_cid_G = ChangeInitDirname().initTrack(r"F:\G")
+_cid = ChangeInitDirname().initTrack(None)
+_cid_G = ChangeInitDirname().initTrack(None)
 
 _MODEL_DIRNAME = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Models")
 

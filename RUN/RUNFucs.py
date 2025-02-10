@@ -9,6 +9,8 @@ r"""----------------------------------------------------------------------------
 -----------------------------------------------------------------------------"""
 import csv
 import os
+import shutil
+import time
 
 import pandas as pd
 from tabulate import tabulate
@@ -521,5 +523,101 @@ class ConcatCSV_main:
                 print("Can not concat csv.")
 
 
+class CopyDir:
+
+    def __init__(self):
+        self.name = "copydir"
+        self.description = "Copy files to dir"
+        self.argv = []
+
+    def usage(self):
+        print("{0} init_dir to_dir [--help]".format(self.name))
+        print("@Des: {0}".format(self.description))
+
+    def run(self, argv):
+        self.argv = argv
+        if len(argv) == 1:
+            self.usage()
+            return None
+
+        if "--help" in argv:
+            self.usage()
+            return
+
+        if len(argv) < 3:
+            print("Number of argv < 3")
+            self.usage()
+            return
+
+        def _is_dir(_dirname):
+            if not os.path.isdir(_dirname):
+                print("Can not find dirname: \"{}\"".format(_dirname))
+                self.usage()
+                return
+            else:
+                return _dirname
+
+        init_dir = _is_dir(argv[1])
+        to_dir = _is_dir(argv[2])
+
+        class _DirFileName:
+
+            def __init__(self, _dirname):
+                self.dirname = _dirname
+
+            def fn(self, *_names):
+                return os.path.join(self.dirname, *_names)
+
+            def walk(self, ):
+                return os.walk(self.dirname)
+
+        def _mkdir(dirname):
+            if os.path.isdir(dirname):
+                return
+            else:
+                try:
+                    os.mkdir(dirname)
+                    return
+                except:
+                    _mkdir(os.path.dirname(dirname))
+
+        init_dfn = _DirFileName(init_dir)
+        to_dfn = _DirFileName(to_dir)
+
+        for dirpath, dirnames, filenames in init_dfn.walk():
+            init_dfn1 = _DirFileName(dirpath)
+            to_dirname = dirpath[len(init_dir)+1:]
+            to_dfn1 = _DirFileName(os.path.join(to_dir, to_dirname))
+
+            for fn in filenames:
+                if fn.startswith("~$"):
+                    continue
+
+                if fn.startswith("~"):
+                    continue
+
+                to_fn = to_dfn1.fn(fn)
+                fn = init_dfn1.fn(fn)
+
+                dirname = os.path.dirname(to_fn)
+
+                if not os.path.isfile(to_fn):
+                    creation_time = os.path.getctime(fn)
+                    readable_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(creation_time))
+                    # if not readable_time.startswith("2024-01-28"):
+                    print("not    |", readable_time, "->", readable_time, "|", fn, "->", to_fn, dirname)
+                    if not os.path.isdir(dirname):
+                        _mkdir(dirname)
+                    shutil.copyfile(fn, to_fn)
+                else:
+                    time1 = time.localtime(os.path.getmtime(to_fn))
+                    time2 = time.localtime(os.path.getmtime(fn))
+                    if time2 > time1:
+                        modification_time1 = time.strftime('%Y-%m-%d %H:%M:%S', time1)
+                        modification_time2 = time.strftime('%Y-%m-%d %H:%M:%S', time2)
+                        if modification_time1 != modification_time2:
+                            print("change |", modification_time1, "->", modification_time2, "|", fn, "->", to_fn)
+
+
 if __name__ == "__main__":
-    main()
+    CopyDir().run(["", r"F:\材料", r"M:\F\材料"])

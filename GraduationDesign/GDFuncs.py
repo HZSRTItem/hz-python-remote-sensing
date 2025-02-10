@@ -10,14 +10,13 @@ r"""----------------------------------------------------------------------------
 import os
 import random
 
+import matplotlib.image
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.font_manager import FontProperties
 from matplotlib.patches import Ellipse
 from osgeo import gdal
 from tabulate import tabulate
-import matplotlib.image
 
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.GeoMap import GMRaster
@@ -26,8 +25,8 @@ from SRTCodes.SampleUtils import SamplesUtil
 from SRTCodes.Utils import readJson, printList, DirFileName, TableLinePrint, ChangeInitDirname, getfilenme, changext, \
     getfilenamewithoutext
 
-_cid = ChangeInitDirname().initTrack(r"F:\F")
-_cid_G = ChangeInitDirname().initTrack(r"F:\G")
+_cid = ChangeInitDirname().initTrack(None)
+_cid_G = ChangeInitDirname().initTrack(None)
 
 
 def _samplesDescription(df, field_name="TEST", is_print=True):
@@ -44,7 +43,7 @@ class _FUNCS3_SamplesUtil(SamplesUtil):
 
     def __init__(self):
         super(_FUNCS3_SamplesUtil, self).__init__()
-        self.images_fns = readJson(r"F:\G\SHImages\image.json")
+        self.images_fns = readJson(r"G:\SHImages\image.json")
 
     def samplingName(self, name, _func=None, _filters_and=None, _filters_or=None,
                      x_field_name="X", y_field_name="Y", is_jdt=True):
@@ -121,11 +120,11 @@ def main():
             print(to_df)
             _samplesDescription(to_df)
 
-            to_df.to_csv(r"F:\F\GraduationDesign\Result\run\Samples\1\{}_spl1.csv".format(city_name))
+            to_df.to_csv(r"F:\GraduationDesign\Result\run\Samples\1\{}_spl1.csv".format(city_name))
 
         # _sample_update(
         #     city_name="qd",
-        #     csv_fn=r"F:\F\GraduationDesign\Result\run\Samples\sh2_spl30_qd6_spl.csv",
+        #     csv_fn=r"F:\GraduationDesign\Result\run\Samples\sh2_spl30_qd6_spl.csv",
         #     n_dict={
         #         'IS': 835, 'SOIL': 436, 'IS_SH': 0, 'VEG_SH': 0,
         #         'SOIL_SH': 0, 'WAT': 378, 'WAT_SH': 0, 'VEG': 839
@@ -133,7 +132,7 @@ def main():
 
         # _sample_update(
         #     city_name="bj",
-        #     csv_fn=r"F:\F\GraduationDesign\Result\run\Samples\sh2_spl30_bj1_spl.csv",
+        #     csv_fn=r"F:\GraduationDesign\Result\run\Samples\sh2_spl30_bj1_spl.csv",
         #     n_dict={
         #         'IS': -1, 'SOIL': -1, 'IS_SH': 0, 'VEG_SH': 0,
         #         'SOIL_SH': 0, 'WAT': -1, 'WAT_SH': 0, 'VEG': -1
@@ -142,7 +141,7 @@ def main():
 
         _sample_update(
             city_name="cd",
-            csv_fn=r"F:\F\GraduationDesign\Result\run\Samples\sh2_spl30_cd6_spl.csv",
+            csv_fn=r"F:\GraduationDesign\Result\run\Samples\sh2_spl30_cd6_spl.csv",
             n_dict={
                 'IS': -1, 'SOIL': -1, 'IS_SH': 0, 'VEG_SH': 0,
                 'SOIL_SH': 0, 'WAT': -1, 'WAT_SH': 0, 'VEG': -1
@@ -177,7 +176,9 @@ class GD_GMRaster:
         self._func = _func
         self.gmr = None
 
-    def draw(self, channels, to_fn=None):
+    def draw(self, channels, to_fn=None,
+             x_major_len=(0, 8, 0), y_major_len=(0, 8, 0),
+             x_minor_len=(0, 0, 20), y_minor_len=(0, 0, 20), ):
         gmr = GMRaster(self.raster_fn)
         gmr.read(channels, geo_region=self.geo_region, raster_region=self.raster_region,
                  min_list=self.min_list, max_list=self.max_list, color_table=self.color_table,
@@ -185,8 +186,8 @@ class GD_GMRaster:
 
         ax = gmr.draw(
             9,
-            x_major_len=(0, 8, 0), y_major_len=(0, 8, 0),
-            x_minor_len=(0, 0, 20), y_minor_len=(0, 0, 20),
+            x_major_len=x_major_len, y_major_len=y_major_len,
+            x_minor_len=x_minor_len, y_minor_len=y_minor_len,
             fontdict={"size": 26, "style": 'italic'}
         )
         gmr.scale(
@@ -220,9 +221,9 @@ def funcs3(*args):
         plt.rcParams['mathtext.fontset'] = 'stix'
 
         gsu = _FUNCS3_SamplesUtil()
-        gsu.addCSV(r"F:\F\GraduationDesign\Result\run\Samples\Funcs3\HSPL_BJ_select.csv")
-        gsu.addCSV(r"F:\F\GraduationDesign\Result\run\Samples\Funcs3\HSPL_CD_select.csv")
-        gsu.addCSV(r"F:\F\GraduationDesign\Result\run\Samples\Funcs3\HSPL_QD_select.csv")
+        gsu.addCSV(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_BJ_select.csv")
+        gsu.addCSV(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_CD_select.csv")
+        gsu.addCSV(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_QD_select.csv")
 
         df = gsu.toDF()
         print(df.value_counts("CNAME"))
@@ -275,7 +276,7 @@ def funcs3(*args):
 
         # font_SimHei = FontProperties(family="SimHei")
 
-        dfn = DirFileName(r"F:\F\GraduationDesign\Images\3")
+        dfn = DirFileName(r"F:\GraduationDesign\Images\3")
 
         def draw1_im1(_fn, _draw1_data, ):
 
@@ -541,22 +542,22 @@ def funcs3(*args):
             gr.save(data, _im_to_fn.format("NRG"), fmt="GTiff", dtype=gdal.GDT_Byte, options=["COMPRESS=PACKBITS"])
 
         # func22(
-        #     r"F:\F\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_look_envi.dat",
-        #     r"F:\F\GraduationDesign\MkTu\SH_BJ_{}.tif"
+        #     r"F:\ProjectSet\Shadow\Release\BeiJingImages\SH_BJ_look_envi.dat",
+        #     r"F:\GraduationDesign\MkTu\SH_BJ_{}.tif"
         # )
         #
         # func22(
-        #     r"F:\F\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_look_envi.dat",
-        #     r"F:\F\GraduationDesign\MkTu\SH_QD_{}.tif"
+        #     r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_look_envi.dat",
+        #     r"F:\GraduationDesign\MkTu\SH_QD_{}.tif"
         # )
 
         func22(
-            r"F:\F\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_envi.dat",
-            r"F:\F\GraduationDesign\MkTu\SH_CD_{}.tif"
+            r"F:\ProjectSet\Shadow\Release\ChengDuImages\SH_CD_look_envi.dat",
+            r"F:\GraduationDesign\MkTu\SH_CD_{}.tif"
         )
 
     def func3():
-        json_data = readJson(r"F:\G\SHImages\image.json")
+        json_data = readJson(r"G:\SHImages\image.json")
 
         def _show_1(_name):
             plt.figure(figsize=(12, 4))
@@ -571,7 +572,7 @@ def funcs3(*args):
 
             plt.show()
 
-        to_dfn = DirFileName(r"F:\F\GraduationDesign\MkTu\Images")
+        to_dfn = DirFileName(r"F:\GraduationDesign\MkTu\Images")
 
         def _save_1(_name, _min, _max, _to_dfn: DirFileName):
             for i, _fn in enumerate(json_data[_name]):
@@ -595,22 +596,22 @@ def funcs3(*args):
     def func4(_run="sigma"):
         # GD_GMRaster("qd", ).drawImages(
         #     [1, 2, 3],
-        #     [r"F:\F\GraduationDesign\MkTu\SH_BJ_NRG.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH_BJ_RGB.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH_CD_NRG.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH_CD_RGB.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH_QD_NRG.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH_QD_RGB.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH22_BJ_NRG.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH22_BJ_RGB.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH22_CD_NRG.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH22_CD_RGB.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH22_QD_NRG.tif",
-        #      r"F:\F\GraduationDesign\MkTu\SH22_QD_RGB.tif", ],
-        #     r"F:\F\GraduationDesign\MkTu\Images\images",
+        #     [r"F:\GraduationDesign\MkTu\SH_BJ_NRG.tif",
+        #      r"F:\GraduationDesign\MkTu\SH_BJ_RGB.tif",
+        #      r"F:\GraduationDesign\MkTu\SH_CD_NRG.tif",
+        #      r"F:\GraduationDesign\MkTu\SH_CD_RGB.tif",
+        #      r"F:\GraduationDesign\MkTu\SH_QD_NRG.tif",
+        #      r"F:\GraduationDesign\MkTu\SH_QD_RGB.tif",
+        #      r"F:\GraduationDesign\MkTu\SH22_BJ_NRG.tif",
+        #      r"F:\GraduationDesign\MkTu\SH22_BJ_RGB.tif",
+        #      r"F:\GraduationDesign\MkTu\SH22_CD_NRG.tif",
+        #      r"F:\GraduationDesign\MkTu\SH22_CD_RGB.tif",
+        #      r"F:\GraduationDesign\MkTu\SH22_QD_NRG.tif",
+        #      r"F:\GraduationDesign\MkTu\SH22_QD_RGB.tif", ],
+        #     r"F:\GraduationDesign\MkTu\Images\images",
         # )
 
-        json_data = readJson(r"F:\G\SHImages\image.json")
+        json_data = readJson(r"G:\SHImages\image.json")
 
         ells = {"QD": [], "BJ": [], "CD": []}
 
@@ -653,7 +654,7 @@ def funcs3(*args):
                 # plt.show()
                 plt.clf()
 
-        to_dirname = r"F:\F\GraduationDesign\MkTu\Images\images"
+        to_dirname = r"F:\GraduationDesign\MkTu\Images\images"
 
         _add_ell("QD", (120.42991, 36.38329), 1000, 600, "red")
         _add_ell("QD", (120.19427, 36.24705), 500, 600, "red")
@@ -671,6 +672,7 @@ def funcs3(*args):
             _draw_1("DE_VH", -20, -6, None, to_dirname)
 
         if _run == "C2":
+            update10EDivide10 = None
             _draw_1("AS_C11", 0, 0.8, update10EDivide10, to_dirname)
             _draw_1("AS_C22", 0, 0.2, update10EDivide10, to_dirname)
             _draw_1("DE_C11", 0, 0.8, update10EDivide10, to_dirname)
@@ -689,7 +691,7 @@ def funcs3(*args):
         plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
         plt.rcParams['mathtext.fontset'] = 'stix'
 
-        dfn = DirFileName(r"F:\F\GraduationDesign\MkTu\Images\images")
+        dfn = DirFileName(r"F:\GraduationDesign\MkTu\Images\images")
         c2_cnames1 = ["$C_{11}$", "$C_{22}$"]
         sigma_names1 = ["$VV$", "$VH$"]
         ha_names1 = ["$H$", r"$\alpha$"]
@@ -746,18 +748,44 @@ def funcs3(*args):
         if n == 2:
             func5(_run)
 
-    return func1()
+    def func8():
+
+        def _func_1(_name, _fn):
+            _gmr = GD_GMRaster(
+                "qd", raster_fn=_fn,
+                color_table={1: (200, 0, 0), 2: (255, 255, 255), 3: (255, 255, 255), 4: (255, 255, 255)}
+            )
+            _gmr.draw(
+                [1],
+                x_major_len=(0, 6, 0), y_major_len=(0, 6, 0),
+                x_minor_len=(0, 0, 20), y_minor_len=(0, 0, 20),
+            )
+            to_fn = r"F:\GraduationDesign\MkTu\Images\images\{}_imdc1.jpg".format(_name)
+            print(to_fn)
+            plt.savefig(to_fn, bbox_inches='tight', dpi=300)
+            plt.show()
+
+        _func_1("qd", r"F:\ASDEWrite\Result\QingDao\qd_SAR-Opt-AS-DE_imdc.tif")
+        _func_1("bj", r"F:\ASDEWrite\Result\BeiJing\bj_SAR-Opt-AS-DE_imdc.tif")
+        _func_1("cd", r"F:\ASDEWrite\Result\ChengDu\cd_SAR-Opt-AS-DE_imdc.tif")
+
+    if len(args) != 0:
+        return func6(*args)
+    else:
+        return func8()
 
 
 if __name__ == "__main__":
     funcs3()
 r"""
-E:\Anaconda3\python -c "import sys; sys.path.append(r'D:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('sigma', 1)"
-E:\Anaconda3\python -c "import sys; sys.path.append(r'D:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('sigma', 2)"
-E:\Anaconda3\python -c "import sys; sys.path.append(r'D:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('C2', 1)"
-E:\Anaconda3\python -c "import sys; sys.path.append(r'D:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('C2', 2)"
-E:\Anaconda3\python -c "import sys; sys.path.append(r'D:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('HA', 1)"
-E:\Anaconda3\python -c "import sys; sys.path.append(r'D:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('HA', 2)"
+E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('sigma', 1)"
+E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('sigma', 2)"
+E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('C2', 1)"
+E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('C2', 2)"
+
+
+E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('HA', 1)"
+E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('HA', 2)"
 
 
 """

@@ -1870,7 +1870,10 @@ class ChangeInitDirname:
     def change(self, *names):
         return self._change_func(os.path.join(*names))
 
-    def initTrack(self, to_name):
+    def initTrack(self, to_name=None):
+        if to_name is None:
+            return self
+
         def _func(_fn):
             return to_name + _fn[2:]
 

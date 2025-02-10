@@ -16,10 +16,10 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from matplotlib import pyplot as plt
-from sklearn.svm import SVC
 from osgeo import gdal
 from scipy.ndimage import gaussian_filter1d
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
 from tabulate import tabulate
 
 from RUN.RUNFucs import splTxt2Dict
@@ -37,7 +37,7 @@ from SRTCodes.Utils import DirFileName, FRW, changext, getfilenamewithoutext, Ru
     TableLinePrint, printDict, printList, readLines, saveJson, filterFileEndWith, ChangeInitDirname
 from Shadow.Hierarchical import SHH2Config
 
-_cid = ChangeInitDirname().initTrack(r"F:\F")
+_cid = ChangeInitDirname().initTrack(None)
 
 _RASTER_FN_1 = _cid.change(r"F:\ProjectSet\Shadow\ASDEIndex\Images\QD_SI_BS_1.tif")
 _RANGE_FN_1 = changext(_RASTER_FN_1, "_range.json")
@@ -1027,6 +1027,8 @@ def draw():
 
         FONT_SIZE = 14
 
+        is_chinese = True
+
         plt.rcParams.update({'font.size': FONT_SIZE})
         plt.rcParams['font.family'] = ["Times New Roman", 'SimSun', ] + plt.rcParams['font.family']
 
@@ -1044,7 +1046,7 @@ def draw():
         gdi.addRCC("NRG", qd, bj, cd, channel_list=["NIR", "Red", "Green"])
         to_dict = pd.DataFrame(readJson(_cid.change(r"F:\GraduationDesign\Result\results.json"))).T.to_dict("list")
         for name in to_dict:
-            gdi.addRCC(name, *list(map(_cid.change,to_dict[name])), channel_list=[0], is_01=False, is_min_max=False, )
+            gdi.addRCC(name, *list(map(_cid.change, to_dict[name])), channel_list=[0], is_01=False, is_min_max=False, )
         print(gdi.keys())
 
         names = [
@@ -1052,10 +1054,12 @@ def draw():
             '1ADESI', '2AS', '3DE', '4ASC2', '5DEC2', '6ASH', '7DEH', '8ADESI_GLCM', '9ADESI_GLCM_OPT'
         ]
 
-        column_names = ["S2", "ADESI-IS", "σ-AS-IS", "σ-DE-IS", "C2-AS-IS", "C2-DE-IS",
+        column_names = ["Sentinel-2", "ADESI-IS", "σ-AS-IS", "σ-DE-IS", "C2-AS-IS", "C2-DE-IS",
                         "H/α-AS-IS", "H/α-AS-IS", "ADESI-G-IS", "ADESI-GO-IS", ]
 
         imdc_color_dict = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
+
+        from matplotlib import colors
 
         n_rows, n_columns = 6, len(column_names)
         n = 16
@@ -1097,8 +1101,31 @@ def draw():
                 if self.row == 1:
                     ax.set_title(column_names[self.column - 1], fontdict={"size": FONT_SIZE})
                 if self.column == 1:
-                    ax.set_ylabel(self.name, rotation=0, labelpad=10, fontdict={"size": FONT_SIZE})
+                    ax.set_ylabel(self.name, rotation=0, labelpad=20, fontdict={"size": FONT_SIZE+3})
                 self.column += 1
+
+                if (self.row == n_rows) and (self.column == n_columns):
+                    color_dict = imdc_color_dict
+
+                    def _color(_n):
+                        return colors.to_hex(np.array(color_dict[_n]) / 255)
+
+                    if is_chinese:
+                        plt.scatter([1], [1], marker=",", color=_color(1), edgecolors="black", s=100, label="不透水面")
+                        plt.scatter([1], [1], marker=",", color=_color(2), edgecolors="black", s=100, label="植被")
+                        plt.scatter([1], [1], marker=",", color=_color(3), edgecolors="black", s=100, label="裸土")
+                        plt.scatter([1], [1], marker=",", color=_color(4), edgecolors="black", s=100, label="水体")
+                    else:
+                        plt.scatter([1], [1], marker=",", color=_color(1), edgecolors="black", s=100, label="IS")
+                        plt.scatter([1], [1], marker=",", color=_color(2), edgecolors="black", s=100, label="VEG")
+                        plt.scatter([1], [1], marker=",", color=_color(3), edgecolors="black", s=100, label="SO")
+                        plt.scatter([1], [1], marker=",", color=_color(4), edgecolors="black", s=100, label="WAT")
+
+                    plt.legend(
+                        loc='lower left', bbox_to_anchor=(-5.6, -0.3),
+                        prop={"size": FONT_SIZE+3}, frameon=False, ncol=4,
+                        handletextpad=0, borderaxespad=0,
+                    )
 
         column = draw_column()
 
@@ -1109,6 +1136,7 @@ def draw():
         column.fit(r"(5)", 104.101211, 30.788077)
         column.fit(r"(6)", 104.065650, 30.696051)
 
+        plt.savefig(r"F:\GraduationDesign\MkTu\adesi_imdc.jpg", bbox_inches='tight', dpi=300)
         plt.show()
 
     return func9()
@@ -1214,12 +1242,13 @@ def accuracy():
 
 class _SI_AngleDiagram:
 
-    def __init__(self):
+    def __init__(self, is_chinese=True):
         self.dfn = DirFileName(r"F:\ProjectSet\Shadow\ASDEIndex\AngleDiagram")
         self.angle_fn = self.dfn.fn("adsi_angle_qd.geojson")
         self.angle_spls_fn = self.dfn.fn("adsi_angle_spls_qd.geojson")
         self.data_fn = self.dfn.fn("adsi_data_qd.csv")
         self.data = None
+        self.is_chinese = is_chinese
 
     def read(self, angle_fn=None, angle_spls_fn=None, data_fn=None):
         if angle_fn is not None:
@@ -1306,8 +1335,13 @@ class _SI_AngleDiagram:
 
     def plot(self):
 
-        plt.rc('font', family='Times New Roman')
-        plt.rcParams.update({'font.size': 16})
+        if self.is_chinese:
+            plt.rcParams.update({'font.size': 16})
+            plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+            plt.rcParams['mathtext.fontset'] = 'stix'
+        else:
+            plt.rc('font', family='Times New Roman')
+            plt.rcParams.update({'font.size': 16})
 
         fig = plt.figure(figsize=(12, 9))
         fig.subplots_adjust(top=0.983, bottom=0.143, left=0.087, right=0.648, hspace=0.396, wspace=0.203)
@@ -1346,11 +1380,11 @@ class _SI_AngleDiagram:
                 threshold = np.sort(np.abs(np.real(y_fft)))[-5]
                 y_filtered = np.where(np.abs(np.real(y_fft)) > threshold, y_fft, 0)
                 y_reconstructed = np.real(np.fft.ifft(y_filtered))
-                plt.plot(_x_show, y_reconstructed, color=color, label=label + " Line")
+                plt.plot(_x_show, y_reconstructed, color=color, label=label + " $Line$")
 
             if is_gauss:
                 y_gauss = gaussian_filter1d(_y_show, 2.5)
-                plt.plot(_x_show, y_gauss, color=color, label=label + " Line")
+                plt.plot(_x_show, y_gauss, color=color, label=label + " $Line$")
 
             if is_line:
                 an = np.polyfit(_x_show, _y_show, 2)  # 用3次多项式拟合
@@ -1358,20 +1392,29 @@ class _SI_AngleDiagram:
                 x1 = np.arange(np.min(_x_show), np.max(_x_show), 0.1)  # 画曲线用的数据点
                 yvals = np.polyval(an, x1)  # 根据多项式系数计算拟合后的值
 
-                plt.plot(x1, yvals, color=color, label=label + " Line")
+                plt.plot(x1, yvals, color=color, label=label + " $Line$")
 
         def _as_de_line():
             plt.plot([90 - 8.18, 90 - 8.18], [-0.1, 1.1], "--", color="black")
             plt.plot([90 + 8.18, 90 + 8.18], [-0.1, 1.1], "--", color="black")
 
         plt.subplot(211)
-        _plot("AS1", "o", "Ascending-VV", "red")
-        _plot("DE1", "^", "Descending-VV", "lightgreen")
-        _plot("E1", "s", "ADESI-1", "blue")
+        if self.is_chinese:
+            _plot("AS1", "o", "升轨$VV$", "red")
+            _plot("DE1", "^", "降轨$VV$", "lightgreen")
+            _plot("E1", "s", "$ADESI_1$", "blue")
+        else:
+            _plot("AS1", "o", "Ascending-VV", "red")
+            _plot("DE1", "^", "Descending-VV", "lightgreen")
+            _plot("E1", "s", "ADESI-1", "blue")
         plt.xlim([60, 120])
         plt.ylim([0, 0.8])
-        plt.xlabel("Angle (°)")
-        plt.ylabel("Value")
+        if self.is_chinese:
+            plt.xlabel("角度（°）")
+            plt.ylabel("特征均值")
+        else:
+            plt.xlabel("Angle (°)")
+            plt.ylabel("Value")
         plt.xticks([60, 70, 80, 90 - 8.18, 90, 90 + 8.18, 100, 110, 120], rotation=45)
         plt.legend(
             # facecolor="lightgray", edgecolor="black",
@@ -1382,13 +1425,22 @@ class _SI_AngleDiagram:
         _as_de_line()
 
         plt.subplot(212)
-        _plot("AS2", "o", "Ascending-VH", "red")
-        _plot("DE2", "^", "Descending-VH", "lightgreen")
-        _plot("E2", "s", "ADESI-2", "blue")
+        if self.is_chinese:
+            _plot("AS2", "o", "升轨$VH$", "red")
+            _plot("DE2", "^", "降轨$VH$", "lightgreen")
+            _plot("E2", "s", "$ADESI_2$", "blue")
+        else:
+            _plot("AS2", "o", "Ascending-VH", "red")
+            _plot("DE2", "^", "Descending-VH", "lightgreen")
+            _plot("E2", "s", "ADESI-2", "blue")
         plt.xlim([60, 120])
         plt.ylim([0, 0.7])
-        plt.xlabel("Angle (°)")
-        plt.ylabel("Value")
+        if self.is_chinese:
+            plt.xlabel("角度（°）")
+            plt.ylabel("特征均值")
+        else:
+            plt.xlabel("Angle (°)")
+            plt.ylabel("Value")
         plt.xticks([60, 70, 80, 90 - 8.18, 90, 90 + 8.18, 100, 110, 120], rotation=45)
         plt.legend(
             # facecolor="lightgray", edgecolor="black",
@@ -1404,6 +1456,10 @@ class _SI_AngleDiagram:
 
 def angleDiagram_Funcs():
     def func1():
+        plt.rcParams.update({'font.size': 16})
+        plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+        plt.rcParams['mathtext.fontset'] = 'stix'
+
         si_ad = _SI_AngleDiagram()
         si_ad.read(
             angle_fn=si_ad.dfn.fn("adsi_angle_qd.geojson"),
@@ -1422,6 +1478,7 @@ def angleDiagram_Funcs():
         )
         si_ad.showData()
         si_ad.plot()
+        plt.savefig(r"F:\GraduationDesign\MkTu\adesi_angle_diagram.jpg", bbox_inches='tight', dpi=300)
         plt.show()
 
         return
@@ -1720,8 +1777,13 @@ class _MakeADSI(SamplesUtil):
 
 def makeADSI():
     def func1():
-        plt.rc('font', family='Times New Roman')
-        plt.rcParams.update({'font.size': 9})
+        plt.rcParams.update({'font.size': 12})
+        plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+        plt.rcParams['mathtext.fontset'] = 'stix'
+        # plt.rc('font', family='Times New Roman')
+        # plt.rcParams.update({'font.size': 9})
+
+        is_chinese = True
 
         dfn = DirFileName(r"F:\ProjectSet\Shadow\ASDEIndex\MakeIndex")
         gsu = _MakeADSI()
@@ -1739,6 +1801,11 @@ def makeADSI():
         df = gsu.toDF()
         print(df.value_counts("CNAME"))
         print(df.keys())
+
+        df["AS_C11"] = update10Log10(df["AS_C11"])
+        df["AS_C22"] = update10Log10(df["AS_C22"])
+        df["DE_C11"] = update10Log10(df["DE_C11"])
+        df["DE_C22"] = update10Log10(df["DE_C22"])
 
         def to_01():
             for name in ["E1", "E2", "AS_H", "AS_Alpha", "DE_H", "DE_Alpha",
@@ -1766,7 +1833,16 @@ def makeADSI():
                 if y[i] == 0:
                     y[i] = y[i - 1]
             if _name is None:
-                _name = "{}".format(_cname, _field_name)
+                if is_chinese:
+                    _dict = {
+                        "IS": "不透水面",
+                        "VEG": "植被",
+                        "SOIL": "裸土",
+                        "WAT": "水体",
+                    }
+                    _name = "{}".format(_dict[_cname], _field_name)
+                else:
+                    _name = "{}".format(_cname, _field_name)
             plt.plot(x[:-1], y, color=_color, label=_name)
 
         def _hist_1(_field_name, title_fmt="{}"):
@@ -1774,7 +1850,8 @@ def makeADSI():
             _hist("VEG", _field_name, "green")
             _hist("SOIL", _field_name, "yellow")
             _hist("WAT", _field_name, "blue")
-            plt.title(title_fmt.format(_field_name))
+
+            plt.title(title_fmt)
             # if _field_name == "E2":
             #     plt.ylim([0, 0.30])
 
@@ -1794,8 +1871,14 @@ def makeADSI():
         def _hist_3():
             def _get_field_names(_field_name1, _field_name2):
                 return [
-                    "AS_{}".format(_field_name1), "DE_{}".format(_field_name1),
-                    "AS_{}".format(_field_name2), "DE_{}".format(_field_name2),
+                    "AS_%s" % _field_name1, "DE_%s" % _field_name1,
+                    "AS_%s" % _field_name2, "DE_%s" % _field_name2,
+                ]
+
+            def _get_field_show_names(_field_name1, _field_name2):
+                return [
+                    "$%s_{AS}$" % _field_name1, "$%s_{DE}$" % _field_name1,
+                    "$%s_{AS}$" % _field_name2, "$%s_{DE}$" % _field_name2,
                 ]
 
             _field_names = [
@@ -1804,23 +1887,38 @@ def makeADSI():
                 *_get_field_names("C11", "C22"),
                 *_get_field_names("H", "Alpha"),
             ]
-            plt.figure(figsize=(9, 9))
-            plt.subplots_adjust(top=0.964, bottom=0.059, left=0.059, right=0.982, hspace=0.482, wspace=0.339)
+
+            _field_show_names = [
+                "$ADESI_1$", "$ADESI_2$",
+                *_get_field_show_names("VV", "VH"),
+                *_get_field_show_names("C11", "C22"),
+                *_get_field_show_names("H", r"\alpha"),
+            ]
+            plt.figure(figsize=(9, 9.5))
+            plt.subplots_adjust(top=0.964, bottom=0.059, left=0.08, right=0.982, hspace=0.682, wspace=0.339)
 
             xuhao = "abcdefghijklmnopqrstuvwxyz"
 
             for i in range(1, len(_field_names) + 1):
                 plt.subplot(4, 4, i)
-                _hist_1(_field_names[i - 1], title_fmt="({})".format(xuhao[i - 1]) + " {}")
-                plt.xlabel("Value")
-                plt.ylabel("Frequency(%)")
+                if is_chinese:
+                    title_fmt = "（${}$） {}".format(xuhao[i - 1], _field_show_names[i - 1])
+                else:
+                    title_fmt = "({}) {}".format(xuhao[i - 1], _field_show_names[i - 1])
+                _hist_1(_field_names[i - 1], title_fmt=title_fmt)
+                if is_chinese:
+                    plt.xlabel("特征值")
+                    plt.ylabel("频率（%）")
+                else:
+                    plt.xlabel("Value")
+                    plt.ylabel("Frequency(%)")
 
             plt.legend(
                 frameon=False,
                 # loc='upper center', bbox_to_anchor=(-0.1, -0.15), ncol=6,
                 loc='center left', bbox_to_anchor=(1.1, 0.2), ncol=1,
             )
-            plt.savefig(dfn.fn("sar_index.jpg", is_show=True), dpi=300)
+            plt.savefig(r"F:\GraduationDesign\MkTu\sar_index.jpg", bbox_inches='tight', dpi=300)
             plt.show()
 
         # _hist_2("VV", "VH")

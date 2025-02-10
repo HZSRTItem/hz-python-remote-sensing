@@ -222,10 +222,10 @@ def coors(gm_coor, x_major_len, y_major_len, x_minor_len, y_minor_len, fontdict=
     xlim, ylim = x_coors(), y_coors()
 
     ax = ax.twinx()
-    xlim = y_coors()
+    ylim = y_coors()
 
     ax = ax.twiny()
-    ylim = x_coors()
+    xlim = x_coors()
 
 
 def toDFM(data, is_miao=False):
