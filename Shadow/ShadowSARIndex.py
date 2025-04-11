@@ -30,7 +30,7 @@ from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.NumpyUtils import update10EDivide10, eig2, update10Log10, reHist
 from SRTCodes.PandasUtils import vLookUpCount
 from SRTCodes.SRTModel import SamplesData, RF_RGS, SVM_RGS, MLModel
-from SRTCodes.SRTSample import SRTSampleSelect
+from SRTCodes.SRTSample import SRTSampleSelect, GEOJsonWriteWGS84
 from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.SampleUtils import SamplesUtil
 from SRTCodes.Utils import DirFileName, FRW, changext, getfilenamewithoutext, RumTime, savecsv, readJson, \
@@ -1025,7 +1025,7 @@ def draw():
         #     va="center",
         # )
 
-        FONT_SIZE = 14
+        FONT_SIZE = 20
 
         is_chinese = True
 
@@ -1049,21 +1049,21 @@ def draw():
             gdi.addRCC(name, *list(map(_cid.change, to_dict[name])), channel_list=[0], is_01=False, is_min_max=False, )
         print(gdi.keys())
 
-        names = [
-            'RGB', 'NRG',
-            '1ADESI', '2AS', '3DE', '4ASC2', '5DEC2', '6ASH', '7DEH', '8ADESI_GLCM', '9ADESI_GLCM_OPT'
-        ]
+        names1 = ['1ADESI', '2AS', '3DE', '4ASC2', '5DEC2', '6ASH', '7DEH', ]
+        column_names1 = ["Sentinel-2", "EADI-IS", "σ-AS-IS", "σ-DE-IS", "C2-AS-IS", "C2-DE-IS", "H/α-AS-IS",
+                         "H/α-AS-IS", ]
+        names2 = ['1ADESI', '8ADESI_GLCM', '9ADESI_GLCM_OPT']
+        column_names2 = ["Sentinel-2", "EADI-IS", "EADI-G-IS", "EADI-GO-IS", ]
 
-        column_names = ["Sentinel-2", "ADESI-IS", "σ-AS-IS", "σ-DE-IS", "C2-AS-IS", "C2-DE-IS",
-                        "H/α-AS-IS", "H/α-AS-IS", "ADESI-G-IS", "ADESI-GO-IS", ]
-
+        names = names2
+        column_names = column_names2
         imdc_color_dict = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
 
         from matplotlib import colors
 
-        n_rows, n_columns = 6, len(column_names)
-        n = 16
-        n2 = 0.06
+        n_rows, n_columns = 3, len(column_names)
+        n = 12
+        n2 = 0.1
         fig = plt.figure(figsize=(n, n_rows / n_columns * n,), )
         fig.subplots_adjust(top=1 - n2, bottom=n2, left=n2, right=1 - n2, hspace=0.03, wspace=0.03)
 
@@ -1082,10 +1082,7 @@ def draw():
 
                 self._readDraw("NRG", x, y, min_list=[300, 300, 300], max_list=[2900, 1500, 1500])
 
-                for _name in [
-                    '1ADESI', '2AS', '3DE', '4ASC2', '5DEC2',
-                    '6ASH', '7DEH', '8ADESI_GLCM', '9ADESI_GLCM_OPT'
-                ]:
+                for _name in names:
                     self._readDraw(_name, x, y, color_dict=imdc_color_dict)
 
                 self.row += 1
@@ -1101,7 +1098,7 @@ def draw():
                 if self.row == 1:
                     ax.set_title(column_names[self.column - 1], fontdict={"size": FONT_SIZE})
                 if self.column == 1:
-                    ax.set_ylabel(self.name, rotation=0, labelpad=20, fontdict={"size": FONT_SIZE+3})
+                    ax.set_ylabel(self.name, rotation=0, labelpad=20, fontdict={"size": FONT_SIZE + 3})
                 self.column += 1
 
                 if (self.row == n_rows) and (self.column == n_columns):
@@ -1122,21 +1119,130 @@ def draw():
                         plt.scatter([1], [1], marker=",", color=_color(4), edgecolors="black", s=100, label="WAT")
 
                     plt.legend(
-                        loc='lower left', bbox_to_anchor=(-5.6, -0.3),
-                        prop={"size": FONT_SIZE+3}, frameon=False, ncol=4,
+                        loc='lower left', bbox_to_anchor=(-1.6, -0.3),
+                        prop={"size": FONT_SIZE + 3}, frameon=False, ncol=4,
                         handletextpad=0, borderaxespad=0,
                     )
 
         column = draw_column()
 
-        column.fit(r"(1)", 120.32396, 36.35739)
-        column.fit(r"(2)", 120.194134, 36.301147)
-        column.fit(r"(3)", 116.348373, 39.782519)
-        column.fit(r"(4)", 116.701712, 39.721282)
-        column.fit(r"(5)", 104.101211, 30.788077)
-        column.fit(r"(6)", 104.065650, 30.696051)
+        # column.fit(r"(a)", 120.194134, 36.301147)
+        # column.fit(r"(b)", 116.701712, 39.721282)
+        # column.fit(r"(c)", 120.32396, 36.35739)
+        # column.fit(r"(d)", 116.348373, 39.782519)
+        # column.fit(r"(e)", 104.101211, 30.788077)
+        # column.fit(r"(f)", 104.065650, 30.696051)
 
-        plt.savefig(r"F:\GraduationDesign\MkTu\adesi_imdc.jpg", bbox_inches='tight', dpi=300)
+        column.fit(r"(a)", 116.437309,39.811016)
+        column.fit(r"(b)", 120.130795,36.285795)
+        column.fit(r"(c)", 120.295400,36.266826)
+
+        plt.savefig(r"F:\GraduationDesign\MkTu\adesi_imdc_2.jpg", bbox_inches='tight', dpi=300)
+        plt.show()
+
+    def func10():
+        FONT_SIZE = 16
+
+        is_chinese = True
+        plt.rcParams.update({'font.size': FONT_SIZE})
+        plt.rcParams['font.family'] = ["Times New Roman", 'SimSun', ] + plt.rcParams['font.family']
+        plt.rcParams['mathtext.fontset'] = 'stix'
+
+        win_size = (131, 131)
+        gi_win_size = int(win_size[0] * 2640.0 / 121.0), int(win_size[1] * 2026.0 / 121.0)
+        print("win_size", win_size)
+        print("gi_win_size", gi_win_size)
+
+        gdi = GDALDrawImage(win_size)
+
+        qd = gdi.addGR(raster_fn=_QD_RASTER_FN_2, geo_range=_QD_RANGE_FN_2)
+        bj = gdi.addGR(raster_fn=_BJ_RASTER_FN_2, geo_range=_BJ_RANGE_FN_2)
+        cd = gdi.addGR(raster_fn=_CD_RASTER_FN_2, geo_range=_CD_RANGE_FN_2)
+        gdi.addRCC("RGB", qd, bj, cd, channel_list=["Red", "Green", "Blue"])
+        gdi.addRCC("NRG", qd, bj, cd, channel_list=["NIR", "Red", "Green"])
+        gdi.addRCC("K", r"G:\SHImages\QD_K.tif", channel_list=["K"])
+        gdi.addRCC("AS_VV", qd, bj, cd, channel_list=["AS_VV"])
+        gdi.addRCC("AS_VH", qd, bj, cd, channel_list=["AS_VH"])
+        gdi.addRCC("DE_VV", qd, bj, cd, channel_list=["DE_VV"])
+        gdi.addRCC("DE_VH", qd, bj, cd, channel_list=["DE_VH"])
+
+        column_names = [
+            "Google Earth",
+            "Sentinel-2",
+            "${\\sigma}_{VV}^{AS}$",
+            # "${\\sigma}_{VH}^{AS}$",
+            "${\\sigma}_{VV}^{DE}$",
+            # "${\\sigma}_{VH}^{DE}$",
+        ]
+
+        n_rows, n_columns = 3, len(column_names)
+        n = 8.6
+        n2 = 0.06
+        fig = plt.figure(figsize=(n, n_rows / n_columns * n,), )
+        fig.subplots_adjust(top=1 - n2, bottom=n2, left=n2, right=1 - n2, hspace=0.03, wspace=0.03)
+
+        gww = GEOJsonWriteWGS84("ROW")
+        gr = GDALRaster(_QD_RASTER_FN_2)
+
+        # gr.save(np.zeros((gr.n_rows, gr.n_columns), dtype="int8"),
+        #         r"G:\SHImages\QD_K.tif", fmt="GTiff", dtype=gdal.GDT_Byte, descriptions=["K"],
+        #         options=["COMPRESS=LZW"])
+
+        class draw_column:
+
+            def __init__(self):
+                self.row = 1
+                self.column = 1
+                self.name = ""
+                self.n = 1
+
+            def _gww(self, name, x, y):
+                _row, _column = gr.coorGeo2Raster(x, y, is_int=True)
+                _x0, _y0 = gr.coorRaster2Geo(_row - int(win_size[0] / 2 + 1), _column - int(win_size[0] / 2 + 1))
+                _x1, _y1 = gr.coorRaster2Geo(_row + int(win_size[0] / 2 + 1), _column + int(win_size[0] / 2 + 1))
+                gww.addPolygon([[[_x0, _y0], [_x0, _y1], [_x1, _y1], [_x1, _y0], [_x0, _y0], ]], ROW=name)
+
+            def fit(self, name, x, y, ):
+                self.column = 1
+                self.name = name
+                self.n = 1
+
+                self._gww(name, x, y)
+
+                self._readDraw("K", x, y, min_list=[-1], max_list=[0])
+                self._readDraw("NRG", x, y, min_list=[300, 300, 300], max_list=[2900, 1500, 1500])
+                self._readDraw("AS_VV", x, y, min_list=[-15], max_list=[2])
+                # self._readDraw("AS_VH", x, y, min_list=[-25], max_list=[-5])
+                self._readDraw("DE_VV", x, y, min_list=[-15], max_list=[2])
+                # self._readDraw("DE_VH", x, y, min_list=[-25], max_list=[-5])
+
+                self.row += 1
+
+            def _readDraw(self, *args, **kwargs):
+                plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + self.n)
+                gdi.readDraw(*args, **kwargs)
+                self.column_draw()
+                self.n += 1
+
+            def column_draw(self):
+                ax = plt.gca()
+                if self.row == 1:
+                    ax.set_title(column_names[self.column - 1], fontdict={"size": FONT_SIZE})
+                if self.column == 1:
+                    ax.set_ylabel(self.name, rotation=0, labelpad=14, fontdict={"size": FONT_SIZE})
+                self.column += 1
+
+        column = draw_column()
+
+        column.fit(r"(1)", 120.396617, 36.345531)
+        column.fit(r"(2)", 120.194134, 36.301147)
+        column.fit(r"(3)", 120.216407, 36.330984)
+        # column.fit(r"(4)", 116.701712, 39.721282)
+        # column.fit(r"(5)", 104.101211, 30.788077)
+        # column.fit(r"(6)", 104.065650, 30.696051)
+
+        gww.save(r"F:\GraduationDesign\MkTu\eadi_images_direction.json")
+        plt.savefig(r"F:\GraduationDesign\MkTu\eadi_images_direction.jpg", bbox_inches='tight', dpi=300)
         plt.show()
 
     return func9()
@@ -1384,7 +1490,8 @@ class _SI_AngleDiagram:
 
             if is_gauss:
                 y_gauss = gaussian_filter1d(_y_show, 2.5)
-                plt.plot(_x_show, y_gauss, color=color, label=label + " $Line$")
+                line_name = " $Line$"
+                plt.plot(_x_show, y_gauss, color=color, label=label + line_name)
 
             if is_line:
                 an = np.polyfit(_x_show, _y_show, 2)  # 用3次多项式拟合
@@ -1400,13 +1507,13 @@ class _SI_AngleDiagram:
 
         plt.subplot(211)
         if self.is_chinese:
-            _plot("AS1", "o", "升轨$VV$", "red")
-            _plot("DE1", "^", "降轨$VV$", "lightgreen")
-            _plot("E1", "s", "$ADESI_1$", "blue")
+            _plot("AS1", "o", "${\\sigma}_{VV}^{AS}$", "red")
+            _plot("DE1", "^", "${\\sigma}_{VV}^{DE}$", "lightgreen")
+            _plot("E1", "s", "$EADI_{VV}$", "blue")
         else:
             _plot("AS1", "o", "Ascending-VV", "red")
             _plot("DE1", "^", "Descending-VV", "lightgreen")
-            _plot("E1", "s", "ADESI-1", "blue")
+            _plot("E1", "s", "$EADI_{VV}$", "blue")
         plt.xlim([60, 120])
         plt.ylim([0, 0.8])
         if self.is_chinese:
@@ -1426,13 +1533,13 @@ class _SI_AngleDiagram:
 
         plt.subplot(212)
         if self.is_chinese:
-            _plot("AS2", "o", "升轨$VH$", "red")
-            _plot("DE2", "^", "降轨$VH$", "lightgreen")
-            _plot("E2", "s", "$ADESI_2$", "blue")
+            _plot("AS2", "o", "${\\sigma}_{VH}^{AS}$", "red")
+            _plot("DE2", "^", "${\\sigma}_{VH}^{DE}$", "lightgreen")
+            _plot("E2", "s", "$EADI_{VH}$", "blue")
         else:
             _plot("AS2", "o", "Ascending-VH", "red")
             _plot("DE2", "^", "Descending-VH", "lightgreen")
-            _plot("E2", "s", "ADESI-2", "blue")
+            _plot("E2", "s", "$EADI_{VH}$", "blue")
         plt.xlim([60, 120])
         plt.ylim([0, 0.7])
         if self.is_chinese:
@@ -1877,8 +1984,8 @@ def makeADSI():
 
             def _get_field_show_names(_field_name1, _field_name2):
                 return [
-                    "$%s_{AS}$" % _field_name1, "$%s_{DE}$" % _field_name1,
-                    "$%s_{AS}$" % _field_name2, "$%s_{DE}$" % _field_name2,
+                    "$%s^{AS}$" % _field_name1, "$%s^{DE}$" % _field_name1,
+                    "$%s^{AS}$" % _field_name2, "$%s^{DE}$" % _field_name2,
                 ]
 
             _field_names = [
@@ -1889,9 +1996,9 @@ def makeADSI():
             ]
 
             _field_show_names = [
-                "$ADESI_1$", "$ADESI_2$",
-                *_get_field_show_names("VV", "VH"),
-                *_get_field_show_names("C11", "C22"),
+                "$EADI_{VV}$", "$EADI_{VH}$",
+                *_get_field_show_names("\\sigma_{VV}", "\\sigma_{VH}"),
+                *_get_field_show_names("C_{11}", "C_{22}"),
                 *_get_field_show_names("H", r"\alpha"),
             ]
             plt.figure(figsize=(9, 9.5))

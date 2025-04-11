@@ -386,7 +386,7 @@ class Jdt:
         self.total = total
         self.iterable = iterable
         self.n_cols = n_cols
-        self.desc = desc if desc is not None else ""
+        self.desc = desc if desc is not None else "Jdt"
 
         self.n_split = float(total) / float(n_cols)
         self.n_current = 0

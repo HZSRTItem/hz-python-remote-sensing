@@ -31,10 +31,10 @@ from SRTCodes.ModelTraining import ConfusionMatrix
 from SRTCodes.NumpyUtils import NumpyDataCenter
 from SRTCodes.PytorchModelTraining import TorchTraining
 from SRTCodes.SRTModelImage import GDALImdc
-from SRTCodes.Utils import datasCaiFen, changext, Jdt, saveJson, readJson, DirFileName, FN, printLinesStringTable
+from SRTCodes.Utils import datasCaiFen, changext, Jdt, saveJson, readJson, DirFileName, FN, printLinesStringTable, \
+    SRTWriteText
 
 _DL_SAMPLE_DIRNAME = r"F:\Data\DL"
-
 
 
 class _SHH2Config:
@@ -145,8 +145,9 @@ def mapDict(data, map_dict, return_select=False):
 
 class _RandomGridSearch:
 
-    def __init__(self, n_run, **kwargs):
+    def __init__(self, n_run, is_best=True, **kwargs):
         self.n_run = n_run
+        self.is_best = is_best
         self.kwargs = kwargs
         self.testing_list = []
 
@@ -165,22 +166,41 @@ class _RandomGridSearch:
     def __contains__(self, item):
         return item in self.kwargs
 
+    def _com(self, data1, data2):
+        if self.is_best:
+            return data1 > data2
+        else:
+            return data1 < data2
+
     def ml(self, model_cls, x, y, scoring=None, n_cv=10, is_return_bast_clf=True, ):
-        self.bast_accuracy = 0.0
+        if self.is_best:
+            self.bast_accuracy = 0.0
+        else:
+            self.bast_accuracy = 100.0
+
         if self._number() < self.n_run:
             self.n_run = self._number()
         jdt = Jdt(self.n_run, "Random Grid Search").start()
+        sw = SRTWriteText(r"F:\ProjectSet\Shadow\ASDEHSamples\Temp\jingdu.txt", mode="a")
         for n in range(self.n_run):
             kwargs = self.generate_params()
+            sw.write(kwargs)
             if kwargs is None:
                 warnings.warn("All run {} > {}".format(self._number(), self.n_run))
             clf = model_cls(**kwargs)
             scores = cross_val_score(estimator=clf, X=x, y=y, cv=n_cv, scoring=scoring, n_jobs=-1)
-            if scores.mean() > self.bast_accuracy:
+            # if scores.mean() > self.bast_accuracy:
+            sw.write(scores.mean())
+            if self._com(scores.mean(), self.bast_accuracy):
                 self.bast_kwargs = kwargs
                 self.bast_accuracy = scores.mean()
             jdt.add()
         jdt.end()
+        sw.write("bast_kwargs")
+        sw.write(self.bast_kwargs)
+        sw.write("bast_accuracy")
+        sw.write(self.bast_accuracy)
+
         if is_return_bast_clf:
             clf = model_cls(**self.bast_kwargs)
             clf.fit(x, y)
@@ -230,8 +250,8 @@ class _SK_MOD:
         return None
 
 
-def _rgsML(model_cls, x, y, scoring=None, n_cv=10, n_run=20):
-    rgs = _RandomGridSearch(n_run)
+def _rgsML(model_cls, x, y, scoring=None, n_cv=10, n_run=20, is_best=True):
+    rgs = _RandomGridSearch(n_run, is_best=is_best)
     if model_cls == SVC:
         rgs["C"] = [0.1, 1, 10, 100]
         rgs["gamma"] = [0.01, 0.1, 1, 10]
@@ -240,15 +260,22 @@ def _rgsML(model_cls, x, y, scoring=None, n_cv=10, n_run=20):
         rgs["max_depth"] = [i for i in range(3, 10)]
         rgs["min_samples_split"] = [i for i in range(2, 10)]
         rgs["min_samples_leaf"] = [i for i in range(1, 6)]
+
+        # rgs["n_estimators"] = [90, 100, 110, ]
+        # rgs["max_depth"] = [i for i in range(4, 6)]
+        # rgs["min_samples_split"] = [i for i in range(2, 10)]
+        # rgs["min_samples_leaf"] = [i for i in range(1, 6)]
+
     model = rgs.ml(model_cls, x, y, scoring=scoring, n_cv=n_cv, is_return_bast_clf=True)
     return model, rgs.bast_kwargs, rgs.bast_accuracy
 
 
 class _RGS(_SK_MOD):
 
-    def __init__(self):
+    def __init__(self, is_best=True):
         super().__init__()
 
+        self.is_best = is_best
         self.bast_model = None
         self.bast_kwargs = None
         self.bast_accuracy = 0
@@ -258,21 +285,21 @@ class _RGS(_SK_MOD):
 
     def fit(self, x, y, *args, **kwargs):
         self.bast_model, self.bast_kwargs, self.bast_accuracy = _rgsML(
-            self.model_cls, x, y, n_cv=self.n_cv, n_run=self.n_run)
+            self.model_cls, x, y, n_cv=self.n_cv, n_run=self.n_run, is_best=self.is_best)
         self.clf = self.bast_model
 
 
 class RF_RGS(_RGS):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, is_best=True):
+        super().__init__(is_best=is_best)
         self.model_cls = RandomForestClassifier
 
 
 class SVM_RGS(_RGS):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, is_best=True):
+        super().__init__(is_best=is_best)
         self.model_cls = SVC
 
 
@@ -1084,7 +1111,7 @@ class MLModel(_ModelInit):
         )
         return to_imdc_fn
 
-    def save(self, filename=None, dirname=None, is_save_clf=True, is_save_data=True,is_samples=True, *args, **kwargs):
+    def save(self, filename=None, dirname=None, is_save_clf=True, is_save_data=True, is_samples=True, *args, **kwargs):
         filename = self._getfilename(dirname, filename)
 
         if is_save_clf:

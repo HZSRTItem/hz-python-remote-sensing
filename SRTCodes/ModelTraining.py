@@ -300,39 +300,72 @@ class ConfusionMatrix:
         self._cm = np.zeros((self._n_class, self._n_class))
         self._cm_accuracy = self.calCM()
 
-    def fmtCM(self, cm: np.array = None, cate_names=None):
+    def fmtCM(self, cm: np.array = None, cate_names=None, fmt="show"):
         if cm is None:
             cm = self._cm_accuracy
         if cate_names is None:
             cate_names = self._class_names
-        fmt_row0 = "{:>8}"
-        fmt_column0 = "{:>8}"
-        fmt_number = "{:>8d}"
-        fmt_float = "{:>8.2f}"
-        n_cate = len(cate_names)
-        out_s = ""
-        out_s += fmt_column0.format("CM")
-        for i in range(n_cate):
-            out_s += " " + fmt_row0.format(cate_names[i])
-        out_s += " " + fmt_row0.format("SUM")
-        out_s += " " + fmt_row0.format("PA") + "\n"
-        for i in range(n_cate):
-            out_s += fmt_column0.format(cate_names[i])
-            for j in range(n_cate):
-                out_s += " " + fmt_number.format(int(cm[i, j]))
-            out_s += " " + fmt_number.format(int(cm[i, n_cate]))
-            out_s += " " + fmt_float.format(cm[i, n_cate + 1]) + "\n"
-        out_s += fmt_column0.format("SUM")
-        for i in range(n_cate):
-            out_s += " " + fmt_number.format(int(cm[n_cate, i]))
-        out_s += " " + fmt_number.format(int(cm[n_cate, n_cate]))
-        out_s += " " + fmt_float.format(cm[n_cate, n_cate + 1]) + "\n"
-        out_s += fmt_column0.format("UA")
-        for i in range(n_cate):
-            out_s += " " + fmt_float.format(cm[n_cate + 1, i])
-        out_s += " " + fmt_float.format(cm[n_cate + 1, n_cate])
-        out_s += " " + fmt_float.format(cm[n_cate + 1, n_cate + 1]) + "\n"
-        return out_s
+
+        if fmt == "show":
+            fmt_row0 = "{:>8}"
+            fmt_column0 = "{:>8}"
+            fmt_number = "{:>8d}"
+            fmt_float = "{:>8.2f}"
+            n_cate = len(cate_names)
+            out_s = ""
+            out_s += fmt_column0.format("CM")
+            for i in range(n_cate):
+                out_s += " " + fmt_row0.format(cate_names[i])
+            out_s += " " + fmt_row0.format("SUM")
+            out_s += " " + fmt_row0.format("PA") + "\n"
+            for i in range(n_cate):
+                out_s += fmt_column0.format(cate_names[i])
+                for j in range(n_cate):
+                    out_s += " " + fmt_number.format(int(cm[i, j]))
+                out_s += " " + fmt_number.format(int(cm[i, n_cate]))
+                out_s += " " + fmt_float.format(cm[i, n_cate + 1]) + "\n"
+            out_s += fmt_column0.format("SUM")
+            for i in range(n_cate):
+                out_s += " " + fmt_number.format(int(cm[n_cate, i]))
+            out_s += " " + fmt_number.format(int(cm[n_cate, n_cate]))
+            out_s += " " + fmt_float.format(cm[n_cate, n_cate + 1]) + "\n"
+            out_s += fmt_column0.format("UA")
+            for i in range(n_cate):
+                out_s += " " + fmt_float.format(cm[n_cate + 1, i])
+            out_s += " " + fmt_float.format(cm[n_cate + 1, n_cate])
+            out_s += " " + fmt_float.format(cm[n_cate + 1, n_cate + 1]) + "\n"
+            return out_s
+
+        elif fmt.startswith("csv"):
+            fmt_split = fmt[3:]
+            fmt_row0 = "{}"
+            fmt_column0 = "{}"
+            fmt_number = "{}"
+            fmt_float = "{:.2f}"
+            n_cate = len(cate_names)
+            out_s = ""
+            out_s += fmt_column0.format("CM")
+            for i in range(n_cate):
+                out_s += fmt_split + fmt_row0.format(cate_names[i])
+            out_s += fmt_split + fmt_row0.format("SUM")
+            out_s += fmt_split + fmt_row0.format("PA") + "\n"
+            for i in range(n_cate):
+                out_s += fmt_column0.format(cate_names[i])
+                for j in range(n_cate):
+                    out_s += fmt_split + fmt_number.format(int(cm[i, j]))
+                out_s += fmt_split + fmt_number.format(int(cm[i, n_cate]))
+                out_s += fmt_split + fmt_float.format(cm[i, n_cate + 1]) + "\n"
+            out_s += fmt_column0.format("SUM")
+            for i in range(n_cate):
+                out_s += fmt_split + fmt_number.format(int(cm[n_cate, i]))
+            out_s += fmt_split + fmt_number.format(int(cm[n_cate, n_cate]))
+            out_s += fmt_split + fmt_float.format(cm[n_cate, n_cate + 1]) + "\n"
+            out_s += fmt_column0.format("UA")
+            for i in range(n_cate):
+                out_s += fmt_split + fmt_float.format(cm[n_cate + 1, i])
+            out_s += fmt_split + fmt_float.format(cm[n_cate + 1, n_cate])
+            out_s += fmt_split + fmt_float.format(cm[n_cate + 1, n_cate + 1]) + "\n"
+            return out_s
 
     def calCM(self, cm: np.array = None):
         if cm is None:

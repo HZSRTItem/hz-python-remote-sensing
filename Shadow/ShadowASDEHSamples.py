@@ -18,6 +18,7 @@ opt
 import os
 import random
 import shutil
+import time
 import warnings
 
 import matplotlib.pyplot as plt
@@ -48,6 +49,7 @@ _cid = ChangeInitDirname().initTrack(None)
 _cid_G = ChangeInitDirname().initTrack(None)
 
 _MODEL_DIRNAME = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Models")
+_ACCURACY_DIRNAME = r"F:\ProjectSet\Shadow\ASDEHSamples\Accuracy"
 
 _BJ_RASTER_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\BeiJing\HSPL_BJ_envi.dat")
 _CD_RASTER_FN = _cid.change(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\ChengDu\HSPL_CD_envi.dat")
@@ -412,11 +414,11 @@ class _DFFilter:
 
 
 def _trainimdc(dirname, is_save, model, name, range_json, raster_fn, sd, x_keys,
-               feat_funcs=None, map_dict=None, print_func=print):
+               feat_funcs=None, map_dict=None, print_func=print, is_best=True):
     if model == "svm":
-        model = SVM_RGS()
+        model = SVM_RGS(is_best=is_best)
     elif model == "rf":
-        model = RF_RGS()
+        model = RF_RGS(is_best=is_best)
     if feat_funcs is None:
         feat_funcs = FeatFuncs()
     data_scale = DataScale()
@@ -474,7 +476,7 @@ class _MLModel:
         self.cm_name = cm_name
         self.print_func = print_func
 
-    def fit(self):
+    def fit(self, is_best=True):
         ml_mod = _trainimdc(
             self.dirname, self.is_save,
             self.model, self.name, self.range_json,
@@ -482,6 +484,7 @@ class _MLModel:
             self.x_keys, feat_funcs=self.feat_funcs,
             map_dict=self.map_dict,
             print_func=self.print_func,
+            is_best=is_best
         )
         self.ml_mods.append(ml_mod)
         return ml_mod.cm(self.cm_name)
@@ -653,8 +656,8 @@ def trainimdcMain():
 
 
 def training(city_name):
-    # df = pd.read_csv(_SPLING_FN(city_name))
-    df = pd.read_csv(_QD_SAMPLES_DFN.fn("3", r"spl_select3.csv"))
+    df = pd.read_csv(_SPLING_FN(city_name))
+    # df = pd.read_csv(_QD_SAMPLES_DFN.fn("3", r"spl_select3.csv"))
     # print(samplesDescription(df))
     # df = _DFFilter(df).remove(
     #     ("TEST", "==", 1), ("CNAME", "==", "IS"), ("AS_VV", "<", -10)).remove(
@@ -662,7 +665,7 @@ def training(city_name):
     #     ("TEST", "==", 1), ("CNAME", "==", "IS_SH"), ("AS_VV", "<", -10)).remove(
     #     ("TEST", "==", 1), ("CNAME", "==", "IS_SH"), ("DE_VV", "<", -10)).df()
 
-    samplesDescription(df)
+    samplesDescription(df, _is_1=True)
 
     df_free, df_opt, df_sar = sampleTypes(df)
     df_dict = {"SAR": df_sar, "Opt": df_opt, "FREE": df_free, }
@@ -672,14 +675,14 @@ def training(city_name):
     raster_fn = _RASTER_FN(city_name)
     # raster_fn = None
     model = "rf"
-    is_save = False
+    is_save = True
 
     to_dict = {}
     dirname = timeDirName(r"F:\ProjectSet\Shadow\ASDEHSamples\Models", True)
 
     for df_name, df in df_dict.items():
         print("#", df_name, len(df), "-" * 6)
-        samplesDescription(df)
+        samplesDescription(df, _is_1=True)
         sd = SamplesData().addDF(df)
 
         def func12(name, x_keys):
@@ -698,6 +701,7 @@ def training(city_name):
                 },
                 cm_name=["NOSH", "SH"],
                 is_save=is_save
+
             )
             ti_mod.fit()
             to_dict_tmp, cm = ti_mod.accuracy()
@@ -705,13 +709,19 @@ def training(city_name):
             printDict("# {} ------".format(city_name.upper()), to_dict_tmp)
             print(cm.fmtCM())
 
-        if (df_name == "Opt") or (df_name == "SAR"):
-            func12("{}-Opt-AS-DE".format(df_name), _FEAT_NAMES.f_opt_as_de())
-        else:
-            func12("{}-Opt-AS-DE".format(df_name), _FEAT_NAMES.f_opt_as_de())
+        # # 第一次实验
+        # if (df_name == "Opt") or (df_name == "SAR"):
+        #     func12("{}-Opt-AS-DE".format(df_name), _FEAT_NAMES.f_opt_as_de())
+        # else:
+        #     func12("{}-Opt-AS-DE".format(df_name), _FEAT_NAMES.f_opt_as_de())
+        #     func12("{}-Opt-AS".format(df_name), _FEAT_NAMES.f_opt_as())
+        #     func12("{}-Opt-DE".format(df_name), _FEAT_NAMES.f_opt_de())
+        #     func12("{}-Opt".format(df_name), _FEAT_NAMES.f_opt())
+
+        # 论文返修后第一次实验
+        if df_name == "Opt":
             func12("{}-Opt-AS".format(df_name), _FEAT_NAMES.f_opt_as())
             func12("{}-Opt-DE".format(df_name), _FEAT_NAMES.f_opt_de())
-            func12("{}-Opt".format(df_name), _FEAT_NAMES.f_opt())
 
     # .sort_values("IS_OA", ascending=False)
 
@@ -731,6 +741,7 @@ class _TrainImdc:
         self.is_imdc = is_imdc
         self.feat_funcs = featFuncs(feat_funcs_type)
         self.raster_fn = _RASTER_FN(city_name) if is_imdc else None
+        self.model_dirname = None
 
     def initCSV(self, csv_fn):
         if csv_fn is None:
@@ -754,7 +765,7 @@ class _TrainImdc:
                 GDALSamplingFast(_RASTER_FN(self.city_name)).csvfile(csv_fn, csv_fn)
         self.csv_fn = _SPLING_FN(self.city_name) if csv_fn is None else csv_fn
 
-    def fit(self, sw: SRTWriteText = None):
+    def fit(self, sw: SRTWriteText = None, is_best=True):
         def _sw(*text, sep=" ", end="\n"):
             if _sw is not None:
                 sw.write(*text, sep=sep, end=end)
@@ -784,7 +795,7 @@ class _TrainImdc:
         td.copyfile(self.csv_fn)
 
         td.kw("Counts", tabulate(
-            samplesDescription(df, is_print=False), headers="keys", tablefmt="simple"
+            samplesDescription(df, is_print=False, _is_1=True), headers="keys", tablefmt="simple"
         ), sep=":\n", end="\n\n")
         df_free, df_opt, df_sar = sampleTypes(df)
         df_dict = {"SAR": df_sar, "Opt": df_opt, "FREE": df_free, }
@@ -793,7 +804,7 @@ class _TrainImdc:
         for df_name, df in df_dict.items():
             td.log("#", "-" * 36, "Sample Type", df_name, "-" * 36, "#", end="\n\n")
             td.kw("Counts", tabulate(
-                samplesDescription(df, is_print=False), headers="keys", tablefmt="simple"
+                samplesDescription(df, is_print=False, _is_1=True), headers="keys", tablefmt="simple"
             ), sep=":\n", end="\n\n")
             sd = SamplesData().addDF(df)
 
@@ -810,18 +821,24 @@ class _TrainImdc:
                     is_save=self.is_save,
                     print_func=td.log,
                 )
-                ti_mod.fit()
+                ti_mod.fit(is_best=is_best)
                 to_dict_tmp, cm = ti_mod.accuracy()
                 to_dict[name] = to_dict_tmp
                 printDict("> Accuracy " + "-" * 6, to_dict_tmp, print_func=td.log, end="\n", )
 
-            if (df_name == "Opt") or (df_name == "SAR"):
-                func12("{}-Opt-AS-DE".format(df_name), _FEAT_NAMES.f_opt_as_de())
-            else:
-                func12("{}-Opt-AS-DE".format(df_name), _FEAT_NAMES.f_opt_as_de())
+            # # 第一次实验
+            # if (df_name == "Opt") or (df_name == "SAR"):
+            #     func12("{}-Opt-AS-DE".format(df_name), _FEAT_NAMES.f_opt_as_de())
+            # else:
+            #     func12("{}-Opt-AS-DE".format(df_name), _FEAT_NAMES.f_opt_as_de())
+            #     func12("{}-Opt-AS".format(df_name), _FEAT_NAMES.f_opt_as())
+            #     func12("{}-Opt-DE".format(df_name), _FEAT_NAMES.f_opt_de())
+            #     func12("{}-Opt".format(df_name), _FEAT_NAMES.f_opt())
+
+            # 论文返修后第一次实验
+            if df_name == "Opt":
                 func12("{}-Opt-AS".format(df_name), _FEAT_NAMES.f_opt_as())
                 func12("{}-Opt-DE".format(df_name), _FEAT_NAMES.f_opt_de())
-                func12("{}-Opt".format(df_name), _FEAT_NAMES.f_opt())
 
         df_acc = pd.DataFrame(to_dict).T
         td.kw("accuracy", tabulate(df_acc, headers="keys", tablefmt="simple"), sep=":\n")
@@ -829,6 +846,7 @@ class _TrainImdc:
 
         _sw("{} -> {} {:<3} {}\n".format(timeStringNow(), self.city_name, self.model, td.time_dirname()))
 
+        self.model_dirname = td.time_dirname()
         return self
 
 
@@ -1644,13 +1662,28 @@ def samplesFuncs():
 
 def accuracyDirectory(csv_fn, mod_dirname):
     df = pd.read_csv(csv_fn)
-    df, names = _samplingImdc(df, _MODEL_DFN.fn(mod_dirname), True)
+    if "\\" not in mod_dirname:
+        df, names = _samplingImdc(df, _MODEL_DFN.fn(mod_dirname), True)
+    else:
+        df, names = _samplingImdc(df, mod_dirname, True)
     df["CATEGORY2"] = (df["CATEGORY"] / 10).round()
     acc_dict = {}
 
+    td = TimeDirectory(_ACCURACY_DIRNAME)
+    time.sleep(1)
+    td.initLog()
+    print(td.time_dirname())
+    sw_cm = td.buildWriteText("cm.csv", mode="a")
+
+    def _save_cm(_cm: ConfusionMatrix, _name):
+        sw_cm.write(_name)
+        sw_cm.write(_cm.fmtCM(fmt="csv,"))
+        sw_cm.write("")
+        return
+
     for name in names:
         to_dict = {}
-        print("#", name, "-" * 6)
+        td.log("#", name, "-" * 6)
 
         def cal_cm(name_show, _type):
             if _type == 1:
@@ -1660,49 +1693,127 @@ def accuracyDirectory(csv_fn, mod_dirname):
 
             cm = ConfusionMatrix(class_names=_CATEGORY_NAMES)
             cm.addData(_df["CATEGORY2"].tolist(), _df[name].tolist())
-            print(name_show)
-            print(cm.fmtCM())
+            td.log(name_show)
+            td.log(cm.fmtCM())
+            _save_cm(cm, "{}-{}".format(name, name_show))
+
             to_dict["IS OA {}".format(name_show)] = cm.accuracyCategory("IS").OA()
             to_dict["IS Kappa {}".format(name_show)] = cm.accuracyCategory("IS").getKappa()
 
         cal_cm("NOSH", 1)
         cal_cm("SH", 2)
         acc_dict[name] = to_dict
-        printDict("", to_dict)
+        printDict("", to_dict, print_func=td.log)
 
-    print(pd.DataFrame(acc_dict).T.sort_values("IS OA NOSH", ascending=False))
+    td.log(pd.DataFrame(acc_dict).T.sort_values("IS OA NOSH", ascending=False))
+
+    return pd.DataFrame(acc_dict).T
+
+
+def accuracy():
+    def func1():
+        qd = accuracyDirectory(
+            # _MODEL_DFN.fn(r"20240718H145329\update3-test_sh.csv"),
+            r"F:\ASDEWrite\Result\QingDao\update-test2.csv",
+            r"F:\ASDEWrite\Result\QingDao",
+            # r"F:\ProjectSet\Shadow\ASDEHSamples\Models\20250316H105421",
+        )
+        bj = accuracyDirectory(
+            # _MODEL_DFN.fn(r"20240718H145329\update3-test_sh.csv"),
+            r"F:\ASDEWrite\Result\BeiJing\update2-test.csv",
+            r"F:\ASDEWrite\Result\BeiJing",
+            # r"F:\ProjectSet\Shadow\ASDEHSamples\Models\20250316H105421",
+        )
+        cd = accuracyDirectory(
+            # _MODEL_DFN.fn(r"20240718H145329\update3-test_sh.csv"),
+            r"F:\ASDEWrite\Result\ChengDu\update-test.csv",
+            r"F:\ASDEWrite\Result\ChengDu",
+            # r"F:\ProjectSet\Shadow\ASDEHSamples\Models\20250316H105421",
+        )
+        map_dict = {
+            "SAR-Opt-AS-DE_imdc": "HS-OAD",
+            "Opt-Opt-AS-DE_imdc": "OS-OAD",
+            "Opt-Opt-AS_imdc": "OS-OA",
+            "Opt-Opt-DE_imdc": "OS-OD",
+            "FREE-Opt-AS-DE_imdc": "NS-OAD",
+            "FREE-Opt-AS_imdc": "NS-OA",
+            "FREE-Opt-DE_imdc": "NS-OD",
+            "FREE-Opt_imdc": "NS-O",
+        }
+
+        def _func_rename(_df, _fmt="{}"):
+            _df = _df.T.to_dict()
+            _to_df = {}
+            for name in map_dict:
+                _to_df[map_dict[name]] = _df[_fmt.format(name)]
+            return pd.DataFrame(_to_df).T
+
+        qd = _func_rename(qd, "qd_{}")
+        bj = _func_rename(bj, "bj_{}")
+        cd = _func_rename(cd, "cd_{}")
+
+        print("Qingdao\n", qd)
+        print("Beijing\n", bj)
+        print("Chengdu\n", cd)
+
+        def _func1_show(name1, name2):
+            return pd.concat([qd[[name1, name2]], bj[[name1, name2]], cd[[name1, name2]], ], axis=1).T
+
+        df1 = _func1_show("IS OA NOSH", "IS Kappa NOSH")
+        df2 = _func1_show("IS OA SH", "IS Kappa SH")
+
+        df1.to_csv(r"F:\ProjectSet\Shadow\ASDEHSamples\Data\nosh.csv")
+        df2.to_csv(r"F:\ProjectSet\Shadow\ASDEHSamples\Data\sh.csv")
+
+        print("\n", df1)
+        print("\n", df2)
+
+        return
+
+    return func1()
 
 
 def run():
     sw = SRTWriteText(_MODEL_DFN.fn("Models.txt"), "a")
     csv_fn = None
 
-    for model in ["rf", "svm"]:
+    for model in ["rf"]:
         def func1():
             # csv_fn = _QD_SAMPLES_DFN.fn("3", r"qd_spl_select.csv")
             # csv_fn = _sampleCSV(_QD_RASTER_FN, csv_fn, True, changext(csv_fn, "_spl.csv"))
-            _TrainImdc("qd", csv_fn=csv_fn, model=model, is_save=True, is_imdc=True, feat_funcs_type=None).fit(sw=sw)
+            return _TrainImdc(
+                "qd", csv_fn=csv_fn, model=model, is_save=True, is_imdc=True, feat_funcs_type=None).fit(sw=sw)
 
         def func2():
             # csv_fn = _BJ_SAMPLES_DFN.fn("2", r"bj_spl_select.csv")
             # csv_fn = _sampleCSV(_BJ_RASTER_FN, csv_fn, True, changext(csv_fn, "_spl.csv"))
-            _TrainImdc("bj", csv_fn=csv_fn, model=model, is_save=True, is_imdc=True, feat_funcs_type=None).fit(sw=sw)
+            return _TrainImdc(
+                "bj", csv_fn=csv_fn, model=model, is_save=True, is_imdc=True, feat_funcs_type=None).fit(sw=sw,
+                                                                                                        is_best=False)
 
         def func3():
             # csv_fn = _CD_SAMPLES_DFN.fn("2", r"cd_spl_select.csv")
             # csv_fn = _sampleCSV(_CD_RASTER_FN, csv_fn, True, changext(csv_fn, "_spl.csv"))
-            _TrainImdc("cd", csv_fn=csv_fn, model=model, is_save=True, is_imdc=True, feat_funcs_type=None).fit(sw=sw)
+            return _TrainImdc(
+                "cd", csv_fn=csv_fn, model=model, is_save=True, is_imdc=True, feat_funcs_type=None).fit(sw=sw)
 
-        func1()
-        func2()
-        func3()
+        # func1()
+        train_imdc = func2()
+        # func3()
+
+    accuracyDirectory(
+        # _MODEL_DFN.fn(r"20240718H145329\update3-test_sh.csv"),
+        r"F:\ASDEWrite\Result\BeiJing\update2-test.csv",
+        train_imdc.model_dirname,
+    )
 
 
 def main():
     accuracyDirectory(
         # _MODEL_DFN.fn(r"20240718H145329\update3-test_sh.csv"),
-        r"F:\ProjectSet\Shadow\ASDEHSamples\Samples\QingDao\3\update-test.csv",
-        r"20240718H145329",
+        r"F:\ASDEWrite\Result\BeiJing\update2-test.csv",
+        r"F:\ASDEWrite\Result\BeiJing",
+        # r"F:\ProjectSet\Shadow\ASDEHSamples\Models\20250316H105421",
     )
 
     return
@@ -1924,6 +2035,7 @@ def draw():
         remove_white_border(fn, fn)
         plt.show()
 
+
     func2()
 
 
@@ -1983,7 +2095,7 @@ def adsi():
 
         is_chinese = True
 
-        to_dfn = DirFileName(r"F:\F\ASDEWrite\Images")
+        to_dfn = DirFileName(r"F:\ASDEWrite\Images")
 
         show_cnames = {
             "AS": ['IS_AS_SH', 'VEG_AS_SH', 'SOIL_AS_SH', 'WAT_AS_SH', ],
@@ -2077,12 +2189,12 @@ def adsi():
             plt.xticks(
                 ticks=[i for i in range(len(show_keys))],
                 labels=[f"${name}$" for name in [
-                    "VV_{AS}", "VH_{AS}",
-                    "C11_{AS}", "C22_{AS}",
-                    "H_{AS}", "{\\alpha}_{AS}",
-                    "VV_{DE}", "VH_{DE}",
-                    "C11_{DE}", "C22_{DE}",
-                    "H_{DE}", "{\\alpha}_{DE}",
+                    "{\\sigma}_{VV}^{AS}", "{\\sigma}_{VH}^{AS}",
+                    "C_{11}^{AS}", "C_{22}^{AS}",
+                    "H^{AS}", "{\\alpha}^{AS}",
+                    "{\\sigma}_{VV}^{DE}", "{\\sigma}_{VH}^{DE}",
+                    "C_{11}^{DE}", "C_{22}^{DE}",
+                    "H^{DE}", "{\\alpha}^{DE}",
                 ]],
             )
 
@@ -2117,8 +2229,8 @@ def adsi():
             plt.xticks(
                 ticks=[i for i in range(len(show_keys))],
                 labels=[f"${name}$" for name in [
-                    "VV", "VH",
-                    "C11", "C22",
+                    "{\\sigma}_{VV}", "{\\sigma}_{VH}",
+                    "C_{11}", "C_{22}",
                     "H", "\\alpha",
                 ]],
             )
@@ -2417,7 +2529,7 @@ def adsiThreshold():
         # gr.save(adsi_data, r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\{}_adsi4.dat".format(city_name))
 
     def cal1(city_name):
-        dfn = DirFileName(r"F:\F\ProjectSet\Shadow\ASDEHSamples\Threshold")
+        dfn = DirFileName(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold")
 
         gr1 = GDALRaster(dfn.fn("{}_adsi.tif".format(city_name)))
 
@@ -2701,14 +2813,14 @@ def adsiThreshold():
             plt.legend(loc='upper left', prop={"size": 10}, frameon=True,
                        fancybox=True, facecolor='white', edgecolor='black', )
 
-        is_chinese=True
+        is_chinese = True
 
         if is_chinese:
             title_list = ["$(a)$ 青岛", "$(b)$ 北京", "$(c)$ 成都",
                           "$(d)$ 青岛", "$(e)$ 北京", "$(f)$ 成都", ]
         else:
             title_list = ["$(a)$ Qingdao", "$(b)$ Beijing", "$(c)$ Chengdu",
-                      "$(d)$ Qingdao", "$(e)$ Beijing", "$(f)$ Chengdu", ]
+                          "$(d)$ Qingdao", "$(e)$ Beijing", "$(f)$ Chengdu", ]
 
         ts = {}
         plt.figure(figsize=(14, 9))
@@ -2719,7 +2831,7 @@ def adsiThreshold():
         cal_city3("cd", 3)
 
         printDict("OTSU", ts)
-        fn = r"F:\F\GraduationDesign\MkTu\Fig-6-OptimalThreshold.jpg"
+        fn = r"F:\GraduationDesign\MkTu\Fig-6-OptimalThreshold.jpg"
         print(fn)
         plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0)
         plt.show()
@@ -2728,7 +2840,7 @@ def adsiThreshold():
 
 
 if __name__ == "__main__":
-    adsiThreshold()
+    adsi()
 
 r"""
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowASDEHSamples import trainimdcMain; trainimdcMain()"

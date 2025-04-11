@@ -7,6 +7,11 @@ r"""----------------------------------------------------------------------------
 @License : (C)Copyright 2024, ZhengHan. All rights reserved.
 @Desc    : PyCodes of ShadowWrite
 -----------------------------------------------------------------------------"""
+import os
+import time
+
+import joblib
+import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
@@ -23,13 +28,13 @@ def main():
     images_dfn = DirFileName(r"F:\ASDEWrite\Images")
     result_dfn = DirFileName(r"F:\ASDEWrite\Result")
 
-    # plt.rcParams['font.family'] = 'serif'
-    # plt.rcParams['font.serif'] = ['Times New Roman']
+    plt.rcParams['font.family'] = 'serif'
+    plt.rcParams['font.serif'] = ['Times New Roman']
 
     # plt.rc('text', usetex=True)
 
-    plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
-    plt.rcParams['mathtext.fontset'] = 'stix'
+    # plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+    # plt.rcParams['mathtext.fontset'] = 'stix'
 
     def func1():
         fn = dfn.fn("ChengDuImages", "SH_CD_envi.dat")
@@ -298,7 +303,6 @@ def main():
             3: "DE SAR Shadow",
         }
 
-
         class draw_column:
 
             def __init__(self):
@@ -361,8 +365,8 @@ def main():
                             width, height = ell.width, ell.height
                             ell.xy[0] *= 2026.0 / 121.0
                             ell.xy[1] *= 2640.0 / 121.0
-                            ell.width*= 2026.0 / 121.0
-                            ell.height*= 2640.0 / 121.0
+                            ell.width *= 2026.0 / 121.0
+                            ell.height *= 2640.0 / 121.0
                             ax.add_patch(ell.fit())
                             ell.xy = xy
                             ell.width, ell.height = width, height
@@ -414,7 +418,7 @@ def main():
 
     def func4():
         FONT_SIZE = 16
-        is_chinese = True
+        is_chinese = False
 
         win_size = (61, 61)
         gi_win_size = int(win_size[0] * 2640.0 / 121.0), int(win_size[1] * 2026.0 / 121.0)
@@ -450,6 +454,8 @@ def main():
 
         imdcs = [
             ("FREE-Opt-AS-DE_imdc.tif", "NS-OAD"),
+            ("Opt-Opt-AS_imdc.tif", "OS-OA"),
+            ("Opt-Opt-DE_imdc.tif", "OS-OD"),
             ("FREE-Opt-AS_imdc.tif", "NS-OA"),
             ("FREE-Opt-DE_imdc.tif", "NS-OD"),
             ("FREE-Opt_imdc.tif", "NS-O"),
@@ -467,11 +473,11 @@ def main():
                 result_dfn.fn("Chengdu", "cd_{}".format(fn)),
                 channel_list=[0], is_01=False, is_min_max=False,
             )
-            imdc_column_names.append("${}$".format(name))
+            imdc_column_names.append("{}".format(name))
 
-        fig = plt.figure(figsize=(9, 9), )
+        fig = plt.figure(figsize=(12, 9), )
         fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.03, wspace=0.03)
-        n_rows, n_columns = 6, 6
+        n_rows, n_columns = 6, 8
 
         if is_chinese:
             column_names = ["谷歌地球影像", "光学影像", ] + imdc_column_names
@@ -519,14 +525,22 @@ def main():
                 self.column_draw()
 
                 plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + 4)
-                gdi.readDraw("NS-OA", x, y, color_dict=imdc_color_dict)
+                gdi.readDraw("OS-OA", x, y, color_dict=imdc_color_dict)
                 self.column_draw()
 
                 plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + 5)
-                gdi.readDraw("NS-OD", x, y, color_dict=imdc_color_dict)
+                gdi.readDraw("OS-OD", x, y, color_dict=imdc_color_dict)
                 self.column_draw()
 
                 plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + 6)
+                gdi.readDraw("NS-OA", x, y, color_dict=imdc_color_dict)
+                self.column_draw()
+
+                plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + 7)
+                gdi.readDraw("NS-OD", x, y, color_dict=imdc_color_dict)
+                self.column_draw()
+
+                plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + 8)
                 gdi.readDraw("NS-O", x, y, color_dict=imdc_color_dict)
                 self.column_draw()
 
@@ -554,7 +568,7 @@ def main():
                         plt.scatter([1], [1], marker=",", color=color_dict[4], edgecolors="black", s=100, label="WAT")
 
                     plt.legend(
-                        loc='lower left', bbox_to_anchor=(-4.0, -0.4),
+                        loc='lower left', bbox_to_anchor=(-5.0, -0.4),
                         prop={"size": FONT_SIZE}, frameon=False, ncol=4,
                         handletextpad=0, borderaxespad=0,
                     )
@@ -562,19 +576,171 @@ def main():
                 self.column += 1
 
         column = draw_column()
-        column.fit(r"$(a)$", 120.346020, 36.120435)
-        column.fit(r"$(b)$", 120.387358, 36.125549)
-        column.fit(r"$(c)$", 116.441548, 39.906636)
-        column.fit(r"$(d)$", 116.516795, 39.920875)
-        column.fit(r"$(e)$", 104.066101, 30.656686)
-        column.fit(r"$(f)$", 104.110842, 30.647660)
+        column.fit(r"(a)", 120.346020, 36.120435)
+        column.fit(r"(b)", 120.387358, 36.125549)
+        column.fit(r"(c)", 116.441548, 39.906636)
+        column.fit(r"(d)", 116.516795, 39.920875)
+        column.fit(r"(e)", 104.066101, 30.656686)
+        column.fit(r"(f)", 104.110842, 30.647660)
 
-        fn = r"F:\GraduationDesign\MkTu\Images\images\fig4132.jpg"
+        fn = r"F:\GraduationDesign\MkTu\Images\images\fig4133.jpg"
         plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0.05)
         print(fn)
         plt.show()
 
-    return func3()
+    def func5():
+        FONT_SIZE = 20
+        is_chinese = True
+
+        win_size = (15, 15)
+        gi_win_size = int(win_size[0] * 2640.0 / 121.0), int(win_size[1] * 2026.0 / 121.0)
+        print("win_size", win_size)
+        print("gi_win_size", gi_win_size)
+        gdi = GDALDrawImage(win_size)
+        qd = gdi.addGR(dfn.fn("BeiJingImages", "SH_BJ_envi.dat"), dfn.fn("BeiJingImages", "SH_BJ_look_envi.range"))
+        bj = gdi.addGR(dfn.fn("QingDaoImages", "SH_QD_envi.dat"), dfn.fn("QingDaoImages", "SH_QD_look_envi.range"))
+        cd = gdi.addGR(dfn.fn("ChengDuImages", "SH_CD_envi.dat"), dfn.fn("ChengDuImages", "SH_CD_look_envi.range"))
+        gdi.addRCC("RGB", qd, bj, cd, channel_list=["Red", "Green", "Blue"])
+        gdi.addRCC("NRG", qd, bj, cd, channel_list=["NIR", "Red", "Green"])
+        gdi.addRCC(
+            "AS_SAR",
+            sar_mean_dfn.fn("bj_as_mean2.tif"),
+            sar_mean_dfn.fn("qd_as_mean2.tif"),
+            sar_mean_dfn.fn("cd_as_mean2.tif"),
+            channel_list=[0])
+        gdi.addRCC(
+            "DE_SAR",
+            sar_mean_dfn.fn("bj_de_mean2.tif"),
+            sar_mean_dfn.fn("qd_de_mean2.tif"),
+            sar_mean_dfn.fn("cd_de_mean2.tif"),
+            channel_list=[0])
+        gdi.addRCC(
+            "GI",
+            r"F:\ProjectSet\Shadow\MkTu\4.1Details\BingImages\bj_googleimages.mbtiles",
+            r"F:\ProjectSet\Shadow\MkTu\4.1Details\BingImages\cd_googleimages.mbtiles",
+            r"F:\ProjectSet\Shadow\MkTu\4.1Details\BingImages\qd_googleimages.mbtiles",
+            channel_list=[0, 1, 2], win_size=gi_win_size
+        )
+
+        n_rows, n_columns = 3, 4
+        n_ex = 3
+        fig = plt.figure(figsize=(n_columns * n_ex, n_rows * n_ex), )
+        fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.03, wspace=0.03)
+
+        column_names = ["Google Earth", "Sentinel-2\nOptical", "Sentinel-1\nAscending SAR",
+                        "Sentinel-1\nDescending SAR"]
+
+        class draw_column:
+
+            def __init__(self):
+                self.row = 1
+                self.column = 1
+                self.name = ""
+
+            def fit(self, name, x, y):
+                self.column = 1
+                self.name = name
+
+                plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + 1)
+                gdi.readDraw("GI", x, y, is_trans=True, min_list=[0, 0, 0], max_list=[255, 255, 255])
+                self.column_draw()
+
+                plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + 2)
+                gdi.readDraw("NRG", x, y, min_list=[300, 300, 300], max_list=[2900, 1500, 1500])
+                self.column_draw()
+
+                plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + 3)
+                gdi.readDraw("AS_SAR", x, y, min_list=[-15], max_list=[5])
+                self.column_draw()
+
+                plt.subplot(n_rows, n_columns, (self.row - 1) * n_columns + 4)
+                gdi.readDraw("DE_SAR", x, y, min_list=[-15], max_list=[5])
+                self.column_draw()
+
+                self.row += 1
+
+            def column_draw(self):
+                ax = plt.gca()
+                print(self.row, self.column, end=" ")
+
+                if self.row == 1:
+                    print("self.row == 1", column_names[self.column - 1], end=" ")
+                    ax.set_title(column_names[self.column - 1], fontdict={"size": FONT_SIZE})
+                if self.column == 1:
+                    print("self.column == 1", self.name, end=" ")
+                    ax.set_ylabel(self.name, rotation=0, labelpad=10, fontdict={"size": FONT_SIZE})
+
+                self.column += 1
+
+                print()
+
+        column = draw_column()
+        column.fit(r"(a)", 116.441548, 39.906636)
+        column.fit(r"(b)", 120.4104974, 36.1176159)
+        column.fit(r"(c)", 120.4218535, 36.1034641)
+
+        # column.fit(r"$(b)$", 120.387358, 36.125549)
+
+        # column.fit(r"$(e)$", 104.066101, 30.656686)
+        # column.fit(r"$(f)$", 104.110842, 30.647660)
+
+        fn = r"F:\ASDEWrite\Images\re1\fig1.jpg"
+        plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0.05)
+        print(fn)
+        plt.show()
+
+    return func5()
+
+
+def funcs():
+    def func1():
+
+        map_dict = {
+            "SAR-Opt-AS-DE": "HS-OAD",
+            "Opt-Opt-AS-DE": "OS-OAD",
+            "Opt-Opt-AS": "OS-OA",
+            "Opt-Opt-DE": "OS-OD",
+            "FREE-Opt-AS-DE": "NS-OAD",
+            "FREE-Opt-AS": "NS-OA",
+            "FREE-Opt-DE": "NS-OD",
+            "FREE-Opt": "NS-O",
+        }
+        map_dict_city = {"QingDao": "qd", "BeiJing": "bj", "ChengDu": "cd"}
+
+        for city_name in ["QingDao", "BeiJing", "ChengDu"]:
+            datas = {}
+            for name in map_dict:
+                fn = os.path.join(
+                    r"F:\ASDEWrite\Result",
+                    city_name, "{}_{}".format(map_dict_city[city_name], name),
+                    "model.mod"
+                )
+                model = joblib.load(fn)
+                datas[map_dict[name]] = {
+                    "n_estimators": model.clf.n_estimators,
+                    "max_depth": model.clf.max_depth,
+                    "min_samples_split": model.clf.min_samples_split,
+                    "min_samples_leaf": model.clf.min_samples_leaf,
+                }
+
+            print(city_name, "\n", pd.DataFrame(datas), "\n")
+
+        return
+
+    def func2():
+        mod = joblib.load(r"F:\ASDEWrite\Result\QingDao\qd_SAR-Opt-AS-DE\model.mod")
+        print(mod)
+        data = np.load(r"F:\ASDEWrite\Result\QingDao\qd_SAR-Opt-AS-DE\x_train_data.npy")
+        joblib.dump(mod.clf, r"F:\ASDEWrite\Result\QingDao\qd_SAR-Opt-AS-DE\model_rf.mod")
+        # t1 = time.time()
+        # mod.clf.predict(data)
+        # t2 = time.time()
+        # print(data.shape[0])
+        # print((t2-t1)/(data.shape[0])*256*256)
+
+        return
+
+    return func2()
 
 
 def method_name1():
@@ -649,4 +815,4 @@ def method_name1():
 
 
 if __name__ == "__main__":
-    main()
+    funcs()

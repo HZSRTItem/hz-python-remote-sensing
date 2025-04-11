@@ -601,6 +601,7 @@ class FeedForward(nn.Module):
 
 
 class TransformerBlock(nn.Module):
+
     def __init__(self, dim, num_heads, ffn_expansion_factor, bias, LayerNorm_type):
         super(TransformerBlock, self).__init__()
 

@@ -149,7 +149,68 @@ def main():
         )
         return
 
-    return func1()
+    def func2():
+        title_dict = {}
+        is_find = {}
+
+        def _get_title(_line: str):
+            _lines = _line.split(".")
+            _title = _lines[1].split("[")[0].strip()
+            if ";" in _title:
+                return _title.split(";")[0].strip()
+            else:
+                return _title
+
+        with open(r"F:\GraduationDesign\参考文献.txt", "r", encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                # if not line.strip().endswith("."):
+                #     print(line)
+                # if "]." not in line:
+                #     print(line)
+                title = _get_title(line)
+                title = title.lower()
+                print("[{}]\t{}".format(i + 1, title))
+                title_dict[title] = line.split("\t", 2)[1].strip()
+                is_find[title] = False
+
+        print("-" * 60)
+        fn = r"F:\GraduationDesign\参考文献\参考文献-1.txt"
+        to_fn = changext(fn, "-fmt.txt")
+        fw = open(to_fn, "w", encoding="utf-8")
+        with open(fn, "r", encoding="utf-8") as f:
+
+            for i, line in enumerate(f):
+                title = _get_title(line)
+                title = title.lower()
+
+                if title in title_dict:
+                    print("[{}]\t{}".format(i + 1, title_dict[title]))
+                    is_find[title] = True
+                    fw.write("{}\n".format(title_dict[title]))
+                else:
+                    print("[{}]\t -----------------------({})".format(i + 1, title))
+                    fw.write("-----------------------({})\n".format(title))
+
+            fw.write("\n\n")
+            print("\n# Not find")
+            for name in is_find:
+                if not is_find[name]:
+                    print(title_dict[name])
+                    fw.write("{}\n".format(title_dict[name]))
+            fw.write("\n\n")
+            fw.close()
+
+    def func3():
+        image_data = np.random.random((100, 100))
+        image_data = np.concatenate([[image_data], [image_data], [image_data]]).transpose((2, 1, 0))
+
+        plt.imshow(image_data)
+        plt.xticks([])
+        plt.yticks([])
+        plt.savefig(r"F:\Week\20250330\Data\dddd.jpg", dpi=300, bbox_inches='tight', pad_inches=0.05)
+        plt.show()
+
+    return func3()
 
 
 class GD_GMRaster:
@@ -236,13 +297,19 @@ def funcs3(*args):
             return _names
 
         opt_names = to_01([
-            "NDVI", "NDWI", "Blue", "Green", "Red", "NIR",
-            "OPT_mean", "OPT_cor", "OPT_ent", "OPT_dis", "OPT_hom", "OPT_con", "OPT_var", "OPT_asm",
+            "NDVI", "NDWI", "Blue", "Green", "Red", "NIR", "OPT_mean",
+            "OPT_cor", "OPT_ent", "OPT_dis", "OPT_hom", "OPT_con",
+            "OPT_var", "OPT_asm",
         ])
         opt_show_names = [
             '$ NDVI $', '$ NDWI $', '$ Blue $', '$ Green $', '$ Red $', '$ NIR $', '$ OPT_{mean} $',
             '$ OPT_{cor} $', '$ OPT_{ent} $', '$ OPT_{dis} $', '$ OPT_{hom} $', '$ OPT_{con} $',
             '$ OPT_{var} $', '$ OPT_{asm} $',
+        ]
+        opt_show_names = [
+            "NDVI", "NDWI", "B2", "B3", "B4", "NIR", "GRAY mean",
+            "GRAY cor", "GRAY ent", "GRAY dis", "GRAY hom", "GRAY con",
+            "GRAY var", "GRAY asm",
         ]
 
         sar_names = to_01([
@@ -283,20 +350,22 @@ def funcs3(*args):
             # plt.figure(figsize=(8, 5))
             # plt.subplots_adjust(top=0.97, bottom=0.21, left=0.081, right=0.981, hspace=0.2, wspace=0.2)
 
+            fontsize = 16
+
             for _data in _draw1_data:
                 draw1(*_data[0], **_data[1])
 
-            plt.xlabel("特征", )
-            plt.ylabel("特征均值", )
+            plt.xlabel("特征", fontsize=fontsize)
+            plt.ylabel("特征均值", fontsize=fontsize)
 
             plt.ylim([None, 1])
-            plt.legend()
+            plt.legend(fontsize=fontsize)
 
-            plt.xticks(rotation=0)
+            plt.xticks(rotation=45, fontsize=fontsize - 2)
             if _fn is not None:
                 to_fn = dfn.fn("{}.jpg".format(_fn))
                 print(to_fn)
-                plt.savefig(to_fn, dpi=300, bbox_inches='tight', )
+                plt.savefig(to_fn, dpi=300, bbox_inches='tight', pad_inches=0.01)
 
         def _func_draw1_data(*_args, **_kwargs):
             return [_args, _kwargs]
@@ -318,7 +387,7 @@ def funcs3(*args):
             if _fn is not None:
                 plt.savefig(dfn.fn("{}.jpg".format(_fn)), dpi=300)
 
-        names = sar_names
+        names = opt_names
         show_names = opt_show_names
 
         MARKER_SIZE = 10
@@ -440,31 +509,31 @@ def funcs3(*args):
         # )
         # plt.show()
 
-        plt.figure(figsize=(9, 6))
+        plt.figure(figsize=(9, 4.5))
         plt.subplots_adjust(top=0.96, bottom=0.217, left=0.098, right=0.965, hspace=0.732, wspace=0.2)
-        # draw1_im1("opt_is", [is_draw1_data, is_sh_draw1_data, ])
-        # plt.clf()
-        # draw1_im1("opt_veg", [veg_draw1_data, veg_sh_draw1_data, is_draw1_data, is_sh_draw1_data, ])
-        # plt.clf()
-        # draw1_im1("opt_soil", [soil_draw1_data, soil_sh_draw1_data, is_draw1_data, is_sh_draw1_data, ])
-        # plt.clf()
-        # draw1_im1("opt_wat", [wat_draw1_data, wat_sh_draw1_data, is_draw1_data, is_sh_draw1_data, ])
-        # plt.clf()
+        draw1_im1("opt_is", [is_draw1_data, is_sh_draw1_data, ])
+        plt.clf()
+        draw1_im1("opt_veg", [veg_draw1_data, veg_sh_draw1_data, is_draw1_data, is_sh_draw1_data, ])
+        plt.clf()
+        draw1_im1("opt_soil", [soil_draw1_data, soil_sh_draw1_data, is_draw1_data, is_sh_draw1_data, ])
+        plt.clf()
+        draw1_im1("opt_wat", [wat_draw1_data, wat_sh_draw1_data, is_draw1_data, is_sh_draw1_data, ])
+        plt.clf()
 
-        draw1_im1("sar_is1", [is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de])
-        plt.clf()
-        draw1_im1("sar_veg1", [
-            is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
-            veg_draw1_data_as, veg_sh_draw1_data_as, veg_draw1_data_de, veg_sh_draw1_data_de])
-        plt.clf()
-        draw1_im1("sar_soil1", [
-            is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
-            soil_draw1_data_as, soil_sh_draw1_data_as, soil_draw1_data_de, soil_sh_draw1_data_de])
-        plt.clf()
-        draw1_im1("sar_wat1", [
-            is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
-            wat_draw1_data_as, wat_sh_draw1_data_as, wat_draw1_data_de, wat_sh_draw1_data_de])
-        plt.clf()
+        # draw1_im1("sar_is1", [is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de])
+        # plt.clf()
+        # draw1_im1("sar_veg1", [
+        #     is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
+        #     veg_draw1_data_as, veg_sh_draw1_data_as, veg_draw1_data_de, veg_sh_draw1_data_de])
+        # plt.clf()
+        # draw1_im1("sar_soil1", [
+        #     is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
+        #     soil_draw1_data_as, soil_sh_draw1_data_as, soil_draw1_data_de, soil_sh_draw1_data_de])
+        # plt.clf()
+        # draw1_im1("sar_wat1", [
+        #     is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
+        #     wat_draw1_data_as, wat_sh_draw1_data_as, wat_draw1_data_de, wat_sh_draw1_data_de])
+        # plt.clf()
 
         # plt.figure(figsize=(8, 9.5))
         # plt.subplots_adjust(top=0.984, bottom=0.111, left=0.081, right=0.781, hspace=0.51, wspace=0.2)
@@ -693,7 +762,7 @@ def funcs3(*args):
 
         dfn = DirFileName(r"F:\GraduationDesign\MkTu\Images\images")
         c2_cnames1 = ["$C_{11}$", "$C_{22}$"]
-        sigma_names1 = ["$VV$", "$VH$"]
+        sigma_names1 = [r"$\sigma_{VV}$", r"$\sigma_{VH}$"]
         ha_names1 = ["$H$", r"$\alpha$"]
 
         c2_names2 = ["AS_C11", "DE_C11", "AS_C22", "DE_C22"]
@@ -757,29 +826,134 @@ def funcs3(*args):
             )
             _gmr.draw(
                 [1],
-                x_major_len=(0, 6, 0), y_major_len=(0, 6, 0),
+                x_major_len=(0, 10, 0), y_major_len=(0, 10, 0),
                 x_minor_len=(0, 0, 20), y_minor_len=(0, 0, 20),
             )
-            to_fn = r"F:\GraduationDesign\MkTu\Images\images\{}_imdc1.jpg".format(_name)
+            to_fn = r"F:\GraduationDesign\MkTu\Images\images\{}_imdc_adesi.jpg".format(_name)
             print(to_fn)
             plt.savefig(to_fn, bbox_inches='tight', dpi=300)
             plt.show()
 
-        _func_1("qd", r"F:\ASDEWrite\Result\QingDao\qd_SAR-Opt-AS-DE_imdc.tif")
-        _func_1("bj", r"F:\ASDEWrite\Result\BeiJing\bj_SAR-Opt-AS-DE_imdc.tif")
-        _func_1("cd", r"F:\ASDEWrite\Result\ChengDu\cd_SAR-Opt-AS-DE_imdc.tif")
+        # _func_1("qd", r"F:\ASDEWrite\Result\QingDao\qd_SAR-Opt-AS-DE_imdc.tif")
+        # _func_1("bj", r"F:\ASDEWrite\Result\BeiJing\bj_SAR-Opt-AS-DE_imdc.tif")
+        # _func_1("cd", r"F:\ASDEWrite\Result\ChengDu\cd_SAR-Opt-AS-DE_imdc.tif")
+
+        _func_1("qd", r"F:\GraduationDesign\Result\QingDao\20250120H183522\qd-RF_9ADESI_GLCM_OPT-RF_imdc.tif")
+        _func_1("bj", r"F:\GraduationDesign\Result\BeiJing\20250120H190546\bj-RF_9ADESI_GLCM_OPT-RF_imdc.tif")
+        _func_1("cd", r"F:\GraduationDesign\Result\ChengDu\20250120H193443\cd-RF_9ADESI_GLCM_OPT-RF_imdc.tif")
 
     if len(args) != 0:
         return func6(*args)
     else:
-        return func8()
+        return func1()
+
+
+def write():
+    def func1():
+        images_fn = r"F:\GraduationDesign\Images\update\ReadMe.md"
+        images = []
+        dfn = DirFileName(r"F:\GraduationDesign\Images\update")
+        is_copy = True
+
+        with open(images_fn, "r", encoding="utf-8") as f:
+            section_names = [None, None, None]
+            image_lines = []
+            for line in f:
+                line = line.strip()
+                if line.startswith("# "):
+                    section_names[0] = line[2:]
+                    section_names[1], section_names[2] = None, None
+                elif line.startswith("## "):
+                    section_names[1] = line[3:]
+                    section_names[2] = None
+                elif line.startswith("## "):
+                    section_names[2] = line[4:]
+                else:
+                    if line != "":
+                        image_lines.append(line)
+                    else:
+                        if image_lines:
+                            fn = image_lines[0].strip("\"")
+                            images.append({
+                                "FN": fn,
+                                "NAME_CH": image_lines[1],
+                                "NAME_EN": image_lines[2],
+                                "SEC_1":section_names[0],
+                                "SEC_2":section_names[1],
+                                "SEC_3":section_names[2],
+                                "OTHER": image_lines[3:] if len(image_lines) > 3 else None,
+                            })
+                            if is_copy:
+                                if os.path.isfile(fn):
+                                    dfn.copyfile(fn)
+                                else:
+                                    print("Not find file:", fn)
+                            image_lines = []
+        print(tabulate(pd.DataFrame(images), headers="keys", tablefmt="simple") )
+
+        return
+
+    def func2():
+        title_dict = {}
+        is_find = {}
+
+        def _get_title(_line: str):
+            _lines = _line.split(".")
+            _title = _lines[1].split("[")[0].strip()
+            if ";" in _title:
+                return _title.split(";")[0].strip()
+            else:
+                return _title
+
+        with open(r"F:\GraduationDesign\参考文献\参考文献.txt", "r", encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                # if not line.strip().endswith("."):
+                #     print(line)
+                # if "]." not in line:
+                #     print(line)
+                title = _get_title(line)
+                title = title.lower()
+                print("[{}]\t{}".format(i + 1, title))
+                title_dict[title] = line.split("\t", 2)[1].strip()
+                is_find[title] = False
+
+        print("-" * 60)
+        fn = r"F:\GraduationDesign\参考文献\参考文献-2.txt"
+        to_fn = changext(fn, "-fmt.txt")
+        fw = open(to_fn, "w", encoding="utf-8")
+        with open(fn, "r", encoding="utf-8") as f:
+
+            for i, line in enumerate(f):
+                title = _get_title(line)
+                title = title.lower()
+
+                if title in title_dict:
+                    print("[{}]\t{}".format(i + 1, title_dict[title]))
+                    is_find[title] = True
+                    fw.write("{}\n".format(title_dict[title]))
+                else:
+                    print("[{}]\t -----------------------({}) {}".format(i + 1, title, line.strip()))
+                    fw.write("-----------------------({}) {}\n".format(title, line.strip()))
+
+            fw.write("\n\n")
+            print("\n# Not find")
+            for name in is_find:
+                if not is_find[name]:
+                    print(title_dict[name])
+                    fw.write("{}\n".format(title_dict[name]))
+            fw.write("\n\n")
+            fw.close()
+
+    return func2()
 
 
 if __name__ == "__main__":
-    funcs3()
+    write()
+
 r"""
 E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('sigma', 1)"
 E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('sigma', 2)"
+
 E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('C2', 1)"
 E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('C2', 2)"
 

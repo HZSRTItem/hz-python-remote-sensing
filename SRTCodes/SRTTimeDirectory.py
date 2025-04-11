@@ -17,14 +17,14 @@ from SRTCodes.Utils import TimeName, SRTLog, SRTWriteText, DirFileName, saveJson
 
 class TimeDirectory:
 
-    def __init__(self, dirname, fmt="%Y%m%dH%H%M%S", time_dirname=None):
+    def __init__(self, dirname, fmt="%Y%m%dH%H%M%S", time_dirname=None, is_print=True):
         self.dirname = dirname
         if self.dirname is None:
             return
         if not os.path.isdir(dirname):
             os.mkdir(dirname)
         self.time_dfn = None
-        self._log = SRTLog()
+        self._log = SRTLog(is_print=is_print)
         self.save_dict = {}
         self.initTimeName(fmt, time_dirname)
 
@@ -124,6 +124,7 @@ class TimeDirectory:
 
     def time_dirname(self):
         return self.time_dfn.fn()
+
 
 def main():
     pass
