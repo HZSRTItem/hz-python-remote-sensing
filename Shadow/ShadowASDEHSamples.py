@@ -21,10 +21,12 @@ import shutil
 import time
 import warnings
 
+import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from osgeo import gdal
+from sklearn.ensemble import RandomForestClassifier
 from tabulate import tabulate
 
 from RUN.RUNFucs import df2SplTxt, splTxt2Dict
@@ -39,7 +41,7 @@ from SRTCodes.SRTSample import samplesDescription
 from SRTCodes.SRTTimeDirectory import TimeDirectory
 from SRTCodes.Utils import saveJson, changext, mkdir, DirFileName, getfilenamewithoutext, printDict, \
     readJson, SRTWriteText, timeStringNow, timeDirName, readLines, savecsv, filterFileEndWith, printList, Jdt, \
-    ChangeInitDirname
+    ChangeInitDirname, TableLinePrint, timeFileName
 from Shadow.Hierarchical.SHH2Config import FEAT_NAMES_CLS
 from Shadow.ShadowMainBeiJing import bjFeatureDeal
 from Shadow.ShadowMainChengDu import cdFeatureDeal
@@ -1762,8 +1764,8 @@ def accuracy():
         df1 = _func1_show("IS OA NOSH", "IS Kappa NOSH")
         df2 = _func1_show("IS OA SH", "IS Kappa SH")
 
-        df1.to_csv(r"F:\ProjectSet\Shadow\ASDEHSamples\Data\nosh.csv")
-        df2.to_csv(r"F:\ProjectSet\Shadow\ASDEHSamples\Data\sh.csv")
+        df1.to_csv(r"F:\ProjectSet\Shadow\ASDEHSamples\Data\nosh1.csv")
+        df2.to_csv(r"F:\ProjectSet\Shadow\ASDEHSamples\Data\sh1.csv")
 
         print("\n", df1)
         print("\n", df2)
@@ -1903,7 +1905,7 @@ def draw():
             ("SOIL", df_soil_as_sh, df_soil_de_sh), ("WAT", df_wat_as_sh, df_wat_de_sh),
         ]
 
-        name_dict = {"IS": "(a) Impervious Surface", "VEG": "(b) Vegetation", "SOIL": "(c) Soil", "WAT": "(d) Water"}
+        name_dict = {"IS": "(a) IS", "VEG": "(b) Vegetation", "SOIL": "(c) Bare soil", "WAT": "(d) Water bodies"}
 
         def show1():
             plt.rcParams['font.size'] = 12
@@ -1963,7 +1965,7 @@ def draw():
                         prop={"size": 14}, frameon=False, ncol=2,
                     )
 
-            fn = r"F:\ASDEWrite\Images\Fig-8-ADDE_SH_mean2.jpg"
+            fn = r"F:\ASDEWrite\Images\Up\Up20250427\Fig-8-ADDE_SH_mean.jpg"
             plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0)
             plt.show()
 
@@ -2034,7 +2036,6 @@ def draw():
         plt.savefig(fn, dpi=300)
         remove_white_border(fn, fn)
         plt.show()
-
 
     func2()
 
@@ -2679,11 +2680,11 @@ def adsiThreshold():
 
     def func4():
         plt.rcParams['font.size'] = 14
-        # plt.rcParams['font.family'] = 'serif'
-        # plt.rcParams['font.serif'] = ['Times New Roman']
+        plt.rcParams['font.family'] = 'serif'
+        plt.rcParams['font.serif'] = ['Times New Roman']
 
-        plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
-        plt.rcParams['mathtext.fontset'] = 'stix'
+        # plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+        # plt.rcParams['mathtext.fontset'] = 'stix'
 
         def cal_city(city_name):
             qd_sei, qd_csi, qd_adsi_data, qd_gr1, qd_gr2, qd_spls = cal1(city_name)
@@ -2753,9 +2754,9 @@ def adsiThreshold():
             def show_t(_data, _n=1):
                 plt.axvline(_data, color="red")
                 if _n == 1:
-                    plt.text(0.1, 0.65, "$T1={:.3f}$".format(_data), transform=plt.gca().transAxes)
+                    plt.text(0.1, 0.65, "T1={:.3f}".format(_data), transform=plt.gca().transAxes)
                 if _n == 2:
-                    plt.text(0.55, 0.68, "$T2={:.3f}$".format(_data), transform=plt.gca().transAxes)
+                    plt.text(0.55, 0.68, "T2={:.3f}".format(_data), transform=plt.gca().transAxes)
 
             plt.subplot(2, 3, subplot)
             data_opt = get_data("Opt", "CSI", )
@@ -2790,7 +2791,7 @@ def adsiThreshold():
             if is_chinese:
                 label = "升降轨阴影"
             else:
-                label = "AS\\DE SAR shadows"
+                label = "AS/DE SAR shadows"
             plt.hist(data_opt, bins=50, density=True, label=label, color="saddlebrown")
             data_non = get_data("NON", "ADSI", )
             if is_chinese:
@@ -2813,14 +2814,14 @@ def adsiThreshold():
             plt.legend(loc='upper left', prop={"size": 10}, frameon=True,
                        fancybox=True, facecolor='white', edgecolor='black', )
 
-        is_chinese = True
+        is_chinese = False
 
         if is_chinese:
             title_list = ["$(a)$ 青岛", "$(b)$ 北京", "$(c)$ 成都",
                           "$(d)$ 青岛", "$(e)$ 北京", "$(f)$ 成都", ]
         else:
-            title_list = ["$(a)$ Qingdao", "$(b)$ Beijing", "$(c)$ Chengdu",
-                          "$(d)$ Qingdao", "$(e)$ Beijing", "$(f)$ Chengdu", ]
+            title_list = ["(a) Qingdao", "(b) Beijing", "(c) Chengdu",
+                          "(d) Qingdao", "(e) Beijing", "(f) Chengdu", ]
 
         ts = {}
         plt.figure(figsize=(14, 9))
@@ -2831,7 +2832,7 @@ def adsiThreshold():
         cal_city3("cd", 3)
 
         printDict("OTSU", ts)
-        fn = r"F:\GraduationDesign\MkTu\Fig-6-OptimalThreshold.jpg"
+        fn = r"F:\ASDEWrite\Images\Up\Up20250427\Fig-6-OptimalThreshold.jpg"
         print(fn)
         plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0)
         plt.show()
@@ -2839,12 +2840,331 @@ def adsiThreshold():
     func4()
 
 
+def randomStats(*args, **kwargs):
+    def func1():
+
+        GDALSamplingFast(_QD_RASTER_FN).csvfile(
+            r"F:\ASDEWrite\Run\RFRandomState\qd_test.csv",
+            r"F:\ASDEWrite\Run\RFRandomState\qd_test_spl.csv",
+        )
+        GDALSamplingFast(_BJ_RASTER_FN).csvfile(
+            r"F:\ASDEWrite\Run\RFRandomState\bj_test.csv",
+            r"F:\ASDEWrite\Run\RFRandomState\bj_test_spl.csv",
+        )
+        GDALSamplingFast(_CD_RASTER_FN).csvfile(
+            r"F:\ASDEWrite\Run\RFRandomState\cd_test.csv",
+            r"F:\ASDEWrite\Run\RFRandomState\cd_test_spl.csv",
+        )
+
+    def func2():
+
+        def _map_func(_datas, _select, _x_keys, ):
+            _to_data = []
+            _to_category = []
+            for _spl in _datas:
+                if _spl[_select] == 1:
+                    _to_data.append([_spl[_key] for _key in _x_keys])
+                    _to_category.append(map_dict[_spl["CNAME"]])
+            return np.array(_to_data), np.array(_to_category)
+
+        map_dict = {"IS": 1, "IS_SH": 1, "VEG": 2, "VEG_SH": 2, "SOIL": 3, "SOIL_SH": 3, "WAT": 4, "WAT_SH": 4, }
+        city_names = {"qd": "QingDao", "bj": "BeiJing", "cd": "ChengDu"}
+        tlp = TableLinePrint().firstLine("Name", "x_test", "y_test", "x_test_sh", "y_test_sh")
+
+        for city_name in ["qd", "bj", "cd"]:
+            csv_fn = os.path.join(r"F:\ASDEWrite\Run\RFRandomState", "{}_test_spl.csv".format(city_name))
+            spl_data = pd.read_csv(csv_fn)
+            for name in ["FREE-Opt-AS-DE", "FREE-Opt-AS", "FREE-Opt-DE", "FREE-Opt",
+                         "Opt-Opt-AS-DE", "Opt-Opt-AS", "Opt-Opt-DE", "SAR-Opt-AS-DE", ]:
+                to_name = "{}_{}".format(city_name, name)
+                to_dirname = os.path.join(r"F:\ASDEWrite\Run\RFRandomState", to_name)
+                if not os.path.isdir(to_dirname):
+                    os.mkdir(to_dirname)
+                shutil.copyfile(
+                    os.path.join(r"F:\ASDEWrite\Result", city_names[city_name], to_name, "x_train_data.npy"),
+                    os.path.join(to_dirname, "x_train_data.npy")
+                )
+                shutil.copyfile(
+                    os.path.join(r"F:\ASDEWrite\Result", city_names[city_name], to_name, "y_train_data.npy"),
+                    os.path.join(to_dirname, "y_train_data.npy")
+                )
+                hm_fn = os.path.join(r"F:\ASDEWrite\Result", city_names[city_name], "{}.hm".format(to_name))
+                data = readJson(hm_fn)
+                x_keys = data["x_keys"]
+                x_test, y_test = _map_func(spl_data.to_dict("records"), "TEST_IS", x_keys)
+                x_test_sh, y_test_sh = _map_func(spl_data.to_dict("records"), "TEST_SH", x_keys)
+                np.save(os.path.join(to_dirname, "x_test.npy"), x_test)
+                np.save(os.path.join(to_dirname, "y_test.npy"), y_test)
+                np.save(os.path.join(to_dirname, "x_test_sh.npy"), x_test_sh)
+                np.save(os.path.join(to_dirname, "y_test_sh.npy"), y_test_sh)
+                tlp.print(to_name, len(x_test), len(y_test), len(x_test_sh), len(y_test_sh))
+
+        return
+
+    def func3():
+        canshu = pd.read_excel(r"F:\ASDEWrite\Run\RFRandomState\canshu.xlsx")
+        city_names = {"Qingdao": "qd", "Beijing": "bj", "Chengdu": "cd"}
+        print(canshu)
+        print(canshu.keys())
+        map_names = {
+            "NS-OAD": "FREE-Opt-AS-DE",
+            "NS-OA": "FREE-Opt-AS",
+            "NS-OD": "FREE-Opt-DE",
+            "NS-O": "FREE-Opt",
+            "OS-OAD": "Opt-Opt-AS-DE",
+            "OS-OA": "Opt-Opt-AS",
+            "OS-OD": "Opt-Opt-DE",
+            "HS-OAD": "SAR-Opt-AS-DE",
+        }
+        map_names_inv = {map_names[_key]: _key for _key in map_names}
+        names = ['HS-OAD', 'OS-OAD', 'OS-OA', 'OS-OD', 'NS-OAD', 'NS-OA', 'NS-OD', 'NS-O']
+        n = 10
+        tlp = TableLinePrint().firstLine(
+            "City Name", "Method",
+            "IS OA mean", "IS OA std", "IS Kappa mean", "IS Kappa std",
+            "SH OA mean", "SH OA std", "SH Kappa mean", "SH Kappa std",
+        )
+
+        sw = SRTWriteText(timeFileName("random_state_{}.csv", r"F:\ASDEWrite\Run\RFRandomState\RandomState"))
+        sw.write(
+            "City Name", "Method", "RandomState",
+            "IS OA mean", "IS OA std", "IS Kappa mean", "IS Kappa std",
+            "SH OA mean", "SH OA std", "SH Kappa mean", "SH Kappa std",
+            "RF"
+        )
+
+        for city_name in np.unique(canshu["Studyareas"].values):
+            df = canshu[canshu["Studyareas"] == city_name].set_index("canshuname")
+            for name in names:
+                to_dirname = os.path.join(
+                    r"F:\ASDEWrite\Run\RFRandomState",
+                    "{}_{}".format(city_names[city_name], map_names[name]))
+                x_train = np.load(os.path.join(to_dirname, "x_train_data.npy"))
+                y_train = np.load(os.path.join(to_dirname, "y_train_data.npy"))
+                x_test = np.load(os.path.join(to_dirname, "x_test.npy"))
+                y_test = np.load(os.path.join(to_dirname, "y_test.npy"))
+                x_test_sh = np.load(os.path.join(to_dirname, "x_test_sh.npy"))
+                y_test_sh = np.load(os.path.join(to_dirname, "y_test_sh.npy"))
+
+                is_oa_list = []
+                is_kappa_list = []
+                is_sh_oa_list = []
+                is_sh_kappa_list = []
+
+                for i in range(n):
+                    random_state = np.random.randint(1, 100000)
+
+                    clf = RandomForestClassifier(**df[name].to_dict(), random_state=random_state)
+                    clf.fit(x_train, y_train)
+
+                    cm = ConfusionMatrix(class_names=["IS", "VEG", "SOIL", "WAT"])
+                    cm.addData(y_test, clf.predict(x_test))
+                    cm_sh = ConfusionMatrix(class_names=["IS", "VEG", "SOIL", "WAT"])
+                    cm_sh.addData(y_test_sh, clf.predict(x_test_sh))
+
+                    is_oa = cm.accuracyCategory("IS").OA() / 100.0
+                    is_kappa = cm.accuracyCategory("IS").getKappa()
+                    is_sh_oa = cm_sh.accuracyCategory("IS").OA() / 100.0
+                    is_sh_kappa = cm_sh.accuracyCategory("IS").getKappa()
+
+                    is_oa_list.append(is_oa)
+                    is_kappa_list.append(is_kappa)
+                    is_sh_oa_list.append(is_sh_oa)
+                    is_sh_kappa_list.append(is_sh_kappa)
+
+                    sw.write(city_name, name, random_state, is_oa, -1, is_kappa, -1,
+                             is_sh_oa, -1, is_sh_kappa, -1, str(df[name].to_dict()))
+
+                tlp.print(
+                    city_name, name,
+                    np.array(is_oa_list).mean(), np.array(is_oa_list).std() * np.array(is_oa_list).std(),
+                    np.array(is_kappa_list).mean(), np.array(is_kappa_list).std() * np.array(is_kappa_list).std(),
+                    np.array(is_sh_oa_list).mean(), np.array(is_sh_oa_list).std() * np.array(is_sh_oa_list).std(),
+                    np.array(is_sh_kappa_list).mean(),
+                                                 np.array(is_sh_kappa_list).std() * np.array(is_sh_kappa_list).std(),
+                )
+
+                sw.write(
+                    city_name, name,
+                    np.array(is_oa_list).mean(), np.array(is_oa_list).std() * np.array(is_oa_list).std(),
+                    np.array(is_kappa_list).mean(), np.array(is_kappa_list).std() * np.array(is_kappa_list).std(),
+                    np.array(is_sh_oa_list).mean(), np.array(is_sh_oa_list).std() * np.array(is_sh_oa_list).std(),
+                    np.array(is_sh_kappa_list).mean(),
+                                                 np.array(is_sh_kappa_list).std() * np.array(is_sh_kappa_list).std(),
+                    str(df[name].to_dict())
+                )
+
+    def func4():
+        mod = joblib.load(r"F:\ASDEWrite\Result\QingDao\qd_SAR-Opt-AS-DE\model_rf.mod")
+        print(mod.random_state)
+
+    class _SaveLine:
+
+        def __init__(
+                self, to_dirname,
+                x_train, y_train, x_test, y_test, x_test_sh, y_test_sh,
+                is_oa, is_kappa, is_sh_oa, is_sh_kappa,
+                rf, city_name, to_name,
+        ):
+            self.to_dirname = to_dirname
+            self.x_train = x_train
+            self.y_train = y_train
+            self.x_test = x_test
+            self.y_test = y_test
+            self.rf = rf
+            self.x_test_sh = x_test_sh
+            self.y_test_sh = y_test_sh
+            self.is_oa = is_oa
+            self.is_kappa = is_kappa
+            self.is_sh_oa = is_sh_oa
+            self.is_sh_kappa = is_sh_kappa
+            self.city_name = city_name
+            self.to_name = to_name
+
+            self.filename = os.path.join(to_dirname, "random_state.csv")
+            self.random_state_list = []
+            self.sw = SRTWriteText(self.filename, "a", )
+            self.tlp = TableLinePrint().firstLine(
+                "Number", "RandomState", "CityName", "Name", "OA", "Kappa", "OASH", "KappaSH", "N", )
+            if not os.path.isfile(self.filename):
+                self.sw.write("Number", "RandomState",
+                              "CityName", "Name", "OA", "Kappa", "OASH", "KappaSH", "N", sep=",")
+            else:
+                df = pd.read_csv(self.filename)
+                self.random_state_list = df["RandomState"].to_list()
+
+        def fit(self, n_random_state_start=1, n_random_state_end=2147483646):
+
+            random_state = np.random.randint(n_random_state_start, n_random_state_end)
+            if random_state in self.random_state_list:
+                while random_state in self.random_state_list:
+                    random_state = np.random.randint(n_random_state_start, n_random_state_end)
+            self.random_state_list.append(random_state)
+            self.rf["random_state"] = random_state
+
+            clf = RandomForestClassifier(**self.rf)
+            clf.fit(self.x_train, self.y_train)
+
+            cm = ConfusionMatrix(class_names=["IS", "VEG", "SOIL", "WAT"])
+            cm.addData(self.y_test, clf.predict(self.x_test))
+            cm_sh = ConfusionMatrix(class_names=["IS", "VEG", "SOIL", "WAT"])
+            cm_sh.addData(self.y_test_sh, clf.predict(self.x_test_sh))
+
+            is_oa = cm.accuracyCategory("IS").OA() / 100.0
+            is_kappa = cm.accuracyCategory("IS").getKappa()
+            is_sh_oa = cm_sh.accuracyCategory("IS").OA() / 100.0
+            is_sh_kappa = cm_sh.accuracyCategory("IS").getKappa()
+
+            n = 0
+            n += self.find(is_oa, self.is_oa)
+            n += self.find(is_kappa, self.is_kappa)
+            n += self.find(is_sh_oa, self.is_sh_oa)
+            n += self.find(is_sh_kappa, self.is_sh_kappa)
+
+            self.sw.write(len(self.random_state_list), random_state, self.city_name, self.to_name,
+                          is_oa, is_kappa, is_sh_oa, is_sh_kappa, n, sep=",")
+            self.tlp.print(len(self.random_state_list), random_state, self.city_name, self.to_name,
+                           is_oa, is_kappa, is_sh_oa, is_sh_kappa, n, )
+
+            joblib.dump(clf, os.path.join(self.to_dirname, "model_random_state.mod"))
+            saveJson(self.rf["random_state"], os.path.join(self.to_dirname, "model_random_state.json"))
+
+            if n == 4:
+                return True
+            else:
+                return False
+
+        def fitTime(self, time_sum, n_random_state_start=1, n_random_state_end=2147483646):
+            start_time = time.time()
+            while True:
+                end_time = time.time()
+                if end_time - start_time > time_sum:
+                    break
+                if self.fit(n_random_state_start=n_random_state_start, n_random_state_end=n_random_state_end):
+                    break
+
+        def find(self, data, to_data):
+            if abs(float(data - to_data)) < 0.0001:
+                return 1
+            else:
+                return 0
+
+    def func5(n_random_state_start=1, n_random_state_end=2147483646):
+
+        canshu = pd.read_excel(r"F:\ASDEWrite\Run\RFRandomState\canshu.xlsx")
+        city_names = {"Qingdao": "qd", "Beijing": "bj", "Chengdu": "cd"}
+        print(canshu)
+        print(canshu.keys())
+        map_names = {
+            "NS-OAD": "FREE-Opt-AS-DE",
+            "NS-OA": "FREE-Opt-AS",
+            "NS-OD": "FREE-Opt-DE",
+            "NS-O": "FREE-Opt",
+            "OS-OAD": "Opt-Opt-AS-DE",
+            "OS-OA": "Opt-Opt-AS",
+            "OS-OD": "Opt-Opt-DE",
+            "HS-OAD": "SAR-Opt-AS-DE",
+        }
+        map_names_inv = {map_names[_key]: _key for _key in map_names}
+        names = ['HS-OAD', 'OS-OAD', 'OS-OA', 'OS-OD', 'NS-OAD', 'NS-OA', 'NS-OD', 'NS-O']
+
+        is_acc_df = pd.read_excel(r"F:\ASDEWrite\Run\RFRandomState\is_accuracy.xlsx")
+        is_sh_acc_df = pd.read_excel(r"F:\ASDEWrite\Run\RFRandomState\is_sh_accuracy.xlsx")
+
+        for city_name in np.unique(canshu["Studyareas"].values):
+            df = canshu[canshu["Studyareas"] == city_name].set_index("canshuname")
+            is_acc_df_tmp = is_acc_df[is_acc_df["Studyarea"] == city_name]
+            is_sh_acc_df_tmp = is_sh_acc_df[is_acc_df["Studyarea"] == city_name]
+
+            acc_df = pd.DataFrame(
+                is_acc_df_tmp.to_dict("records") + is_sh_acc_df_tmp.to_dict("records")
+            )
+
+            for name in names:
+                to_dirname = os.path.join(
+                    r"F:\ASDEWrite\Run\RFRandomState",
+                    "{}_{}".format(city_names[city_name], map_names[name]))
+
+                df = pd.read_csv(os.path.join(to_dirname, "random_state.csv"))
+                print("{}_{}".format(city_names[city_name], map_names[name]))
+                if len(df["N"] == 4) != 0:
+                    print(tabulate(df[df["N"] == 4], headers="keys"))
+                else:
+                    print("Not Find")
+                print()
+                # is_oa, is_kappa, is_sh_oa, is_sh_kappa = tuple(acc_df[name].tolist())
+                #
+                # x_train = np.load(os.path.join(to_dirname, "x_train_data.npy"))
+                # y_train = np.load(os.path.join(to_dirname, "y_train_data.npy"))
+                # x_test = np.load(os.path.join(to_dirname, "x_test.npy"))
+                # y_test = np.load(os.path.join(to_dirname, "y_test.npy"))
+                # x_test_sh = np.load(os.path.join(to_dirname, "x_test_sh.npy"))
+                # y_test_sh = np.load(os.path.join(to_dirname, "y_test_sh.npy"))
+                #
+                # save_line = _SaveLine(
+                #     to_dirname, x_train, y_train, x_test, y_test, x_test_sh, y_test_sh,
+                #     is_oa, is_kappa, is_sh_oa, is_sh_kappa, df[name].to_dict(),
+                #     city_name, name,
+                # )
+                #
+                # save_line.fitTime(
+                #     1500, n_random_state_start=n_random_state_start,
+                #     n_random_state_end=n_random_state_end
+                # )
+
+                print("\n")
+
+    return func3()
+
+
 if __name__ == "__main__":
-    adsi()
+    randomStats()
 
 r"""
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowASDEHSamples import trainimdcMain; trainimdcMain()"
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowASDEHSamples import samplesFuncs; samplesFuncs()"
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowASDEHSamples import training; training('qd')"
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowASDEHSamples import run; run()"
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowASDEHSamples import randomStats; randomStats()"
+python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowASDEHSamples import randomStats; randomStats(1, 2147483646)"
 """

@@ -18,7 +18,8 @@ from matplotlib.patches import Ellipse
 from osgeo import gdal
 from tabulate import tabulate
 
-from SRTCodes.GDALRasterIO import GDALRaster
+from SRTCodes.GDALRasterIO import GDALRaster, tiffAddColorTable
+from SRTCodes.GDALUtils import GDALSamplingFast
 from SRTCodes.GeoMap import GMRaster
 from SRTCodes.NumpyUtils import scaleMinMax, update10EDivide10
 from SRTCodes.SampleUtils import SamplesUtil
@@ -241,9 +242,16 @@ class GD_GMRaster:
              x_major_len=(0, 8, 0), y_major_len=(0, 8, 0),
              x_minor_len=(0, 0, 20), y_minor_len=(0, 0, 20), ):
         gmr = GMRaster(self.raster_fn)
-        gmr.read(channels, geo_region=self.geo_region, raster_region=self.raster_region,
-                 min_list=self.min_list, max_list=self.max_list, color_table=self.color_table,
-                 _func=self._func)
+
+        if isinstance(channels, int) or isinstance(channels, str) or isinstance(channels, list):
+            gmr.read(channels, geo_region=self.geo_region, raster_region=self.raster_region,
+                     min_list=self.min_list, max_list=self.max_list, color_table=self.color_table,
+                     _func=self._func)
+        else:
+            for raster_fn in channels:
+                gmr.read(channels[raster_fn], geo_region=self.geo_region, raster_region=self.raster_region,
+                         min_list=self.min_list, max_list=self.max_list, color_table=self.color_table,
+                         _func=self._func, raster_fn=raster_fn)
 
         ax = gmr.draw(
             9,
@@ -276,15 +284,19 @@ class GD_GMRaster:
 
 def funcs3(*args):
     def func1():
+        # GDALSamplingFast(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\BeiJing\bj_down1_swir.tif").csvfile(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_BJ_select.csv", r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_BJ_select_spl.csv")
+        # GDALSamplingFast(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\ChengDu\cd_down1_swir.tif").csvfile(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_CD_select.csv", r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_CD_select_spl.csv")
+        # GDALSamplingFast(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\QingDao\qd_down1_swir.tif").csvfile(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_QD_select.csv", r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_QD_select_spl.csv")
+
         FONT_SIZE = 16
         plt.rcParams.update({'font.size': FONT_SIZE})
         plt.rcParams['font.family'] = ["Times New Roman", 'SimSun', ] + plt.rcParams['font.family']
         plt.rcParams['mathtext.fontset'] = 'stix'
 
         gsu = _FUNCS3_SamplesUtil()
-        gsu.addCSV(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_BJ_select.csv")
-        gsu.addCSV(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_CD_select.csv")
-        gsu.addCSV(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_QD_select.csv")
+        gsu.addCSV(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_BJ_select_spl.csv")
+        gsu.addCSV(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_CD_select_spl.csv")
+        gsu.addCSV(r"F:\GraduationDesign\Result\run\Samples\Funcs3\HSPL_QD_select_spl.csv")
 
         df = gsu.toDF()
         print(df.value_counts("CNAME"))
@@ -297,7 +309,7 @@ def funcs3(*args):
             return _names
 
         opt_names = to_01([
-            "NDVI", "NDWI", "Blue", "Green", "Red", "NIR", "OPT_mean",
+            "NDVI", "NDWI", "Blue", "Green", "Red", "NIR", "B11", "B12", "OPT_mean",
             "OPT_cor", "OPT_ent", "OPT_dis", "OPT_hom", "OPT_con",
             "OPT_var", "OPT_asm",
         ])
@@ -307,7 +319,7 @@ def funcs3(*args):
             '$ OPT_{var} $', '$ OPT_{asm} $',
         ]
         opt_show_names = [
-            "NDVI", "NDWI", "B2", "B3", "B4", "NIR", "GRAY mean",
+            "NDVI", "NDWI", "B2", "B3", "B4", "B8", "B11", "B12", "GRAY mean",
             "GRAY cor", "GRAY ent", "GRAY dis", "GRAY hom", "GRAY con",
             "GRAY var", "GRAY asm",
         ]
@@ -320,7 +332,7 @@ def funcs3(*args):
         sar_names_de = ["DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_H", "DE_Alpha", ]
 
         sar_show_names = [
-            "$ VV $", "$ VH $", "$ C_{11} $", "$ C_{22} $", "$ H $", r"$ \alpha $",
+            "$ \\sigma_{VV} $", "$ \\sigma_{VH} $", "$ C_{11} $", "$ C_{22} $", "$ H $", r"$ \alpha $",
         ]
 
         def _get_data_1(_cname, _fields=None):
@@ -358,14 +370,17 @@ def funcs3(*args):
             plt.xlabel("特征", fontsize=fontsize)
             plt.ylabel("特征均值", fontsize=fontsize)
 
-            plt.ylim([None, 1])
-            plt.legend(fontsize=fontsize)
-
-            plt.xticks(rotation=45, fontsize=fontsize - 2)
+            plt.ylim([None, 1.0])
+            plt.legend(fontsize=fontsize, loc='upper left')
+            if _fn.startswith("sar"):
+                _rotation=0
+            else:
+                _rotation=45
+            plt.xticks(rotation=_rotation, fontsize=fontsize - 2)
             if _fn is not None:
                 to_fn = dfn.fn("{}.jpg".format(_fn))
                 print(to_fn)
-                plt.savefig(to_fn, dpi=300, bbox_inches='tight', pad_inches=0.01)
+                plt.savefig(to_fn, dpi=300, bbox_inches='tight', pad_inches=0.03)
 
         def _func_draw1_data(*_args, **_kwargs):
             return [_args, _kwargs]
@@ -509,7 +524,7 @@ def funcs3(*args):
         # )
         # plt.show()
 
-        plt.figure(figsize=(9, 4.5))
+        plt.figure(figsize=(9, 6))
         plt.subplots_adjust(top=0.96, bottom=0.217, left=0.098, right=0.965, hspace=0.732, wspace=0.2)
         draw1_im1("opt_is", [is_draw1_data, is_sh_draw1_data, ])
         plt.clf()
@@ -520,20 +535,20 @@ def funcs3(*args):
         draw1_im1("opt_wat", [wat_draw1_data, wat_sh_draw1_data, is_draw1_data, is_sh_draw1_data, ])
         plt.clf()
 
-        # draw1_im1("sar_is1", [is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de])
-        # plt.clf()
-        # draw1_im1("sar_veg1", [
-        #     is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
-        #     veg_draw1_data_as, veg_sh_draw1_data_as, veg_draw1_data_de, veg_sh_draw1_data_de])
-        # plt.clf()
-        # draw1_im1("sar_soil1", [
-        #     is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
-        #     soil_draw1_data_as, soil_sh_draw1_data_as, soil_draw1_data_de, soil_sh_draw1_data_de])
-        # plt.clf()
-        # draw1_im1("sar_wat1", [
-        #     is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
-        #     wat_draw1_data_as, wat_sh_draw1_data_as, wat_draw1_data_de, wat_sh_draw1_data_de])
-        # plt.clf()
+        draw1_im1("sar_is1", [is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de])
+        plt.clf()
+        draw1_im1("sar_veg1", [
+            is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
+            veg_draw1_data_as, veg_sh_draw1_data_as, veg_draw1_data_de, veg_sh_draw1_data_de])
+        plt.clf()
+        draw1_im1("sar_soil1", [
+            is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
+            soil_draw1_data_as, soil_sh_draw1_data_as, soil_draw1_data_de, soil_sh_draw1_data_de])
+        plt.clf()
+        draw1_im1("sar_wat1", [
+            is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de,
+            wat_draw1_data_as, wat_sh_draw1_data_as, wat_draw1_data_de, wat_sh_draw1_data_de])
+        plt.clf()
 
         # plt.figure(figsize=(8, 9.5))
         # plt.subplots_adjust(top=0.984, bottom=0.111, left=0.081, right=0.781, hspace=0.51, wspace=0.2)
@@ -817,7 +832,7 @@ def funcs3(*args):
         if n == 2:
             func5(_run)
 
-    def func8():
+    def func7():
 
         def _func_1(_name, _fn):
             _gmr = GD_GMRaster(
@@ -842,10 +857,143 @@ def funcs3(*args):
         _func_1("bj", r"F:\GraduationDesign\Result\BeiJing\20250120H190546\bj-RF_9ADESI_GLCM_OPT-RF_imdc.tif")
         _func_1("cd", r"F:\GraduationDesign\Result\ChengDu\20250120H193443\cd-RF_9ADESI_GLCM_OPT-RF_imdc.tif")
 
+    def func8():
+        json_data = readJson(r"G:\SHImages\image.json")
+        to_dirname = r"F:\GraduationDesign\MkTu\Images\images"
+        dfn = DirFileName(to_dirname)
+        _n = []
+        image_names = []
+
+        def _draw_1(_name, _min, _max, _func, _to_dirname, ):
+            _n.append(_name)
+            image_names.append(_name)
+            for _fn in json_data[_name]:
+                to_fn = os.path.join(_to_dirname, getfilenamewithoutext(_fn) + ".jpg")
+                if not os.path.isfile(to_fn):
+                    min_list = [_min] if _min is not None else None
+                    max_list = [_max] if _max is not None else None
+                    _gmr = GD_GMRaster(
+                        "qd", raster_fn=_cid_G.change(_fn), min_list=min_list, max_list=max_list, _func=_func
+                    )
+                    ax = _gmr.draw(1, to_fn=to_fn, )
+                    plt.savefig(to_fn, bbox_inches='tight', dpi=300)
+                    # plt.show()
+                    plt.clf()
+                print(to_fn)
+
+        def _draw_3(_name, _raster_names, _min, _max, _func, _to_dirname, ):
+            _n.append(_name)
+            image_names.append(_name)
+            _images = {"QD": [], "BJ": [], "CD": []}
+
+            for _raster_name in _raster_names:
+                for _fn in json_data[_raster_name]:
+                    for _image_name in _images:
+                        if _image_name in _fn:
+                            _images[_image_name].append(_fn)
+
+            for _image_name in _images:
+                to_fn = os.path.join(_to_dirname, "{}_{}.jpg".format(_image_name, _name))
+                if not os.path.isfile(to_fn):
+                    _gmr = GD_GMRaster(
+                        "qd", raster_fn=_cid_G.change(_images[_image_name][0]),
+                        min_list=_min, max_list=_max, _func=_func
+                    )
+                    _gmr.draw({raster_fn: [1] for raster_fn in _images[_image_name]}, to_fn=to_fn, )
+                    plt.savefig(to_fn, bbox_inches='tight', dpi=300)
+                    # plt.show()
+                    plt.clf()
+                print(to_fn)
+
+        # _draw_1("Red", 300, 2500, None, to_dirname)
+        # _draw_1("Green", 300, 2500, None, to_dirname)
+        # _draw_1("Blue", 300, 2500, None, to_dirname)
+        # _draw_1("NIR", 300, 2500, None, to_dirname)
+        # _draw_1("SWIR1", 300, 2500, None, to_dirname)
+        # _draw_1("SWIR2", 300, 2500, None, to_dirname)
+
+        _draw_3("RGB", ["Red", "Green", "Blue"], [300, 300, 300], [2500, 2500, 2500], None, to_dirname)
+        _draw_3("NRG", ["NIR", "Red", "Green"], [300, 300, 300], [2500, 2500, 2500], None, to_dirname)
+        _draw_1("NDVI", -0.3, 0.5, None, to_dirname)
+        _draw_1("NDWI", -0.6, 0.1, None, to_dirname)
+
+        plt.rcParams.update({'font.size': 12})
+        plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+        plt.rcParams['mathtext.fontset'] = 'stix'
+
+        _n = ["真彩色", "假彩色（近红外 红 绿）", "$NDVI$", "$NDWI$"]
+        _names = [
+            "（$%s$）青岛 {}".format(_n[0]), "（$%s$）北京 {}".format(_n[0]), "（$%s$）成都 {}".format(_n[0]),
+            "（$%s$）青岛 {}".format(_n[1]), "（$%s$）北京 {}".format(_n[1]), "（$%s$）成都 {}".format(_n[1]),
+            "（$%s$）青岛 {}".format(_n[2]), "（$%s$）北京 {}".format(_n[2]), "（$%s$）成都 {}".format(_n[2]),
+            "（$%s$）青岛 {}".format(_n[3]), "（$%s$）北京 {}".format(_n[3]), "（$%s$）成都 {}".format(_n[3]),
+        ]
+
+        numbers = "abcdefghijklmnopqrstuvwxyz"
+        n = 1
+        plt.figure(figsize=(8, 9))
+        plt.subplots_adjust(top=0.983, bottom=0.017, left=0.019, right=0.981, hspace=0.0, wspace=0.061)
+        for image_name in image_names:
+            for city_name in ["QD", "BJ", "CD"]:
+                plt.subplot(len(_n), 3, n)
+                plt.imshow(matplotlib.image.imread(dfn.fn("{}_{}.jpg".format(city_name, image_name))))
+                plt.xlabel(_names[n - 1] % numbers[n - 1])
+                n += 1
+
+                plt.gca().spines['right'].set_visible(False)
+                plt.gca().spines['left'].set_visible(False)
+                plt.gca().spines['top'].set_visible(False)
+                plt.gca().spines['bottom'].set_visible(False)
+
+                plt.xticks([])
+                plt.yticks([])
+
+        plt.savefig(dfn.fn("{}.jpg".format("optical_original")), bbox_inches='tight', dpi=300)
+
     if len(args) != 0:
         return func6(*args)
     else:
         return func1()
+
+
+def adsiHS():
+    def func1():
+        gr = GDALRaster(r"F:\ProjectSet\Shadow\ASDEHSamples\Images\QingDao\HSPL_QD_envi.dat")
+        data_as = gr.readGDALBand("AS_VV")
+        data_de = gr.readGDALBand("DE_VV")
+        data = np.abs((data_as - data_de) / (data_as + data_de + 0.0000001))
+        # data = update10Log10(data)
+        gr.save(data.astype("float32"), r"F:\ASDEWrite\Run\Images\adsi_2.dat", fmt="ENVI", dtype=gdal.GDT_Float32)
+
+    def showColor(data, color_dict):
+        to_data = np.zeros((data.shape[0], data.shape[1], 3))
+        for n in color_dict:
+            to_data[data == n, :] = np.array(color_dict[n]) / 255
+        return to_data
+
+    def func2():
+        gr = GDALRaster(r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\1\cd_sei_adsi.vrt")
+
+        data_csi = gr.readGDALBand(1)
+        data_adsi = gr.readGDALBand(2)
+
+        data = np.zeros(data_adsi.shape)
+        data[data_adsi > 0.507] = 2
+        data[data_csi > -0.068] = 1
+
+        to_fn = r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\1\cd_hs.tif"
+        color_table = {0: (242,242,242), 1: (105,105,105), 2: (47,85,150)}
+
+        if os.path.isfile(to_fn):
+            os.remove(to_fn)
+        gr.save(data.astype("int8"), to_fn, fmt="GTiff", dtype=gdal.GDT_Byte)
+        tiffAddColorTable(to_fn, code_colors=color_table)
+
+        plt.figure(figsize=(16, 8))
+        plt.imshow(showColor(data[1000:1200, 1000:1200], color_table))
+        plt.show()
+
+    return func2()
 
 
 def write():
@@ -878,9 +1026,9 @@ def write():
                                 "FN": fn,
                                 "NAME_CH": image_lines[1],
                                 "NAME_EN": image_lines[2],
-                                "SEC_1":section_names[0],
-                                "SEC_2":section_names[1],
-                                "SEC_3":section_names[2],
+                                "SEC_1": section_names[0],
+                                "SEC_2": section_names[1],
+                                "SEC_3": section_names[2],
                                 "OTHER": image_lines[3:] if len(image_lines) > 3 else None,
                             })
                             if is_copy:
@@ -889,7 +1037,7 @@ def write():
                                 else:
                                     print("Not find file:", fn)
                             image_lines = []
-        print(tabulate(pd.DataFrame(images), headers="keys", tablefmt="simple") )
+        print(tabulate(pd.DataFrame(images), headers="keys", tablefmt="simple"))
 
         return
 
@@ -918,7 +1066,7 @@ def write():
                 is_find[title] = False
 
         print("-" * 60)
-        fn = r"F:\GraduationDesign\参考文献\参考文献-2.txt"
+        fn = r"F:\GraduationDesign\参考文献\参考文献-3.txt"
         to_fn = changext(fn, "-fmt.txt")
         fw = open(to_fn, "w", encoding="utf-8")
         with open(fn, "r", encoding="utf-8") as f:
@@ -948,7 +1096,7 @@ def write():
 
 
 if __name__ == "__main__":
-    write()
+    funcs3()
 
 r"""
 E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('sigma', 1)"

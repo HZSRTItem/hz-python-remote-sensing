@@ -15,6 +15,7 @@ from osgeo import gdal
 
 from Draw.m_color_data import CSS4_COLORS
 from SRTCodes.GDALRasterIO import GDALRaster
+from SRTCodes.Utils import printDict
 
 
 def main():
@@ -48,6 +49,37 @@ def main():
                     os.remove(tif_fn)
 
     def func2():
+        n_line_sum = []
+        n_lines_fn = {}
+
+        def _filter_fns(_dirname):
+            _n_line_sum = 0
+            for _name in os.listdir(_dirname):
+                _fn = os.path.join(_dirname, _name)
+                if os.path.isdir(_fn):
+                    _filter_fns(_fn)
+                else:
+                    if _fn.endswith(".py"):
+                        with open(_fn, "r", encoding="utf-8") as f:
+                            _n_line = 0
+                            for _line in f:
+                                _line = _line.strip()
+                                if _line != "":
+                                    _n_line += 1
+                            _n_line_sum += _n_line
+                            n_line_sum.append(_n_line)
+                        print("  * {:30} {}".format(_name, _n_line) )
+                        if _name.startswith("Shadow") or _name.startswith("SHH"):
+                            n_lines_fn[_name] = _n_line
+            if _n_line_sum != 0:
+                print("> {} {}".format(_dirname, _n_line_sum))
+
+        _filter_fns(r"F:\PyCodes")
+
+        print(sum(n_line_sum))
+
+        printDict("n_lines_fn", dict(sorted(n_lines_fn.items(), key=lambda item: item[1], reverse=True)))
+        print("n_lines_fn", sum([n_lines_fn[name] for name in n_lines_fn]))
         return
 
     return func2()

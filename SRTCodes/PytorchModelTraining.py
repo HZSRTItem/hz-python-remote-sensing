@@ -303,6 +303,7 @@ class TorchTraining:
         self.batch_save = False
         self.epoch_save = True
         self.save_model_fmt = None
+        self.save_model_end_fn = None
         self.n_epoch_save = 1
         self.win_size = None
 
@@ -367,6 +368,10 @@ class TorchTraining:
         self._scheduler = scheduler_cls(self._optimizer, *args, **kwargs)
 
     def train(self, *args, **kwargs):
+        if self.save_model_end_fn is not None:
+            if os.path.isfile(self.save_model_end_fn):
+                self.model.load_state_dict(torch.load(self.save_model_end_fn))
+                self.func_print(">>> LOAD SAVE MODEL END:", self.save_model_end_fn)
         self.model.to(self.device)
         self.criterion.to(self.device)
 
@@ -443,6 +448,7 @@ class TorchTraining:
             self.func_print("Loss:", "{:<12.6f}".format(float(_lossToItem(self.loss))), end=" ")
             self.func_print("Accuracy:", "{:>6.3f}".format(_acc), end="   ")
             self.func_print(self.time_run.fmt, end="\n")
+
             if batch == 0:
                 if (self.save_model_fmt is not None) and self.epoch_save:
                     mod_fn = self.save_model_fmt.format(str(epoch))
@@ -459,12 +465,16 @@ class TorchTraining:
                             _save_epoch()
                         elif epoch % self.n_epoch_save == 0:
                             _save_epoch()
-
                 self.func_print("*" * 100)
+
             if (self.save_model_fmt is not None) and (batch % self.n_test == 0) and self.batch_save:
                 mod_fn = self.save_model_fmt.format(str(epoch) + "-" + str(batch))
                 torch.save(self.model.state_dict(), mod_fn)
                 self.func_print("MODEL: {}".format(mod_fn), end="\n")
+
+        if batch == 0:
+            if self.save_model_end_fn is not None:
+                torch.save(self.model.state_dict(), self.save_model_end_fn)
 
         acc = -1
         if self.test_loader is not None:

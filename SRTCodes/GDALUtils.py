@@ -1624,6 +1624,7 @@ def samplingCSVData(csv_fn, to_fn, to_npy_fn, names_fn, win_rows, win_columns, g
             self.x = _line["X"]
             self.y = _line["Y"]
             self.city = None
+            self.is_spl = 0
 
     jdt = Jdt(len(df), "CSV Sampling").start()
     for i in range(len(df)):
@@ -1647,6 +1648,7 @@ def samplingCSVData(csv_fn, to_fn, to_npy_fn, names_fn, win_rows, win_columns, g
                 data_i = gns.getxy(spl.x, spl.y)
                 if data_shape == data_i.shape:
                     data[i] = gns.getxy(spl.x, spl.y)
+                    spl.is_spl=1
                 else:
                     spl.city = None
                     warnings.warn("{}, {} not in raster.".format(spl.x, spl.y))
@@ -1655,6 +1657,7 @@ def samplingCSVData(csv_fn, to_fn, to_npy_fn, names_fn, win_rows, win_columns, g
             gr[k].d = None
     jdt.end()
     df["city"] = [str(spl.city) for spl in samples]
+    df["IS_SPL"] = [str(spl.is_spl) for spl in samples]
     df.to_csv(to_fn, index=False)
     print(to_fn)
     np.save(to_npy_fn, data)

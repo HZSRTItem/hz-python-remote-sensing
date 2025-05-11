@@ -37,10 +37,10 @@ _DL_DFN = DirFileName(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods")
 _X_KEYS = [
     #  0  1  2  3  4  5
     "Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2",
-    # #  6  7  8  9 10 11
-    # "AS_VV", "AS_VH", "AS_C11", "AS_C22", "AS_H", "AS_Alpha",
-    # # 12 13 14 15 16 17
-    # "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_H", "DE_Alpha",
+    #  6  7  8  9 10 11
+    "AS_VV", "AS_VH", "AS_C11", "AS_C22", "AS_H", "AS_Alpha",
+    # 12 13 14 15 16 17
+    "DE_VV", "DE_VH", "DE_C11", "DE_C22", "DE_H", "DE_Alpha",
 ]
 _MAP_DICT_4 = {
     "IS": 0, "VEG": 1, "SOIL": 2, "WAT": 3,
@@ -658,6 +658,7 @@ def run(city_name, init_model_name, win_size, is_train, mod_fn=None):
     # td = TimeDirectory(_DL_DFN.fn(), time_dirname=W2LF(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240809H221443"))
     # td = TimeDirectory(_DL_DFN.fn(), time_dirname=W2LF(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240810H210858"))
     # td = TimeDirectory(_DL_DFN.fn(), time_dirname=W2LF(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240812H150307"))
+
     td = TimeDirectory(_DL_DFN.fn(), time_dirname=W2LF(r"F:\ProjectSet\Shadow\Hierarchical\GDDLMods\20240820H110425"))
     td.initLog(mode="a")
     td.kw("DIRNAME", td.time_dirname())

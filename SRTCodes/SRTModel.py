@@ -181,25 +181,25 @@ class _RandomGridSearch:
         if self._number() < self.n_run:
             self.n_run = self._number()
         jdt = Jdt(self.n_run, "Random Grid Search").start()
-        sw = SRTWriteText(r"F:\ProjectSet\Shadow\ASDEHSamples\Temp\jingdu.txt", mode="a")
+        # sw = SRTWriteText(r"F:\ProjectSet\Shadow\ASDEHSamples\Temp\jingdu.txt", mode="a")
         for n in range(self.n_run):
             kwargs = self.generate_params()
-            sw.write(kwargs)
+            # sw.write(kwargs)
             if kwargs is None:
                 warnings.warn("All run {} > {}".format(self._number(), self.n_run))
             clf = model_cls(**kwargs)
             scores = cross_val_score(estimator=clf, X=x, y=y, cv=n_cv, scoring=scoring, n_jobs=-1)
             # if scores.mean() > self.bast_accuracy:
-            sw.write(scores.mean())
+            # sw.write(scores.mean())
             if self._com(scores.mean(), self.bast_accuracy):
                 self.bast_kwargs = kwargs
                 self.bast_accuracy = scores.mean()
             jdt.add()
         jdt.end()
-        sw.write("bast_kwargs")
-        sw.write(self.bast_kwargs)
-        sw.write("bast_accuracy")
-        sw.write(self.bast_accuracy)
+        # sw.write("bast_kwargs")
+        # sw.write(self.bast_kwargs)
+        # sw.write("bast_accuracy")
+        # sw.write(self.bast_accuracy)
 
         if is_return_bast_clf:
             clf = model_cls(**self.bast_kwargs)
@@ -735,13 +735,20 @@ class SamplesData:
         self.samples = []
         self._dl_sample_dirname = _dl_sample_dirname
 
-    def addDF(self, df, data=None, data_keys=None, data_get_keys=None, x_deal=None):
+    def addDF(self, df, data=None, data_keys=None, data_get_keys=None, x_deal=None, is_remove_no_spl=False):
         for i in range(len(df)):
             if data is not None:
-                self.samples.append(_Sample().initDict(
-                    df.loc[i], data=data[i],
-                    data_keys=data_keys, data_get_keys=data_get_keys, x_deal=x_deal
-                ))
+                if not is_remove_no_spl:
+                    self.samples.append(_Sample().initDict(
+                        df.loc[i], data=data[i],
+                        data_keys=data_keys, data_get_keys=data_get_keys, x_deal=x_deal
+                    ))
+                else:
+                    if int(df.loc[i]["IS_SPL"]) == 1:
+                        self.samples.append(_Sample().initDict(
+                            df.loc[i], data=data[i],
+                            data_keys=data_keys, data_get_keys=data_get_keys, x_deal=x_deal
+                        ))
             else:
                 self.samples.append(_Sample().initDict(
                     df.loc[i], data=data,
@@ -753,7 +760,7 @@ class SamplesData:
         self.addDF(pd.read_csv(csv_fn), data=data, data_keys=data_keys)
         return self
 
-    def addDLCSV(self, csv_fn, read_size, data_get_keys, x_deal=None, grs=None, ):
+    def addDLCSV(self, csv_fn, read_size, data_get_keys, x_deal=None, grs=None, is_remove_no_spl=False):
         dfn = DirFileName(self._dl_sample_dirname)
         csv_fn_spl = dfn.fn("{}-{}_{}.csv".format(FN(csv_fn).getfilenamewithoutext(), read_size[0], read_size[1]))
         npy_fn = FN(csv_fn_spl).changext("-data.npy")
@@ -767,7 +774,8 @@ class SamplesData:
         data = np.load(npy_fn)
         data_keys = readJson(names_fn)
 
-        self.addDF(df, data=data, data_keys=data_keys, data_get_keys=data_get_keys, x_deal=x_deal)
+        self.addDF(df, data=data, data_keys=data_keys,
+                   data_get_keys=data_get_keys, x_deal=x_deal, is_remove_no_spl=is_remove_no_spl)
 
     def ml(
             self, x_keys, map_dict, data_scale=DataScale(),
@@ -1201,6 +1209,7 @@ class TorchModel(_ModelInit):
         self.batch_save = False
         self.epoch_save = True
         self.save_model_fmt = None
+        self.save_model_end_fn = None
         self.n_epoch_save = 1
 
         self._optimizer = None
@@ -1243,7 +1252,7 @@ class TorchModel(_ModelInit):
         """ optim.lr_scheduler.StepLR step_size=20, gamma=0.6, last_epoch=-1 """
         self._scheduler = scheduler_cls(self._optimizer, *args, **kwargs)
 
-    def train(self, *args, **kwargs):
+    def train(self, lr=0.001, *args, **kwargs):
         torch_training = TorchTraining()
         torch_training.model = self.model
         torch_training.criterion = self.criterion
@@ -1254,13 +1263,14 @@ class TorchModel(_ModelInit):
         torch_training.trainLoader(self.samples.train_ds, batch_size=self.batch_size)
         torch_training.testLoader(self.samples.test_ds, batch_size=self.batch_size)
 
-        torch_training.optimizer(optim.Adam, lr=0.001, eps=0.000001)
+        torch_training.optimizer(optim.Adam, lr=lr, eps=0.000001)
         torch_training.scheduler(optim.lr_scheduler.StepLR, step_size=20, gamma=0.6, last_epoch=-1)
 
         torch_training.initCM(cnames=self.cm_names)
         torch_training.batch_save = self.batch_save
         torch_training.epoch_save = self.epoch_save
         torch_training.save_model_fmt = self.save_model_fmt
+        torch_training.save_model_end_fn = self.save_model_end_fn
         torch_training.n_epoch_save = self.n_epoch_save
 
         torch_training.func_epoch = self.func_epoch
@@ -1273,6 +1283,10 @@ class TorchModel(_ModelInit):
         torch_training.func_field_record_save = self.func_field_record_save
 
         torch_training.train()
+
+        if self.save_model_end_fn is not None:
+            if os.path.isfile(self.save_model_end_fn):
+                os.remove(self.save_model_end_fn)
         return
 
     def imdc(self, raster_fns, to_imdc_fn=None, mod_fn=None, data_deal=None, read_size=(1000, -1),
@@ -1370,7 +1384,7 @@ def main():
         torch_mod.test_filters.append(("city", "==", "cd"))
         torch_mod.sampleData(sd)
         torch_mod.samples.showCounts()
-        torch_mod.save_model_fmt = r"F:\Week\20240707\Data\model2\model{}.pth"
+        torch_mod.save_model_fmt = None
         torch_mod.train()
 
         mod_fn = None

@@ -8,12 +8,11 @@ r"""----------------------------------------------------------------------------
 @Desc    : PyCodes of GeoMap
 -----------------------------------------------------------------------------"""
 import matplotlib.axes
-import matplotlib.transforms
 import matplotlib.pyplot as plt
+import matplotlib.transforms
 import numpy as np
 from osgeo.gdal_array import BandReadAsArray
-from osgeo import ogr
-from osgeo import osr
+
 from SRTCodes.GDALRasterIO import GDALRaster
 from SRTCodes.Utils import datasCaiFen
 
@@ -247,19 +246,29 @@ class GMRaster:
         self.data = None
         self.geo_region = None
         self.raster_region = None
+        self.color_table = None
         self._initRegion()
         self.ax = ax
 
     def read(self, channels, geo_region=None, raster_region=None,
-             min_list=None, max_list=None, color_table=None, _func=None):
+             min_list=None, max_list=None, color_table=None, _func=None, raster_fn=None):
         self._initRegion(geo_region=geo_region, raster_region=raster_region)
+        if raster_fn is not None:
+            self.raster_fn = raster_fn
+            self.gr = GDALRaster(raster_fn)
+
         if isinstance(channels, int):
             channels = [channels]
         if isinstance(channels, str):
             channels = [channels]
 
         min_list_tmp, max_list_tmp = [], []
-        data = []
+
+        if not isinstance(self.data, list):
+            data = []
+        else:
+            data = self.data
+
         for i, channel in enumerate(channels):
 
             data_tmp = readChannel(self.gr, channel, self.raster_region)
@@ -289,21 +298,8 @@ class GMRaster:
 
             data.append([data_tmp])
 
-        if len(data) == 1:
-            if color_table is not None:
-                data = data[0][0]
-                to_data = np.zeros((data.shape[0], data.shape[1], 3,), )
-                for n, color in color_table.items():
-                    to_data[data == n, :] = np.array(color)
-                to_data = to_data / 255.0
-                self.data = to_data
-            else:
-                data = data * 3
-                self.data = np.concatenate(data)
-                self.data = self.data.transpose((1, 2, 0))
-        else:
-            self.data = np.concatenate(data)
-            self.data = self.data.transpose((1, 2, 0))
+        self.color_table=color_table
+        self.data = data
 
     def _initRegion(self, geo_region=None, raster_region=None, ):
         if geo_region is None and raster_region is None:
@@ -331,7 +327,26 @@ class GMRaster:
         if fontdict is None:
             fontdict = {}
 
-        ax=None
+        data = self.data
+        color_table = self.color_table
+
+        if len(data) == 1:
+            if color_table is not None:
+                data = data[0][0]
+                to_data = np.zeros((data.shape[0], data.shape[1], 3,), )
+                for n, color in color_table.items():
+                    to_data[data == n, :] = np.array(color)
+                to_data = to_data / 255.0
+                self.data = to_data
+            else:
+                data = data * 3
+                self.data = np.concatenate(data)
+                self.data = self.data.transpose((1, 2, 0))
+        else:
+            self.data = np.concatenate(data)
+            self.data = self.data.transpose((1, 2, 0))
+
+        ax = None
         if n_ex is not None:
             fig = plt.figure(figsize=(self.data.shape[1] / self.data.shape[0] * n_ex, n_ex), )
             fig.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.9, hspace=0.04, wspace=0.03)

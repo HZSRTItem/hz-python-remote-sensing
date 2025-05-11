@@ -429,8 +429,8 @@ def run(city_name):
     # csv_fn = _GET_CITY_NAME(city_name, _QD_SPL_FN, _BJ_SPL_FN, _CD_SPL_FN)
     # raster_fn = _GET_CITY_NAME(city_name, _RASTER_FN_1, _BJ_RASTER_FN, _CD_RASTER_FN)
     # range_fn = _GET_CITY_NAME(city_name, _RANGE_FN_1, _BJ_RANGE_FN, _CD_RANGE_FN)
-
     # csv_fn = _GET_CITY_NAME(city_name, _QD_SPL_FN, _BJ_SPL_FN, _CD_SPL_FN)
+
     csv_fn = _GET_CITY_NAME(
         city_name,
         r"F:\GraduationDesign\Result\run\Samples\1\qd_spl2.csv",
@@ -455,13 +455,13 @@ def run(city_name):
     ]
     f_as = [
         "AS_VV", "AS_VH",
-        "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
-        "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
+        # "AS_VH_asm", "AS_VH_con", "AS_VH_cor", "AS_VH_dis", "AS_VH_ent", "AS_VH_hom", "AS_VH_mean", "AS_VH_var",
+        # "AS_VV_asm", "AS_VV_con", "AS_VV_cor", "AS_VV_dis", "AS_VV_ent", "AS_VV_hom", "AS_VV_mean", "AS_VV_var",
     ]
     f_de = [
         "DE_VV", "DE_VH",
-        "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
-        "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
+        # "DE_VH_asm", "DE_VH_con", "DE_VH_cor", "DE_VH_dis", "DE_VH_ent", "DE_VH_hom", "DE_VH_mean", "DE_VH_var",
+        # "DE_VV_asm", "DE_VV_con", "DE_VV_cor", "DE_VV_dis", "DE_VV_ent", "DE_VV_hom", "DE_VV_mean", "DE_VV_var",
     ]
     f_e = [
         "E1", "E2",
@@ -515,18 +515,19 @@ def run(city_name):
         # model_func("{}_OD2".format(clf_name), clf_name, x_keys=f_de)
 
         # model_func("{}_1ADESI".format(clf_name), clf_name, x_keys=["E1", "E2", ])
-        #
         # model_func("{}_2AS".format(clf_name), clf_name, x_keys=["AS_VV", "AS_VH", ])
         # model_func("{}_3DE".format(clf_name), clf_name, x_keys=["DE_VV", "DE_VH", ])
-        #
         # model_func("{}_4ASC2".format(clf_name), clf_name, x_keys=["AS_C11", "AS_C22", ])
         # model_func("{}_5DEC2".format(clf_name), clf_name, x_keys=["DE_C11", "DE_C22", ])
 
-        model_func("{}_6ASH".format(clf_name), clf_name, x_keys=["AS_H", "AS_A", ])
-        model_func("{}_7DEH".format(clf_name), clf_name, x_keys=["DE_H", "DE_A", ])
+        # model_func("{}_6ASH".format(clf_name), clf_name, x_keys=["AS_H", "AS_A", ])
+        # model_func("{}_7DEH".format(clf_name), clf_name, x_keys=["DE_H", "DE_A", ])
 
         # model_func("{}_8ADESI_GLCM".format(clf_name), clf_name, x_keys=f_e)
         # model_func("{}_9ADESI_GLCM_OPT".format(clf_name), clf_name, x_keys=f_e + f_opt)
+
+        model_func("{}_10OA".format(clf_name), clf_name, x_keys=f_as + f_opt)
+        model_func("{}_11OD".format(clf_name), clf_name, x_keys=f_de + f_opt)
 
     run_time = RumTime(len(run_list), tic.log).strat()
     for _args, _kwargs in run_list:
@@ -1025,7 +1026,7 @@ def draw():
         #     va="center",
         # )
 
-        FONT_SIZE = 20
+        FONT_SIZE = 16
 
         is_chinese = True
 
@@ -1051,17 +1052,17 @@ def draw():
 
         names1 = ['1ADESI', '2AS', '3DE', '4ASC2', '5DEC2', '6ASH', '7DEH', ]
         column_names1 = ["Sentinel-2", "EADI-IS", "σ-AS-IS", "σ-DE-IS", "C2-AS-IS", "C2-DE-IS", "H/α-AS-IS",
-                         "H/α-AS-IS", ]
+                         "H/α-DE-IS", ]
         names2 = ['1ADESI', '8ADESI_GLCM', '9ADESI_GLCM_OPT']
         column_names2 = ["Sentinel-2", "EADI-IS", "EADI-G-IS", "EADI-GO-IS", ]
 
-        names = names2
-        column_names = column_names2
+        names = names1
+        column_names = column_names1
         imdc_color_dict = {1: (255, 0, 0), 2: (0, 255, 0), 3: (255, 255, 0), 4: (0, 0, 255)}
 
         from matplotlib import colors
 
-        n_rows, n_columns = 3, len(column_names)
+        n_rows, n_columns = 6, len(column_names)
         n = 12
         n2 = 0.1
         fig = plt.figure(figsize=(n, n_rows / n_columns * n,), )
@@ -1119,25 +1120,31 @@ def draw():
                         plt.scatter([1], [1], marker=",", color=_color(4), edgecolors="black", s=100, label="WAT")
 
                     plt.legend(
-                        loc='lower left', bbox_to_anchor=(-1.6, -0.3),
+                        loc='lower left', bbox_to_anchor=(-4.6, -0.5),
                         prop={"size": FONT_SIZE + 3}, frameon=False, ncol=4,
                         handletextpad=0, borderaxespad=0,
                     )
 
+                    # plt.legend(
+                    #     loc='lower left', bbox_to_anchor=(-1.6, -0.3),
+                    #     prop={"size": FONT_SIZE + 3}, frameon=False, ncol=4,
+                    #     handletextpad=0, borderaxespad=0,
+                    # )
+
         column = draw_column()
 
-        # column.fit(r"(a)", 120.194134, 36.301147)
-        # column.fit(r"(b)", 116.701712, 39.721282)
-        # column.fit(r"(c)", 120.32396, 36.35739)
-        # column.fit(r"(d)", 116.348373, 39.782519)
-        # column.fit(r"(e)", 104.101211, 30.788077)
-        # column.fit(r"(f)", 104.065650, 30.696051)
+        column.fit(r"(a)", 120.194134, 36.301147)
+        column.fit(r"(b)", 116.701712, 39.721282)
+        column.fit(r"(c)", 120.32396, 36.35739)
+        column.fit(r"(d)", 116.348373, 39.782519)
+        column.fit(r"(e)", 104.101211, 30.788077)
+        column.fit(r"(f)", 104.065650, 30.696051)
 
-        column.fit(r"(a)", 116.437309,39.811016)
-        column.fit(r"(b)", 120.130795,36.285795)
-        column.fit(r"(c)", 120.295400,36.266826)
+        # column.fit(r"(a)", 116.437309,39.811016)
+        # column.fit(r"(b)", 120.130795,36.285795)
+        # column.fit(r"(c)", 120.295400,36.266826)
 
-        plt.savefig(r"F:\GraduationDesign\MkTu\adesi_imdc_2.jpg", bbox_inches='tight', dpi=300)
+        plt.savefig(r"F:\GraduationDesign\MkTu\adesi_imdc_1.jpg", bbox_inches='tight', dpi=300)
         plt.show()
 
     def func10():
@@ -1773,17 +1780,17 @@ def funcs():
         qd = _accuracy("qd")
         qd.add(r"F:\GraduationDesign\Result\QingDao\20250120H183522")
         qd.add(r"F:\GraduationDesign\Result\QingDao\20250120H202054")
-        qd.show_cm()
+        qd.show_acc()
 
         bj = _accuracy("bj")
         bj.add(r"F:\GraduationDesign\Result\BeiJing\20250120H190546")
         bj.add(r"F:\GraduationDesign\Result\BeiJing\20250120H202608")
-        bj.show_cm()
+        bj.show_acc()
 
         cd = _accuracy("cd")
         cd.add(r"F:\GraduationDesign\Result\ChengDu\20250120H193443")
         cd.add(r"F:\GraduationDesign\Result\ChengDu\20250120H203155")
-        cd.show_cm()
+        cd.show_acc()
 
     def func6():
         csv_fn = r"F:\GraduationDesign\Result\cm.csv"
@@ -1859,7 +1866,7 @@ def funcs():
                     cw.writerow(line)
                 fr.write("\n")
 
-    return func6()
+    return func5()
 
 
 class _MakeADSI(SamplesUtil):
@@ -1906,6 +1913,8 @@ def makeADSI():
         )
 
         df = gsu.toDF()
+        df.to_csv(r"F:\SARIndex\Save\indexs.csv")
+
         print(df.value_counts("CNAME"))
         print(df.keys())
 
