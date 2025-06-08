@@ -2679,12 +2679,13 @@ def adsiThreshold():
         return pd.DataFrame(_spls)
 
     def func4():
-        plt.rcParams['font.size'] = 14
-        plt.rcParams['font.family'] = 'serif'
-        plt.rcParams['font.serif'] = ['Times New Roman']
+        plt.rcParams['font.size'] = 16
 
-        # plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
-        # plt.rcParams['mathtext.fontset'] = 'stix'
+        # plt.rcParams['font.family'] = 'serif'
+        # plt.rcParams['font.serif'] = ['Times New Roman']
+
+        plt.rcParams['font.family'] = ['SimSun', "Times New Roman", ] + plt.rcParams['font.family']
+        plt.rcParams['mathtext.fontset'] = 'stix'
 
         def cal_city(city_name):
             qd_sei, qd_csi, qd_adsi_data, qd_gr1, qd_gr2, qd_spls = cal1(city_name)
@@ -2754,9 +2755,9 @@ def adsiThreshold():
             def show_t(_data, _n=1):
                 plt.axvline(_data, color="red")
                 if _n == 1:
-                    plt.text(0.1, 0.65, "T1={:.3f}".format(_data), transform=plt.gca().transAxes)
+                    plt.text(0.1, 0.65, "$" + "T_1={:.3f}".format(_data) + "$", transform=plt.gca().transAxes)
                 if _n == 2:
-                    plt.text(0.55, 0.68, "T2={:.3f}".format(_data), transform=plt.gca().transAxes)
+                    plt.text(0.55, 0.68, "$" + "T_2={:.3f}".format(_data) + "$", transform=plt.gca().transAxes)
 
             plt.subplot(2, 3, subplot)
             data_opt = get_data("Opt", "CSI", )
@@ -2776,11 +2777,11 @@ def adsiThreshold():
             show_t(ts["{} OTSU CSI".format(city_name)], 1)
             print(city_name, "OTSU CSI", ts["{} OTSU CSI".format(city_name)])
 
-            plt.title(title_list[subplot - 1])
             if is_chinese:
                 plt.ylabel("频率 (%)")
-                plt.xlabel("$CSI$")
+                plt.xlabel("$CSI$\n" + title_list[subplot - 1])
             else:
+                plt.title(title_list[subplot - 1])
                 plt.ylabel("frequency (%)")
                 plt.xlabel("CSI values")
             plt.legend(loc='upper left', prop={"size": 10}, frameon=True,
@@ -2804,17 +2805,17 @@ def adsiThreshold():
             show_t(ts["{} OTSU ADSI".format(city_name)], 2)
             print(city_name, "OTSU ADSI", ts["{} OTSU ADSI".format(city_name)])
 
-            plt.title(title_list[subplot - 1 + 3])
             if is_chinese:
                 plt.ylabel("频率 (%)")
-                plt.xlabel("$ADSI$ 的绝对值")
+                plt.xlabel("$ADSI$ 的绝对值\n" + title_list[subplot - 1 + 3])
             else:
+                plt.title(title_list[subplot - 1 + 3])
                 plt.ylabel("frequency (%)")
                 plt.xlabel("ADSI's absolute values")
             plt.legend(loc='upper left', prop={"size": 10}, frameon=True,
                        fancybox=True, facecolor='white', edgecolor='black', )
 
-        is_chinese = False
+        is_chinese = True
 
         if is_chinese:
             title_list = ["$(a)$ 青岛", "$(b)$ 北京", "$(c)$ 成都",
@@ -2825,16 +2826,16 @@ def adsiThreshold():
 
         ts = {}
         plt.figure(figsize=(14, 9))
-        plt.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.9, hspace=0.3, wspace=0.3)
+        plt.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.9, hspace=0.4, wspace=0.3)
 
         cal_city3("qd", 1)
         cal_city3("bj", 2)
         cal_city3("cd", 3)
 
         printDict("OTSU", ts)
-        fn = r"F:\ASDEWrite\Images\Up\Up20250427\Fig-6-OptimalThreshold.jpg"
+        fn = r"F:\GraduationDesign\MkTu\Fig-6-OptimalThreshold.jpg"
         print(fn)
-        plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0)
+        plt.savefig(fn, dpi=600, bbox_inches='tight', pad_inches=0.01)
         plt.show()
 
     func4()

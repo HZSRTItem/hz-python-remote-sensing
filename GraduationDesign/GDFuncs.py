@@ -18,8 +18,8 @@ from matplotlib.patches import Ellipse
 from osgeo import gdal
 from tabulate import tabulate
 
+from SRTCodes.GDALDraw import GDALDrawImage, GDIGrids
 from SRTCodes.GDALRasterIO import GDALRaster, tiffAddColorTable
-from SRTCodes.GDALUtils import GDALSamplingFast
 from SRTCodes.GeoMap import GMRaster
 from SRTCodes.NumpyUtils import scaleMinMax, update10EDivide10
 from SRTCodes.SampleUtils import SamplesUtil
@@ -211,7 +211,127 @@ def main():
         plt.savefig(r"F:\Week\20250330\Data\dddd.jpg", dpi=300, bbox_inches='tight', pad_inches=0.05)
         plt.show()
 
-    return func3()
+    def func4():
+        gr = GDALRaster(r"F:\ProjectSet\Shadow\Release\QingDaoImages\SH_QD_look_tif.tif")
+        data = gr.readAsArrayCenter(120.3721726, 36.0741403, win_row_size=100, win_column_size=100, is_geo=True)
+        print(data.shape)
+        gr_datas = {}
+        for i in range(len(gr.names)):
+            gr_datas[gr.names[i]] = data[i]
+
+        def _draw_column(_names, min_list, max_list, _subplot=None):
+            if _subplot is not None:
+                plt.subplot(_subplot)
+            _data = []
+            for i, _name in enumerate(_names):
+                _data.append([scaleMinMax(gr_datas[_name], min_list[i], max_list[i])])
+            _data = np.concatenate(_data)
+            plt.imshow(_data.transpose((1, 2, 0)))
+            plt.xticks([])
+            plt.yticks([])
+            return
+
+        plt.figure(figsize=(18, 6))
+
+        _draw_column(["Red", "Green", "Blue"], [0, 0, 0], [2500, 2500, 2500, ], 141)
+        _draw_column(["NIR", "Red", "Green"], [0, 0, 0], [2500, 2500, 2500, ], 142)
+        _draw_column(["AS_VV", "AS_VV", "AS_VV"], [-25, -25, -25], [4, 4, 4, ], 143)
+        _draw_column(["DE_VV", "DE_VV", "DE_VV"], [-25, -25, -25], [4, 4, 4, ], 144)
+
+        plt.show()
+
+    def func5():
+        gr_data_list = []
+        column_func_list = []
+
+        def _read_row(x, y, *_raster_fns):
+            gr_datas = {}
+            for _raster_fn in _raster_fns:
+                gr = GDALRaster(_raster_fn)
+                data = gr.readAsArrayCenter(x, y, win_row_size=win_row_size, win_column_size=win_column_size,
+                                            is_geo=True)
+                for i in range(len(gr.names)):
+                    _gr_datas_name = gr.names[i]
+                    if _gr_datas_name in gr_datas:
+                        _gr_datas_name = _gr_datas_name + "_tmp"
+                    if len(data.shape) == 2:
+                        gr_datas[_gr_datas_name] = data
+                    else:
+                        gr_datas[_gr_datas_name] = data[i]
+                    if _gr_datas_name == "ESA21":
+                        gr_datas[_gr_datas_name] = gr_datas[_gr_datas_name] == 50
+                    if _gr_datas_name == "FEATURE_1_tmp":
+                        gr_datas[_gr_datas_name] = gr_datas[_gr_datas_name] == 1
+                    print(_gr_datas_name, gr_datas[_gr_datas_name].shape)
+            gr_data_list.append(gr_datas)
+            print(gr_datas.keys())
+            return gr_datas
+
+        def _draw_column(_names, min_list, max_list, category_dict=None):
+            column_func_list.append((_names, min_list, max_list, category_dict))
+            print(_names)
+
+        def fit():
+            n = 0
+            for _row, gr_datas in enumerate(gr_data_list):
+                for _column, (_names, min_list, max_list, category_dict) in enumerate(column_func_list):
+                    n += 1
+                    plt.subplot(n_rows, n_columns, n)
+                    if category_dict is None:
+                        _data = []
+                        for i, _name in enumerate(_names):
+                            _data.append([scaleMinMax(gr_datas[_name], min_list[i], max_list[i])])
+                        _data = np.concatenate(_data).transpose((1, 2, 0))
+                    else:
+                        _data = gr_datas[_names[0]].astype("int")
+                        _to_data = np.zeros((_data.shape[0], _data.shape[1], 3))
+                        for category in category_dict:
+                            _to_data[_data == category] = np.array(category_dict[category]) / 255.0
+                        _data = _to_data
+                    plt.imshow(_data)
+                    plt.xticks([])
+                    plt.yticks([])
+
+        color_dict = {0: (166, 166, 166), 1: (255, 0, 0)}
+        win_row_size, win_column_size = 300, 300
+        dfn_MkTu = DirFileName(r"F:\GraduationDesign\MkTu")
+        dfn_Image = DirFileName(r"F:\GraduationDesign\Result\run\Image")
+
+        def _show_ds(_raster_fn):
+            gr = GDALRaster(_raster_fn)
+            print(_raster_fn)
+            for _name in gr.names:
+                _data = gr.readGDALBand(_name)
+                print(_name, np.unique(_data, return_counts=True))
+
+        _show_ds(dfn_Image.fn("QD_ds.tif"))
+        _show_ds(dfn_Image.fn("BJ_ds.tif"))
+        _show_ds(dfn_Image.fn("CD_ds.tif"))
+
+        _read_row(120.373585, 36.088849, dfn_MkTu.fn("SH_QD_NRG.tif"), dfn_Image.fn("QD_ds.tif"),
+                  r"F:\ASDEWrite\Result\QingDao\qd_SAR-Opt-AS-DE_imdc.tif")
+        _read_row(116.460793, 39.887499, dfn_MkTu.fn("SH_BJ_NRG.tif"), dfn_Image.fn("BJ_ds.tif"),
+                  r"F:\ASDEWrite\Result\BeiJing\bj_SAR-Opt-AS-DE_imdc.tif")
+        _read_row(104.07322, 30.61042, dfn_MkTu.fn("SH_CD_NRG.tif"), dfn_Image.fn("CD_ds.tif"),
+                  r"F:\ASDEWrite\Result\ChengDu\cd_SAR-Opt-AS-DE_imdc.tif")
+
+        _draw_column(["FEATURE_1", "FEATURE_2", "FEATURE_3"], [0, 0, 0], [255, 255, 255, ], )
+        _draw_column(["FEATURE_1_tmp"], None, None, color_dict)
+        _draw_column(["ESA21"], None, None, color_dict)
+        _draw_column(["GHS18"], None, None, color_dict)
+        _draw_column(["DW21"], None, None, color_dict)
+        # _draw_column(["ESRI21"], None, None, color_dict)
+
+        n_rows, n_columns = len(gr_data_list), len(column_func_list)
+        print(n_rows, n_columns)
+
+        plt.figure(figsize=(n_columns * 3, n_rows * 3))
+        plt.subplots_adjust(top=0.975, bottom=0.025, left=0.015, right=0.985, hspace=0.083, wspace=0.0)
+        fit()
+        plt.savefig(r"F:\GraduationDesign\MkTu\com_dataset.jpg", dpi=300)
+        plt.show()
+
+    return func5()
 
 
 class GD_GMRaster:
@@ -346,9 +466,13 @@ def funcs3(*args):
             if _x_names is None:
                 _x_names = ["$ {} $".format(_field) for _field in _fields]
             _df = _get_data_1(_cname, _fields)
-            _df = _df.mean()
+            _df_mean = _df.mean()
+            _df_std = _df.std() * _df.std()
 
-            plt.plot(_x_names, _df.values, *_args, **_kwargs)
+            plt.plot(_x_names, _df_mean.values, *_args, **_kwargs)
+            # plt.fill_between(
+            #     _x_names, _df_mean.values - _df_std.values, _df_mean.values + _df_std.values,
+            #     color=_kwargs["color"], alpha=0.3)
 
         # plt.rc('font', family='Times New Roman')
         # plt.rcParams.update({'font.size': 16})
@@ -372,15 +496,18 @@ def funcs3(*args):
 
             plt.ylim([None, 1.0])
             plt.legend(fontsize=fontsize, loc='upper left')
-            if _fn.startswith("sar"):
-                _rotation=0
+            if _fn is not None:
+                if _fn.startswith("sar"):
+                    _rotation = 0
+                else:
+                    _rotation = 45
             else:
-                _rotation=45
+                _rotation = 45
             plt.xticks(rotation=_rotation, fontsize=fontsize - 2)
             if _fn is not None:
                 to_fn = dfn.fn("{}.jpg".format(_fn))
                 print(to_fn)
-                plt.savefig(to_fn, dpi=300, bbox_inches='tight', pad_inches=0.03)
+                plt.savefig(to_fn, dpi=600, bbox_inches='tight', pad_inches=0.03)
 
         def _func_draw1_data(*_args, **_kwargs):
             return [_args, _kwargs]
@@ -524,8 +651,11 @@ def funcs3(*args):
         # )
         # plt.show()
 
-        plt.figure(figsize=(9, 6))
-        plt.subplots_adjust(top=0.96, bottom=0.217, left=0.098, right=0.965, hspace=0.732, wspace=0.2)
+        plt.figure(figsize=(9, 5))
+        # plt.subplots_adjust(top=0.96, bottom=0.217, left=0.098, right=0.965, hspace=0.732, wspace=0.2)
+        # draw1_im1(None, [is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de])
+        # plt.show()
+
         draw1_im1("opt_is", [is_draw1_data, is_sh_draw1_data, ])
         plt.clf()
         draw1_im1("opt_veg", [veg_draw1_data, veg_sh_draw1_data, is_draw1_data, is_sh_draw1_data, ])
@@ -535,6 +665,7 @@ def funcs3(*args):
         draw1_im1("opt_wat", [wat_draw1_data, wat_sh_draw1_data, is_draw1_data, is_sh_draw1_data, ])
         plt.clf()
 
+        plt.figure(figsize=(9, 6))
         draw1_im1("sar_is1", [is_draw1_data_as, is_sh_draw1_data_as, is_draw1_data_de, is_sh_draw1_data_de])
         plt.clf()
         draw1_im1("sar_veg1", [
@@ -824,7 +955,7 @@ def funcs3(*args):
                 plt.xticks([])
                 plt.yticks([])
 
-        plt.savefig(dfn.fn("{}.jpg".format(_run)), bbox_inches='tight', dpi=300)
+        plt.savefig(dfn.fn("{}.png".format(_run)), bbox_inches='tight', dpi=300)
 
     def func6(_run, n):
         if n == 1:
@@ -950,6 +1081,44 @@ def funcs3(*args):
 
         plt.savefig(dfn.fn("{}.jpg".format("optical_original")), bbox_inches='tight', dpi=300)
 
+    def func9():
+        win_size = (300, 300)
+        gdi = GDALDrawImage(win_size)
+        gdi_grids = GDIGrids(gdi)
+
+        _QD_RASTER_FN_2 = r"F:\ProjectSet\Shadow\ASDEIndex\Images\QD_SI_BS_2.dat"
+        _BJ_RASTER_FN_2 = r"F:\ProjectSet\Shadow\ASDEIndex\Images\BJ_SI_BS_2.dat"
+        _CD_RASTER_FN_2 = r"F:\ProjectSet\Shadow\ASDEIndex\Images\CD_SI_BS_2.dat"
+        _QD_RANGE_FN_2 = changext(_QD_RASTER_FN_2, "_range.json")
+        _BJ_RANGE_FN_2 = changext(_BJ_RASTER_FN_2, "_range.json")
+        _CD_RANGE_FN_2 = changext(_CD_RASTER_FN_2, "_range.json")
+
+        qd = gdi.addGR(_QD_RASTER_FN_2, _QD_RANGE_FN_2)
+        bj = gdi.addGR(_BJ_RASTER_FN_2, _BJ_RANGE_FN_2)
+        cd = gdi.addGR(_CD_RASTER_FN_2, _CD_RANGE_FN_2)
+
+        gdi.addRCC("RGB", qd, bj, cd, channel_list=["Red", "Green", "Blue"])
+        gdi.addRCC("NRG", qd, bj, cd, channel_list=["NIR", "Red", "Green"])
+
+        sar_names = []
+
+        def add_rcc_sar(_name, _column_name):
+            gdi.addRCC(_name, qd, bj, cd, channel_list=[_name])
+            sar_names.append(_name)
+            gdi_grids.addColumn(_name, column_name=_column_name)
+
+        def add_sar(*_names):
+            add_rcc_sar("AS_{}".format(_names[0]), "升轨$\\sigma_{%s}$" % _names[0])
+            add_rcc_sar("DE_{}".format(_names[1]), "降轨$\\sigma_{%s}$" % _names[1])
+            add_rcc_sar("AS_{}".format(_names[0]), "升轨$\\sigma_{%s}$" % _names[0])
+            add_rcc_sar("DE_{}".format(_names[1]), "降轨$\\sigma_{%s}$" % _names[1])
+
+        add_sar("VV", "VH")
+
+        gdi_grids.addRow("青岛", 120.40756, 36.34935)
+        gdi_grids.addRow("北京", 116.55886,39.69235)
+        gdi_grids.addRow("Chengdu", 116.55886,39.69235)
+
     if len(args) != 0:
         return func6(*args)
     else:
@@ -982,7 +1151,7 @@ def adsiHS():
         data[data_csi > -0.068] = 1
 
         to_fn = r"F:\ProjectSet\Shadow\ASDEHSamples\Threshold\1\cd_hs.tif"
-        color_table = {0: (242,242,242), 1: (105,105,105), 2: (47,85,150)}
+        color_table = {0: (242, 242, 242), 1: (105, 105, 105), 2: (47, 85, 150)}
 
         if os.path.isfile(to_fn):
             os.remove(to_fn)
@@ -1041,44 +1210,56 @@ def write():
 
         return
 
-    def func2():
+    def _get_title(_line: str):
+        _lines = _line.split(".")
+        _title = _lines[1].split("[")[0].strip()
+        if ";" in _title:
+            return _title.split(";")[0].strip()
+        else:
+            return _title
+
+    def _read_titles():
         title_dict = {}
         is_find = {}
 
-        def _get_title(_line: str):
-            _lines = _line.split(".")
-            _title = _lines[1].split("[")[0].strip()
-            if ";" in _title:
-                return _title.split(";")[0].strip()
-            else:
-                return _title
-
         with open(r"F:\GraduationDesign\参考文献\参考文献.txt", "r", encoding="utf-8") as f:
             for i, line in enumerate(f):
-                # if not line.strip().endswith("."):
-                #     print(line)
-                # if "]." not in line:
-                #     print(line)
+                if line.strip() == "":
+                    continue
                 title = _get_title(line)
                 title = title.lower()
                 print("[{}]\t{}".format(i + 1, title))
                 title_dict[title] = line.split("\t", 2)[1].strip()
                 is_find[title] = False
 
+        return title_dict, is_find
+
+    def func2():
+        title_dict, is_find = _read_titles()
+
+        def _find_title(_title):
+            for _title_tmp in title_dict:
+                if _title in _title_tmp:
+                    return _title_tmp
+                if _title_tmp in _title:
+                    return _title_tmp
+            return None
+
         print("-" * 60)
-        fn = r"F:\GraduationDesign\参考文献\参考文献-3.txt"
+        fn = r"F:\GraduationDesign\参考文献\参考文献-0522.txt"
         to_fn = changext(fn, "-fmt.txt")
+
         fw = open(to_fn, "w", encoding="utf-8")
         with open(fn, "r", encoding="utf-8") as f:
-
             for i, line in enumerate(f):
                 title = _get_title(line)
                 title = title.lower()
 
-                if title in title_dict:
-                    print("[{}]\t{}".format(i + 1, title_dict[title]))
-                    is_find[title] = True
-                    fw.write("{}\n".format(title_dict[title]))
+                title_tmp = _find_title(title)
+                if title_tmp is not None:
+                    print("[{}]\t{}".format(i + 1, title_dict[title_tmp]))
+                    is_find[title_tmp] = True
+                    fw.write("[{}]\t{}\n".format(i + 1, title_dict[title_tmp]))
                 else:
                     print("[{}]\t -----------------------({}) {}".format(i + 1, title, line.strip()))
                     fw.write("-----------------------({}) {}\n".format(title, line.strip()))
@@ -1089,10 +1270,46 @@ def write():
                 if not is_find[name]:
                     print(title_dict[name])
                     fw.write("{}\n".format(title_dict[name]))
-            fw.write("\n\n")
-            fw.close()
+        fw.write("\n\n")
+        fw.close()
 
-    return func2()
+    def func3():
+        with open(r"F:\GraduationDesign\上交\2025年5月20日105511\彩印.txt", "r", encoding="utf-8") as f:
+            number_list = []
+            for line in f:
+                line = line.strip()
+                if line == "":
+                    break
+                if line.isdigit():
+                    number_list.append(int(line))
+                else:
+                    number_list.append(line)
+        print(number_list)
+
+        n = 85
+        i_number = 0
+        caiyin = []
+        bucaiyin = []
+        for i in range(1, n + 1):
+            if len(number_list) > i_number:
+                if number_list[i_number] == "-":
+                    if i < number_list[i_number + 1]:
+                        caiyin.append(i)
+                    else:
+                        caiyin.append(number_list[i_number + 1])
+                        i_number += 2
+                else:
+                    if number_list[i_number] == i:
+                        caiyin.append(i)
+                        i_number += 1
+                    else:
+                        bucaiyin.append(i)
+            else:
+                bucaiyin.append(i)
+        print(caiyin)
+        print(bucaiyin)
+
+    return func3()
 
 
 if __name__ == "__main__":
@@ -1105,9 +1322,7 @@ E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from Graduat
 E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('C2', 1)"
 E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('C2', 2)"
 
-
 E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('HA', 1)"
 E:\Anaconda3\python -c "import sys; sys.path.append(r'F:\PyCodes'); from GraduationDesign.GDFuncs import funcs3; funcs3('HA', 2)"
-
 
 """

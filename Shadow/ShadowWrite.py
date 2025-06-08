@@ -239,7 +239,7 @@ def main():
 
     def func3():
         FONT_SIZE = 16
-        is_chinese = False
+        is_chinese = True
 
         win_size = (41, 41)
         gi_win_size = int(win_size[0] * 2640.0 / 121.0), int(win_size[1] * 2026.0 / 121.0)
@@ -429,14 +429,14 @@ def main():
         column.fit(r"$(e)$", 104.076017, 30.645997, ells=[_ell((13, 10), 16, 16), _ell((8, 30), 10, 16, 20)])
         column.fit(r"$(f)$", 104.004844, 30.703297, ells=[_ell((19, 15), 10, 36, 50)])
 
-        fn = r"F:\ASDEWrite\Images\Up\Up20250427\fig4131.jpg"
+        fn = r"F:\GraduationDesign\MkTu\fig4-10.jpg"
         plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0.05)
         print(fn)
         plt.show()
 
     def func4():
         FONT_SIZE = 16
-        is_chinese = False
+        is_chinese = True
 
         win_size = (61, 61)
         gi_win_size = int(win_size[0] * 2640.0 / 121.0), int(win_size[1] * 2026.0 / 121.0)
@@ -491,7 +491,10 @@ def main():
                 result_dfn.fn("Chengdu", "cd_{}".format(fn)),
                 channel_list=[0], is_01=False, is_min_max=False,
             )
-            imdc_column_names.append("{}".format(name))
+            if not is_chinese:
+                imdc_column_names.append("{}".format(name))
+            else:
+                imdc_column_names.append("${}$".format(name))
 
         fig = plt.figure(figsize=(12, 9), )
         fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.92, hspace=0.03, wspace=0.03)
@@ -594,14 +597,14 @@ def main():
                 self.column += 1
 
         column = draw_column()
-        column.fit(r"(a)", 120.346020, 36.120435)
-        column.fit(r"(b)", 120.387358, 36.125549)
-        column.fit(r"(c)", 116.441548, 39.906636)
-        column.fit(r"(d)", 116.516795, 39.920875)
-        column.fit(r"(e)", 104.066101, 30.656686)
-        column.fit(r"(f)", 104.110842, 30.647660)
+        column.fit(r"$(a)$", 120.346020, 36.120435)
+        column.fit(r"$(b)$", 120.387358, 36.125549)
+        column.fit(r"$(c)$", 116.441548, 39.906636)
+        column.fit(r"$(d)$", 116.516795, 39.920875)
+        column.fit(r"$(e)$", 104.066101, 30.656686)
+        column.fit(r"$(f)$", 104.110842, 30.647660)
 
-        fn = r"F:\ASDEWrite\Images\Up\Up20250427\fig4133.jpg"
+        fn = r"F:\GraduationDesign\MkTu\fig4-9.jpg"
         plt.savefig(fn, dpi=300, bbox_inches='tight', pad_inches=0.05)
         print(fn)
         plt.show()
@@ -707,7 +710,7 @@ def main():
         print(fn)
         plt.show()
 
-    return func2()
+    return func4()
 
 
 def funcs():

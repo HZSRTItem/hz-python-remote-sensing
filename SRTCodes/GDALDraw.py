@@ -90,6 +90,64 @@ class GDALDrawImage(DrawImage):
         return self.grcd.keys()
 
 
+class GDIGrids:
+
+    def __init__(self, gdi: GDALDrawImage):
+        self.n_columns = None
+        self.n_rows = None
+        self.gdi = gdi
+        self.column_names = []
+        self.column_list = []
+        self.row_list = []
+        self.row = 1
+        self.column = 1
+        self.column_func = None
+        self.row_name_font = {}
+        self.column_name_font = {}
+
+    def addColumn(self, grcc_name, win_size=None, is_trans=False, color_dict=None, column_name=None, **kwargs):
+        self.column_list.append(
+            dict(grcc_name=grcc_name, win_size=win_size, is_trans=is_trans, color_dict=color_dict, **kwargs)
+        )
+        self.column_names.append(column_name)
+
+    def rowNameFont(self, fontdict=None, loc=None, pad=None, y=None, **kwargs):
+        self.row_name_font = dict(fontdict=fontdict, loc=loc, pad=pad, y=y, **kwargs)
+
+    def columnNameFont(self, fontdict=None, labelpad=None, loc=None, **kwargs):
+        self.column_name_font = dict(fontdict=fontdict, labelpad=labelpad, loc=loc, **kwargs)
+
+    def _drawRowName(self, row_name=None):
+        if self.row == 1:
+            if row_name is not None:
+                plt.title(label=row_name, **self.row_name_font)
+
+    def _drawColumnName(self):
+        if self.column == 1:
+            if self.column_names[self.column - 1] is not None:
+                plt.ylabel(ylabel=self.column_names[self.column - 1], **self.column_name_font)
+
+    def addRow(self, row_name, x, y, row=None):
+        self.row_list.append(dict(row_name=row_name, x=x, y=y, row=row))
+
+    def drawRow(self, row_name, x, y, row=None):
+        if row is None:
+            row = self.row
+        for i_column, data_column in enumerate(self.column_list):
+            plt.subplot(self.n_rows, self.n_columns, (row - 1) * self.n_columns + i_column + 1)
+            self.gdi.readDraw(x=x, y=y, **data_column)
+            self.column = i_column
+            self._drawRowName(row_name)
+            self._drawColumnName()
+            if self.column_func is not None:
+                self.column_func()
+
+    def fit(self):
+        self.n_rows = len(self.row_list)
+        self.n_columns=len(self.column_list)
+        for i, row_data in enumerate(self.row_list):
+            self.drawRow(**row_data)
+
 class GDALDrawImages(GDALRasterCenterDatas, DrawImage):
 
     def __init__(self, win_size=None, is_min_max=True, is_01=True, fontdict=None):

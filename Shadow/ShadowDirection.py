@@ -2367,7 +2367,7 @@ class ShadowSketchMap:
         func2(0)
         # plt.legend(loc="lower center", prop={"size": FONT_SIZE}, frameon=False)
         # plt.savefig(r"F:\ASDEWrite\Images\fig312.svg", dpi=300, bbox_inches='tight', pad_inches=0.2)
-        plt.savefig(r"F:\F\GraduationDesign\MkTu\fig312.jpg", dpi=300, bbox_inches='tight', pad_inches=0.2)
+        plt.savefig(r"F:\GraduationDesign\MkTu\fig312.jpg", dpi=600, bbox_inches='tight', pad_inches=0.2)
         plt.show()
 
 def main():
@@ -2383,8 +2383,7 @@ def main():
     scm = ShadowSketchMap()
     scm.drawASDE3Chinese()
 
-    import matplotlib.colors as mcolors
-    mcolors.CSS4_COLORS
+
     pass
 
 

@@ -1967,7 +1967,8 @@ def makeADSI():
             _hist("SOIL", _field_name, "yellow")
             _hist("WAT", _field_name, "blue")
 
-            plt.title(title_fmt)
+            if not is_chinese:
+                plt.title(title_fmt)
             # if _field_name == "E2":
             #     plt.ylim([0, 0.30])
 
@@ -2010,8 +2011,9 @@ def makeADSI():
                 *_get_field_show_names("C_{11}", "C_{22}"),
                 *_get_field_show_names("H", r"\alpha"),
             ]
-            plt.figure(figsize=(9, 9.5))
-            plt.subplots_adjust(top=0.964, bottom=0.059, left=0.08, right=0.982, hspace=0.682, wspace=0.339)
+            plt.figure(figsize=(10, 9))
+            plt.subplots_adjust(top=0.964, bottom=0.059, left=0.08, right=0.982, hspace=0.382, wspace=0.439)
+            plt.rcParams.update({'font.size': 16})
 
             xuhao = "abcdefghijklmnopqrstuvwxyz"
 
@@ -2023,18 +2025,20 @@ def makeADSI():
                     title_fmt = "({}) {}".format(xuhao[i - 1], _field_show_names[i - 1])
                 _hist_1(_field_names[i - 1], title_fmt=title_fmt)
                 if is_chinese:
-                    plt.xlabel("特征值")
+                    plt.xlabel(_field_show_names[i - 1])
                     plt.ylabel("频率（%）")
                 else:
                     plt.xlabel("Value")
                     plt.ylabel("Frequency(%)")
+                plt.xticks([0, 0.2, 0.4, 0.6, 0.8, 1.0], fontproperties="Times New Roman", size=12)
+                plt.yticks(fontproperties="Times New Roman", size=12)
 
             plt.legend(
                 frameon=False,
                 # loc='upper center', bbox_to_anchor=(-0.1, -0.15), ncol=6,
                 loc='center left', bbox_to_anchor=(1.1, 0.2), ncol=1,
             )
-            plt.savefig(r"F:\GraduationDesign\MkTu\sar_index.jpg", bbox_inches='tight', dpi=300)
+            plt.savefig(r"F:\GraduationDesign\MkTu\sar_index.jpg", bbox_inches='tight', dpi=600)
             plt.show()
 
         # _hist_2("VV", "VH")
@@ -2148,7 +2152,7 @@ def makeADSI():
 
 
 if __name__ == "__main__":
-    draw()
+    makeADSI()
     r"""
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowSARIndex import getRange; getRange()"
 python -c "import sys; sys.path.append(r'F:\PyCodes'); from Shadow.ShadowSARIndex import run; run('qd')"
